@@ -465,7 +465,7 @@ const ClassroomPortalPage: React.FC = () => {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundImage: 'url("/assets/img/fondo2.gif")',
+          backgroundImage: 'url("/assets/img/pc2.jpeg")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           zIndex: 1
@@ -494,7 +494,7 @@ const ClassroomPortalPage: React.FC = () => {
               letterSpacing: '-3px'
             })
           }}>
-            Portal de<br/>Aprendizaje
+            Classroom
           </h1>
           <p style={{
             color: '#d1d5db',
@@ -507,7 +507,6 @@ const ClassroomPortalPage: React.FC = () => {
               fontSize: '1.4rem'
             })
           }}>
-            Accede a tus aulas virtuales seleccionando tu nivel académico y sección.
           </p>
         </div>
       </header>

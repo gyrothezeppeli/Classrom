@@ -135,7 +135,7 @@ const AuthPage: React.FC = () => {
         localStorage.setItem('user', JSON.stringify(userData));
         
         alert(`Bienvenido ${userData.nombre} (Docente)`);
-        router.push('/dashboard');
+        router.push('/editar');
       }
       
       router.refresh();
@@ -187,7 +187,7 @@ const AuthPage: React.FC = () => {
             }));
             
             alert(`Bienvenido ${teacher.nombre}`);
-            router.push('/dashboard');
+            router.push('/editar');
             router.refresh();
           } else {
             alert("Credenciales incorrectas. Verifica tu email y contraseña.");
