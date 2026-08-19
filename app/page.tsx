@@ -12,7 +12,7 @@ const COLORES = {
 
 let localUsers: any[] = [];
 
-type UserRole = 'teacher' | 'student';
+type UserRole = 'teacher' | 'student' | 'control';
 
 const AuthPage: React.FC = () => {
   const router = useRouter();
@@ -101,15 +101,18 @@ const AuthPage: React.FC = () => {
     return `/Classroom/${nivelPath}/${gradoPath}/${seccionPath}`;
   };
 
-  const handleQuickLogin = (rol: 'teacher' | 'student') => {
+  const handleQuickLogin = (rol: 'teacher' | 'student' | 'control') => {
     setLoading(true);
     
     setTimeout(() => {
       let userData: any = {
         id: Date.now(),
-        nombre: rol === 'teacher' ? 'Usuario de Prueba Docente' : 'Usuario de Prueba Estudiante',
-        email: rol === 'teacher' ? 'prueba@docente.com' : 'prueba@estudiante.com',
-        rol: rol === 'teacher' ? 'docente' : 'estudiante'
+        nombre: rol === 'teacher' ? 'Usuario de Prueba Docente' : 
+                rol === 'control' ? 'Control de Estudios' : 'Usuario de Prueba Estudiante',
+        email: rol === 'teacher' ? 'prueba@docente.com' : 
+               rol === 'control' ? 'control@colegio.com' : 'prueba@estudiante.com',
+        rol: rol === 'teacher' ? 'docente' : 
+             rol === 'control' ? 'control_estudios' : 'estudiante'
       };
 
       if (rol === 'student') {
@@ -130,6 +133,12 @@ const AuthPage: React.FC = () => {
         alert(`Bienvenido ${userData.nombre} (Estudiante)`);
         const ruta = construirRutaClassroom(nivelEjemplo, gradoEjemplo, seccionEjemplo);
         router.push(ruta);
+      } else if (rol === 'control') {
+        localStorage.setItem('token', `quick-${rol}-${Date.now()}`);
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        alert(`Bienvenido ${userData.nombre} (Control de Estudios)`);
+        router.push('/control_estudios');
       } else {
         localStorage.setItem('token', `quick-${rol}-${Date.now()}`);
         localStorage.setItem('user', JSON.stringify(userData));
@@ -188,6 +197,49 @@ const AuthPage: React.FC = () => {
             
             alert(`Bienvenido ${teacher.nombre}`);
             router.push('/editar');
+            router.refresh();
+          } else {
+            alert("Credenciales incorrectas. Verifica tu email y contraseña.");
+          }
+        }
+      } else if (userRole === 'control') {
+        if (!isLogin) {
+          const existingUser = localUsers.find(
+            u => u.email === formData.email && u.rol === 'control_estudios'
+          );
+          
+          if (existingUser) {
+            alert("Este correo ya está registrado como Control de Estudios.");
+          } else {
+            const newControl = {
+              id: Date.now(),
+              nombre: formData.nombre,
+              email: formData.email,
+              password: formData.password,
+              rol: 'control_estudios'
+            };
+            localUsers.push(newControl);
+            
+            alert(`Cuenta de Control de Estudios creada con éxito. Bienvenido ${formData.nombre}`);
+            setIsLogin(true);
+            setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
+          }
+        } else {
+          const control = localUsers.find(
+            u => u.email === formData.email && u.password === formData.password && u.rol === 'control_estudios'
+          );
+
+          if (control) {
+            localStorage.setItem('token', `control-${control.id}-${Date.now()}`);
+            localStorage.setItem('user', JSON.stringify({
+              id: control.id,
+              nombre: control.nombre,
+              email: control.email,
+              rol: 'control_estudios'
+            }));
+            
+            alert(`Bienvenido ${control.nombre}`);
+            router.push('/control_estudios');
             router.refresh();
           } else {
             alert("Credenciales incorrectas. Verifica tu email y contraseña.");
@@ -307,6 +359,21 @@ const AuthPage: React.FC = () => {
             >
               Estudiante
             </button>
+            <button
+              onClick={() => {
+                setUserRole('control');
+                setIsLogin(true);
+                setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
+              }}
+              style={{
+                ...roleButtonStyle,
+                background: userRole === 'control' ? COLORES.principal : 'transparent',
+                color: userRole === 'control' ? '#1a2e26' : 'white'
+              }}
+              disabled={loading}
+            >
+              Control
+            </button>
           </div>
 
           <div style={tabContainerStyle}>
@@ -328,7 +395,8 @@ const AuthPage: React.FC = () => {
 
           <h1 style={titleStyle}>
             {isLogin 
-              ? (userRole === 'teacher' ? 'DOCENTES' : 'ESTUDIANTES')
+              ? (userRole === 'teacher' ? 'DOCENTES' : 
+                 userRole === 'control' ? 'CONTROL DE ESTUDIOS' : 'ESTUDIANTES')
               : 'NUEVO REGISTRO'
             }
           </h1>
@@ -339,7 +407,8 @@ const AuthPage: React.FC = () => {
               style={quickLoginButtonStyle}
               disabled={loading}
             >
-              Inicio Rapido ({userRole === 'teacher' ? 'Docente' : 'Estudiante'})
+              Inicio Rapido ({userRole === 'teacher' ? 'Docente' : 
+                            userRole === 'control' ? 'Control' : 'Estudiante'})
             </button>
           </div>
 
@@ -351,7 +420,8 @@ const AuthPage: React.FC = () => {
                   <label style={labelStyle}>Nombre Completo</label>
                   <input 
                     type="text" 
-                    placeholder={userRole === 'teacher' ? "Ej. Prof. García" : "Ej. María Pérez"} 
+                    placeholder={userRole === 'teacher' ? "Ej. Prof. García" : 
+                                userRole === 'control' ? "Ej. Coordinador" : "Ej. María Pérez"} 
                     style={inputStyle} 
                     value={formData.nombre}
                     onChange={(e) => setFormData({...formData, nombre: e.target.value})}
@@ -432,7 +502,8 @@ const AuthPage: React.FC = () => {
               <label style={labelStyle}>Correo Electrónico</label>
               <input 
                 type="email" 
-                placeholder={userRole === 'teacher' ? "usuario@colegio.com" : "estudiante@email.com"} 
+                placeholder={userRole === 'teacher' ? "usuario@colegio.com" : 
+                            userRole === 'control' ? "control@colegio.com" : "estudiante@email.com"} 
                 style={inputStyle} 
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
