@@ -4,51 +4,89 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id          String       @id @default(cuid())
-  email       String       @unique
-  password    String
-  name        String
-  role        Role         @default(STUDENT)
-  studentInfo StudentInfo?
-  teacherInfo TeacherInfo?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-}
-
-model StudentInfo {
   id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  level     Level
-  grade     Int?
-  section   String?
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       String
+  nivel     String?
+  grado     String?
+  seccion   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  estudiante Estudiante?
+  docente    Docente?
+
+  @@index([email])
+  @@index([rol])
 }
 
-model TeacherInfo {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id])
-  subjects    String[]
-  gradeLevels String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Estudiante {
+  id                    String   @id @default(cuid())
+  nombres               String
+  apellidos             String
+  cedulaIdentidad       String   @unique
+  fechaNacimiento       String
+  edad                  String
+  sexo                  String
+  nivel                 String
+  grado                 String
+  seccion               String
+  numeroTelefonoCelular String
+  correoElectronico     String
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([cedulaIdentidad])
+  @@index([nivel])
+  @@index([grado])
+  @@index([seccion])
 }
 
-enum Role {
-  STUDENT
-  TEACHER
-  ADMIN
+model Docente {
+  id                String   @id @default(cuid())
+  nombres           String
+  apellidos         String
+  cedulaIdentidad   String   @unique
+  email             String   @unique
+  telefono          String
+  especialidad      String
+  nivel             String
+  seccion           String
+  fechaContratacion String
+  activo            Boolean  @default(true)
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([cedulaIdentidad])
+  @@index([email])
+  @@index([nivel])
+  @@index([seccion])
 }
 
-enum Level {
-  PREESCHOOL
-  ELEMENTARY
-  MIDDLE
+model Salon {
+  id            String   @id @default(cuid())
+  nombre        String
+  nivel         String
+  grado         String
+  seccion       String
+  docenteIds    String[]
+  estudianteIds String[]
+  anioAcademico String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([nivel])
+  @@index([grado])
+  @@index([seccion])
 }

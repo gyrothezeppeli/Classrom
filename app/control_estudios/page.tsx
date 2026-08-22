@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const PALETTE = {
@@ -17,13 +17,13 @@ interface Estudiante {
   nombres: string;
   apellidos: string;
   cedulaIdentidad: string;
-  edad: string;
-  sexo: string;
+  fechaNacimiento: string;
   nivel: string;
   grado: string;
   seccion: string;
   numeroTelefonoCelular: string;
   correoElectronico: string;
+  userId?: string;
 }
 
 interface Docente {
@@ -33,11 +33,9 @@ interface Docente {
   cedulaIdentidad: string;
   email: string;
   telefono: string;
-  especialidad: string;
-  nivel: string;
-  seccion: string;
   fechaContratacion: string;
   activo: boolean;
+  userId?: string;
 }
 
 interface Salon {
@@ -60,64 +58,47 @@ const GestionInstitutoPage: React.FC = () => {
   const [filtroNivel, setFiltroNivel] = useState('');
   const [filtroGrado, setFiltroGrado] = useState('');
   const [filtroSeccion, setFiltroSeccion] = useState('');
-  const [filtroEspecialidad, setFiltroEspecialidad] = useState('');
   const [salonSeleccionado, setSalonSeleccionado] = useState<Salon | null>(null);
   const [mostrarDetalleSalon, setMostrarDetalleSalon] = useState(false);
   const [mostrarModalSalon, setMostrarModalSalon] = useState(false);
   const [modalSalonModo, setModalSalonModo] = useState<'crear' | 'editar'>('crear');
   const [salonEditando, setSalonEditando] = useState<Salon | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const [estudiantes, setEstudiantes] = useState<Estudiante[]>([
-    { id: '1', nombres: 'Maria', apellidos: 'Gonzalez Perez', cedulaIdentidad: 'V-12345678', edad: '12', sexo: 'F', nivel: 'primaria', grado: '1er Grado', seccion: 'A', numeroTelefonoCelular: '0412-1234567', correoElectronico: 'maria.g@email.com' },
-    { id: '2', nombres: 'Juan', apellidos: 'Rodriguez Martinez', cedulaIdentidad: 'V-87654321', edad: '10', sexo: 'M', nivel: 'primaria', grado: '1er Grado', seccion: 'A', numeroTelefonoCelular: '0414-7654321', correoElectronico: 'juan.r@email.com' },
-    { id: '3', nombres: 'Ana', apellidos: 'Lopez Sanchez', cedulaIdentidad: 'V-98765432', edad: '15', sexo: 'F', nivel: 'media', grado: '3er Año', seccion: 'C', numeroTelefonoCelular: '0416-9876543', correoElectronico: 'ana.l@email.com' },
-    { id: '4', nombres: 'Carlos', apellidos: 'Mendoza Flores', cedulaIdentidad: 'V-45678901', edad: '5', sexo: 'M', nivel: 'inicial', grado: 'Kinder', seccion: 'A', numeroTelefonoCelular: '0424-4567890', correoElectronico: 'carlos.m@email.com' },
-    { id: '5', nombres: 'Laura', apellidos: 'Torres Garcia', cedulaIdentidad: 'V-56789012', edad: '14', sexo: 'F', nivel: 'media', grado: '1er Año', seccion: 'B', numeroTelefonoCelular: '0412-5678901', correoElectronico: 'laura.t@email.com' },
-    { id: '6', nombres: 'Pedro', apellidos: 'Ramirez Diaz', cedulaIdentidad: 'V-67890123', edad: '8', sexo: 'M', nivel: 'primaria', grado: '3er Grado', seccion: 'A', numeroTelefonoCelular: '0414-6789012', correoElectronico: 'pedro.r@email.com' },
-    { id: '7', nombres: 'Sofia', apellidos: 'Herrera Castro', cedulaIdentidad: 'V-78901234', edad: '16', sexo: 'F', nivel: 'media', grado: '4to Año', seccion: 'C', numeroTelefonoCelular: '0416-7890123', correoElectronico: 'sofia.h@email.com' },
-    { id: '8', nombres: 'Diego', apellidos: 'Vargas Rojas', cedulaIdentidad: 'V-89012345', edad: '6', sexo: 'M', nivel: 'inicial', grado: 'Pre-Kinder', seccion: 'B', numeroTelefonoCelular: '0424-8901234', correoElectronico: 'diego.v@email.com' }
-  ]);
+  const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
+  const [docentes, setDocentes] = useState<Docente[]>([]);
+  const [salones, setSalones] = useState<Salon[]>([]);
 
-  const [docentes] = useState<Docente[]>([
-    { id: '1', nombres: 'Maria', apellidos: 'Gonzalez', cedulaIdentidad: 'V-12345678', email: 'maria.g@colegio.com', telefono: '0412-1234567', especialidad: 'Matematica', nivel: 'primaria', seccion: 'A', fechaContratacion: '2020-01-15', activo: true },
-    { id: '2', nombres: 'Juan', apellidos: 'Rodriguez', cedulaIdentidad: 'V-87654321', email: 'juan.r@colegio.com', telefono: '0414-7654321', especialidad: 'Lengua Espanola', nivel: 'primaria', seccion: 'B', fechaContratacion: '2019-08-20', activo: true },
-    { id: '3', nombres: 'Ana', apellidos: 'Lopez', cedulaIdentidad: 'V-98765432', email: 'ana.l@colegio.com', telefono: '0416-9876543', especialidad: 'Biologia', nivel: 'media', seccion: 'C', fechaContratacion: '2021-03-10', activo: true },
-    { id: '4', nombres: 'Carlos', apellidos: 'Mendoza', cedulaIdentidad: 'V-45678901', email: 'carlos.m@colegio.com', telefono: '0424-4567890', especialidad: 'Educacion Inicial', nivel: 'inicial', seccion: 'A', fechaContratacion: '2018-11-01', activo: false },
-    { id: '5', nombres: 'Laura', apellidos: 'Torres', cedulaIdentidad: 'V-56789012', email: 'laura.t@colegio.com', telefono: '0412-5678901', especialidad: 'Historia', nivel: 'media', seccion: 'B', fechaContratacion: '2020-06-25', activo: true }
-  ]);
+  useEffect(() => {
+    cargarDatos();
+  }, []);
 
-  const [salones, setSalones] = useState<Salon[]>([
-    {
-      id: '1',
-      nombre: 'Salon A-1',
-      nivel: 'primaria',
-      grado: '1er Grado',
-      seccion: 'A',
-      docenteIds: ['1', '2'],
-      estudianteIds: ['1', '2'],
-      anioAcademico: '2024-2025'
-    },
-    {
-      id: '2',
-      nombre: 'Salon B-2',
-      nivel: 'primaria',
-      grado: '2do Grado',
-      seccion: 'B',
-      docenteIds: ['3'],
-      estudianteIds: ['4', '5'],
-      anioAcademico: '2024-2025'
-    },
-    {
-      id: '3',
-      nombre: 'Salon C-1',
-      nivel: 'media',
-      grado: '1er Año',
-      seccion: 'C',
-      docenteIds: ['4', '5'],
-      estudianteIds: ['6', '7', '8'],
-      anioAcademico: '2024-2025'
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const resEstudiantes = await fetch('/api/estudiantes');
+      if (resEstudiantes.ok) {
+        const data = await resEstudiantes.json();
+        setEstudiantes(data);
+      }
+
+      const resDocentes = await fetch('/api/docentes');
+      if (resDocentes.ok) {
+        const data = await resDocentes.json();
+        setDocentes(data);
+      }
+
+      const resSalones = await fetch('/api/salones');
+      if (resSalones.ok) {
+        const data = await resSalones.json();
+        setSalones(data);
+      }
+    } catch (error) {
+      console.error('Error cargando datos:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
   const niveles = [
     { id: 'inicial', nombre: 'Educacion Inicial' },
@@ -180,10 +161,9 @@ const GestionInstitutoPage: React.FC = () => {
       );
     }
     if (filtroNivel) filtered = filtered.filter(d => d.nivel === filtroNivel);
-    if (filtroEspecialidad) filtered = filtered.filter(d => d.especialidad === filtroEspecialidad);
     if (filtroSeccion) filtered = filtered.filter(d => d.seccion === filtroSeccion);
     return filtered;
-  }, [docentes, searchTerm, filtroNivel, filtroEspecialidad, filtroSeccion]);
+  }, [docentes, searchTerm, filtroNivel, filtroSeccion]);
 
   const salonesFiltrados = useMemo(() => {
     let filtered = salones;
@@ -202,21 +182,14 @@ const GestionInstitutoPage: React.FC = () => {
     return filtered;
   }, [salones, searchTerm, filtroNivel, filtroGrado, filtroSeccion]);
 
-  const especialidadesUnicas = useMemo(() => {
-    const especialidades = new Set<string>();
-    docentes.forEach(doc => { if (doc.especialidad) especialidades.add(doc.especialidad); });
-    return Array.from(especialidades).sort();
-  }, [docentes]);
-
   const limpiarFiltros = () => {
     setSearchTerm('');
     setFiltroNivel('');
     setFiltroGrado('');
     setFiltroSeccion('');
-    setFiltroEspecialidad('');
   };
 
-  const tieneFiltrosActivos = searchTerm || filtroNivel || filtroGrado || filtroSeccion || filtroEspecialidad;
+  const tieneFiltrosActivos = searchTerm || filtroNivel || filtroGrado || filtroSeccion;
 
   const obtenerEstudiantesSalon = (estudianteIds: string[]) => {
     return estudiantes.filter(e => estudianteIds.includes(e.id));
@@ -227,19 +200,43 @@ const GestionInstitutoPage: React.FC = () => {
     setMostrarDetalleSalon(true);
   };
 
-  const handleEditarEstudianteIndividual = (estudiante: Estudiante) => {
-    setEstudiantes(estudiantes.map(e => e.id === estudiante.id ? estudiante : e));
+  const handleEditarEstudianteIndividual = async (estudiante: Estudiante) => {
+    try {
+      const response = await fetch(`/api/estudiantes/${estudiante.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(estudiante)
+      });
+      if (response.ok) {
+        setEstudiantes(estudiantes.map(e => e.id === estudiante.id ? estudiante : e));
+        alert('Estudiante actualizado correctamente');
+      }
+    } catch (error) {
+      console.error('Error al actualizar estudiante:', error);
+    }
   };
 
-  const handleEdicionMasiva = (estudianteIds: string[], nuevoNivel: string, nuevoGrado: string, nuevaSeccion: string) => {
+  const handleEdicionMasiva = async (estudianteIds: string[], nuevoNivel: string, nuevoGrado: string, nuevaSeccion: string) => {
     const estudiantesActualizados = estudiantes.map(e => {
       if (estudianteIds.includes(e.id)) {
         return { ...e, nivel: nuevoNivel || e.nivel, grado: nuevoGrado || e.grado, seccion: nuevaSeccion || e.seccion };
       }
       return e;
     });
-    setEstudiantes(estudiantesActualizados);
-    alert(`${estudianteIds.length} estudiantes actualizados correctamente`);
+
+    try {
+      const response = await fetch('/api/estudiantes/masivo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estudiantes: estudiantesActualizados.filter(e => estudianteIds.includes(e.id)) })
+      });
+      if (response.ok) {
+        setEstudiantes(estudiantesActualizados);
+        alert(`${estudianteIds.length} estudiantes actualizados correctamente`);
+      }
+    } catch (error) {
+      console.error('Error en edicion masiva:', error);
+    }
   };
 
   const handleCrearSalon = () => {
@@ -254,37 +251,77 @@ const GestionInstitutoPage: React.FC = () => {
     setMostrarModalSalon(true);
   };
 
-  const handleGuardarSalon = (salonData: Omit<Salon, 'id'>) => {
-    if (modalSalonModo === 'crear') {
-      const nuevoSalon: Salon = { ...salonData, id: Date.now().toString() };
-      setSalones([...salones, nuevoSalon]);
-      alert('Salon creado correctamente');
-    } else if (modalSalonModo === 'editar' && salonEditando) {
-      setSalones(salones.map(s => s.id === salonEditando.id ? { ...salonData, id: s.id } : s));
-      alert('Salon actualizado correctamente');
+  const handleGuardarSalon = async (salonData: Omit<Salon, 'id'>) => {
+    try {
+      if (modalSalonModo === 'crear') {
+        const response = await fetch('/api/salones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(salonData)
+        });
+        if (response.ok) {
+          const nuevoSalon = await response.json();
+          setSalones([...salones, nuevoSalon]);
+          alert('Salon creado correctamente');
+        }
+      } else if (modalSalonModo === 'editar' && salonEditando) {
+        const response = await fetch(`/api/salones/${salonEditando.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...salonData, id: salonEditando.id })
+        });
+        if (response.ok) {
+          setSalones(salones.map(s => s.id === salonEditando.id ? { ...salonData, id: s.id } : s));
+          alert('Salon actualizado correctamente');
+        }
+      }
+      setMostrarModalSalon(false);
+      setSalonEditando(null);
+    } catch (error) {
+      console.error('Error al guardar salon:', error);
     }
-    setMostrarModalSalon(false);
-    setSalonEditando(null);
   };
 
-  const handleEliminarSalon = (salonId: string) => {
+  const handleEliminarSalon = async (salonId: string) => {
     if (confirm('¿Esta seguro de eliminar este salon?')) {
-      setSalones(salones.filter(s => s.id !== salonId));
-      alert('Salon eliminado correctamente');
+      try {
+        const response = await fetch(`/api/salones/${salonId}`, {
+          method: 'DELETE'
+        });
+        if (response.ok) {
+          setSalones(salones.filter(s => s.id !== salonId));
+          alert('Salon eliminado correctamente');
+        }
+      } catch (error) {
+        console.error('Error al eliminar salon:', error);
+      }
     }
   };
 
   const formatFecha = (fecha: string) => {
+    if (!fecha) return '-';
     const date = new Date(fecha);
     return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
+
+  if (loading) {
+    return (
+      <div style={containerStyle}>
+        <div style={overlayStyle} />
+        <div style={loadingContainerStyle}>
+          <div style={loadingSpinnerStyle}></div>
+          <p style={loadingTextStyle}>Cargando datos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={containerStyle}>
       <div style={overlayStyle} />
 
       <nav style={navStyle}>
-        <button onClick={() => router.push('/inicio')} style={backButtonStyle}>Volver al Inicio</button>
+        <button onClick={() => router.push('/')} style={backButtonStyle}>Volver al Inicio</button>
         <div style={navTitleStyle}>GESTION INSTITUTO</div>
         <div style={navBadgeStyle}>
           {tabActiva === 'estudiantes' && `${estudiantes.length} estudiantes`}
@@ -296,7 +333,6 @@ const GestionInstitutoPage: React.FC = () => {
 
       <main style={mainStyle}>
         <div style={cardStyle}>
-          {/* Tabs */}
           <div style={tabsContainerStyle}>
             <button
               onClick={() => { setTabActiva('estudiantes'); limpiarFiltros(); }}
@@ -336,7 +372,7 @@ const GestionInstitutoPage: React.FC = () => {
                 {tabActiva === 'estudiantes' && `Total: ${estudiantes.length} estudiantes registrados`}
                 {tabActiva === 'docentes' && `Total: ${docentes.length} docentes registrados`}
                 {tabActiva === 'salones' && `Total: ${salones.length} salones registrados`}
-                {tabActiva === 'actualizar' && `Seleccione un salon para actualizar sus estudiantes`}
+                {tabActiva === 'actualizar' && `Seleccione los estudiantes para actualizar`}
               </p>
             </div>
             {tabActiva === 'salones' && (
@@ -345,7 +381,6 @@ const GestionInstitutoPage: React.FC = () => {
           </div>
 
           <div style={cardBodyStyle}>
-            {/* Filtros */}
             <div style={filtrosContainerStyle}>
               <div style={searchContainerStyle}>
                 <div style={searchWrapperStyle}>
@@ -383,13 +418,6 @@ const GestionInstitutoPage: React.FC = () => {
                   </select>
                 )}
 
-                {tabActiva === 'docentes' && (
-                  <select value={filtroEspecialidad} onChange={(e) => setFiltroEspecialidad(e.target.value)} style={selectStyle}>
-                    <option value="">Todas las especialidades</option>
-                    {especialidadesUnicas.map((esp) => <option key={esp} value={esp}>{esp}</option>)}
-                  </select>
-                )}
-
                 <select value={filtroSeccion} onChange={(e) => setFiltroSeccion(e.target.value)} style={selectStyle}>
                   <option value="">Todas las secciones</option>
                   {secciones.map((s) => <option key={s} value={s}>Seccion {s}</option>)}
@@ -411,7 +439,6 @@ const GestionInstitutoPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Contenido de Estudiantes */}
             {tabActiva === 'estudiantes' && (
               <div style={tableContainerStyle}>
                 <table style={tableStyle}>
@@ -420,8 +447,7 @@ const GestionInstitutoPage: React.FC = () => {
                       <th style={tableHeaderStyle}>Cedula</th>
                       <th style={tableHeaderStyle}>Nombres</th>
                       <th style={tableHeaderStyle}>Apellidos</th>
-                      <th style={tableHeaderStyle}>Edad</th>
-                      <th style={tableHeaderStyle}>Sexo</th>
+                      <th style={tableHeaderStyle}>Fecha Nac.</th>
                       <th style={tableHeaderStyle}>Nivel</th>
                       <th style={tableHeaderStyle}>Grado</th>
                       <th style={tableHeaderStyle}>Seccion</th>
@@ -431,23 +457,18 @@ const GestionInstitutoPage: React.FC = () => {
                   </thead>
                   <tbody>
                     {estudiantesFiltrados.length === 0 ? (
-                      <tr><td colSpan={10} style={emptyStateStyle}>No se encontraron estudiantes</td></tr>
+                      <tr><td colSpan={9} style={emptyStateStyle}>No se encontraron estudiantes</td></tr>
                     ) : (
                       estudiantesFiltrados.map((e) => (
                         <tr key={e.id} style={tableRowStyle}>
                           <td style={tableCellStyle}><span style={cedulaHighlightStyle}>{e.cedulaIdentidad}</span></td>
                           <td style={tableCellStyle}>{e.nombres}</td>
                           <td style={tableCellStyle}>{e.apellidos}</td>
-                          <td style={tableCellStyle}>{e.edad} años</td>
-                          <td style={tableCellStyle}>
-                            <span style={{ ...sexoBadgeStyle, background: e.sexo === 'M' ? 'rgba(0,187,126,0.2)' : 'rgba(156,163,175,0.2)', color: e.sexo === 'M' ? PALETTE.principal : '#9ca3af' }}>
-                              {e.sexo === 'M' ? 'M' : 'F'}
-                            </span>
-                          </td>
+                          <td style={tableCellStyle}>{formatFecha(e.fechaNacimiento)}</td>
                           <td style={tableCellStyle}>{niveles.find(n => n.id === e.nivel)?.nombre || '-'}</td>
                           <td style={tableCellStyle}>{e.grado}</td>
                           <td style={tableCellStyle}><span style={seccionBadgeStyle}>{e.seccion}</span></td>
-                          <td style={tableCellStyle}>{e.numeroTelefonoCelular}</td>
+                          <td style={tableCellStyle}>{e.numeroTelefonoCelular || '-'}</td>
                           <td style={tableCellStyle}><span style={emailTextStyle}>{e.correoElectronico}</span></td>
                         </tr>
                       ))
@@ -457,7 +478,6 @@ const GestionInstitutoPage: React.FC = () => {
               </div>
             )}
 
-            {/* Contenido de Docentes */}
             {tabActiva === 'docentes' && (
               <div style={tableContainerStyle}>
                 <table style={tableStyle}>
@@ -468,16 +488,13 @@ const GestionInstitutoPage: React.FC = () => {
                       <th style={tableHeaderStyle}>Apellidos</th>
                       <th style={tableHeaderStyle}>Email</th>
                       <th style={tableHeaderStyle}>Telefono</th>
-                      <th style={tableHeaderStyle}>Especialidad</th>
-                      <th style={tableHeaderStyle}>Nivel</th>
-                      <th style={tableHeaderStyle}>Seccion</th>
                       <th style={tableHeaderStyle}>Contratacion</th>
                       <th style={tableHeaderStyle}>Estado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {docentesFiltrados.length === 0 ? (
-                      <tr><td colSpan={10} style={emptyStateStyle}>No se encontraron docentes</td></tr>
+                      <tr><td colSpan={7} style={emptyStateStyle}>No se encontraron docentes</td></tr>
                     ) : (
                       docentesFiltrados.map((d) => (
                         <tr key={d.id} style={tableRowStyle}>
@@ -485,10 +502,7 @@ const GestionInstitutoPage: React.FC = () => {
                           <td style={tableCellStyle}>{d.nombres}</td>
                           <td style={tableCellStyle}>{d.apellidos}</td>
                           <td style={tableCellStyle}><span style={emailTextStyle}>{d.email}</span></td>
-                          <td style={tableCellStyle}>{d.telefono}</td>
-                          <td style={tableCellStyle}><span style={especialidadBadgeStyle}>{d.especialidad}</span></td>
-                          <td style={tableCellStyle}>{niveles.find(n => n.id === d.nivel)?.nombre || '-'}</td>
-                          <td style={tableCellStyle}><span style={seccionBadgeStyle}>{d.seccion}</span></td>
+                          <td style={tableCellStyle}>{d.telefono || '-'}</td>
                           <td style={tableCellStyle}>{formatFecha(d.fechaContratacion)}</td>
                           <td style={tableCellStyle}>
                             <span style={{ ...estadoBadgeStyle, background: d.activo ? 'rgba(0,187,126,0.15)' : 'rgba(156,163,175,0.1)', color: d.activo ? PALETTE.principal : '#9ca3af' }}>
@@ -503,12 +517,10 @@ const GestionInstitutoPage: React.FC = () => {
               </div>
             )}
 
-            {/* Contenido de Salones */}
             {tabActiva === 'salones' && (
               <div style={gridContainerStyle}>
                 {salonesFiltrados.map((salon) => {
                   const estudiantesSalon = obtenerEstudiantesSalon(salon.estudianteIds);
-                  const docentesSalon = docentes.filter(d => salon.docenteIds.includes(d.id));
                   return (
                     <div key={salon.id} style={salonCardStyle}>
                       <div style={salonHeaderStyle}>
@@ -536,19 +548,6 @@ const GestionInstitutoPage: React.FC = () => {
                           <span style={infoValueStyle}>{salon.anioAcademico}</span>
                         </div>
                       </div>
-                      <div style={salonDocentesStyle}>
-                        <span style={infoLabelStyle}>Docentes ({docentesSalon.length}):</span>
-                        <div style={docentesMiniListStyle}>
-                          {docentesSalon.length > 0 ? (
-                            docentesSalon.slice(0, 3).map((doc) => (
-                              <span key={doc.id} style={docenteMiniTagStyle}>{doc.nombres} {doc.apellidos}</span>
-                            ))
-                          ) : (
-                            <span style={sinAsignarStyle}>Sin docentes</span>
-                          )}
-                          {docentesSalon.length > 3 && <span style={masTagStyle}>+{docentesSalon.length - 3} mas</span>}
-                        </div>
-                      </div>
                       <div style={estudiantesPreviewStyle}>
                         <span style={infoLabelStyle}>Estudiantes ({estudiantesSalon.length}):</span>
                         <div style={estudiantesMiniListStyle}>
@@ -574,7 +573,6 @@ const GestionInstitutoPage: React.FC = () => {
               </div>
             )}
 
-            {/* Contenido de Actualizar Datos */}
             {tabActiva === 'actualizar' && (
               <div style={tableContainerStyle}>
                 <div style={actualizarHeaderStyle}>
@@ -666,7 +664,6 @@ const GestionInstitutoPage: React.FC = () => {
         </div>
       </main>
 
-      {/* Modal Detalle Salon */}
       {mostrarDetalleSalon && salonSeleccionado && (
         <DetalleSalonModal
           salon={salonSeleccionado}
@@ -680,12 +677,10 @@ const GestionInstitutoPage: React.FC = () => {
         />
       )}
 
-      {/* Modal Crear/Editar Salon */}
       {mostrarModalSalon && (
         <SalonModal
           salon={salonEditando}
           modo={modalSalonModo}
-          docentes={docentes}
           estudiantes={estudiantes}
           niveles={niveles}
           gradosPorNivel={gradosPorNivel}
@@ -698,11 +693,9 @@ const GestionInstitutoPage: React.FC = () => {
   );
 };
 
-// Componente SalonModal (Crear/Editar Salon)
 interface SalonModalProps {
   salon: Salon | null;
   modo: 'crear' | 'editar';
-  docentes: Docente[];
   estudiantes: Estudiante[];
   niveles: { id: string; nombre: string }[];
   gradosPorNivel: { [key: string]: { id: string; nombre: string }[] };
@@ -714,7 +707,6 @@ interface SalonModalProps {
 const SalonModal: React.FC<SalonModalProps> = ({
   salon,
   modo,
-  docentes,
   estudiantes,
   niveles,
   gradosPorNivel,
@@ -732,21 +724,10 @@ const SalonModal: React.FC<SalonModalProps> = ({
     anioAcademico: salon?.anioAcademico || '2024-2025'
   });
 
-  const [busquedaDocente, setBusquedaDocente] = useState('');
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
 
-  const docentesDisponibles = docentes.filter(d => !formData.docenteIds.includes(d.id));
-  const docentesSeleccionados = docentes.filter(d => formData.docenteIds.includes(d.id));
   const estudiantesDisponibles = estudiantes.filter(e => !formData.estudianteIds.includes(e.id));
   const estudiantesSeleccionados = estudiantes.filter(e => formData.estudianteIds.includes(e.id));
-
-  const docentesFiltrados = busquedaDocente
-    ? docentesDisponibles.filter(d =>
-        `${d.nombres} ${d.apellidos}`.toLowerCase().includes(busquedaDocente.toLowerCase()) ||
-        d.especialidad.toLowerCase().includes(busquedaDocente.toLowerCase()) ||
-        d.cedulaIdentidad.includes(busquedaDocente)
-      )
-    : docentesDisponibles;
 
   const estudiantesFiltrados = busquedaEstudiante
     ? estudiantesDisponibles.filter(e =>
@@ -764,15 +745,6 @@ const SalonModal: React.FC<SalonModalProps> = ({
       return;
     }
     onSave(formData);
-  };
-
-  const toggleDocente = (docenteId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      docenteIds: prev.docenteIds.includes(docenteId)
-        ? prev.docenteIds.filter(id => id !== docenteId)
-        : [...prev.docenteIds, docenteId]
-    }));
   };
 
   const toggleEstudiante = (estudianteId: string) => {
@@ -856,48 +828,6 @@ const SalonModal: React.FC<SalonModalProps> = ({
             />
           </div>
 
-          {/* Asignación de Docentes */}
-          <div style={modalFieldStyle}>
-            <label style={modalLabelStyle}>Docentes Asignados ({formData.docenteIds.length})</label>
-            <div style={docentesSeleccionadosContainerStyle}>
-              {docentesSeleccionados.map((doc) => (
-                <div key={doc.id} style={docenteSeleccionadoStyle}>
-                  <span>{doc.nombres} {doc.apellidos}</span>
-                  <span style={docenteEspecialidadTagStyle}>{doc.especialidad}</span>
-                  <button type="button" onClick={() => toggleDocente(doc.id)} style={removerDocenteStyle}>✕</button>
-                </div>
-              ))}
-              {docentesSeleccionados.length === 0 && <span style={sinAsignarStyle}>No hay docentes asignados</span>}
-            </div>
-
-            <div style={busquedaDocentesStyle}>
-              <input
-                type="text"
-                placeholder="Buscar docentes para agregar..."
-                value={busquedaDocente}
-                onChange={(e) => setBusquedaDocente(e.target.value)}
-                style={modalInputStyle}
-              />
-              <div style={listaDocentesStyle}>
-                {docentesFiltrados.length > 0 ? (
-                  docentesFiltrados.map((doc) => (
-                    <div key={doc.id} style={docenteDisponibleStyle} onClick={() => toggleDocente(doc.id)}>
-                      <div>
-                        <span>{doc.nombres} {doc.apellidos}</span>
-                        <span style={docenteEspecialidadTagStyle}>{doc.especialidad}</span>
-                      </div>
-                      <span style={estudianteCedulaStyle}>{doc.cedulaIdentidad}</span>
-                      <button type="button" style={agregarDocenteStyle} onClick={(e) => { e.stopPropagation(); toggleDocente(doc.id); }}>+</button>
-                    </div>
-                  ))
-                ) : (
-                  <span style={sinAsignarStyle}>No hay docentes disponibles</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Asignación de Estudiantes */}
           <div style={modalFieldStyle}>
             <label style={modalLabelStyle}>Estudiantes Asignados ({formData.estudianteIds.length})</label>
             <div style={estudiantesSeleccionadosContainerStyle}>
@@ -944,7 +874,6 @@ const SalonModal: React.FC<SalonModalProps> = ({
   );
 };
 
-// Componente DetalleSalonModal (se mantiene igual)
 interface DetalleSalonModalProps {
   salon: Salon;
   estudiantes: Estudiante[];
@@ -1227,7 +1156,7 @@ const EdicionMasivaModal: React.FC<EdicionMasivaModalProps> = ({
   );
 };
 
-// Estilos (se mantienen igual que en el código anterior)
+// Estilos
 const containerStyle: React.CSSProperties = {
   minHeight: '100vh',
   background: PALETTE.deepBg,
@@ -1244,6 +1173,31 @@ const overlayStyle: React.CSSProperties = {
   bottom: 0,
   background: 'rgba(26, 46, 38, 0.95)',
   zIndex: 0
+};
+
+const loadingContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minHeight: '100vh',
+  gap: '1.5rem',
+  position: 'relative',
+  zIndex: 1
+};
+
+const loadingSpinnerStyle: React.CSSProperties = {
+  width: '50px',
+  height: '50px',
+  border: '3px solid rgba(0,187,126,0.1)',
+  borderTop: '3px solid ' + PALETTE.principal,
+  borderRadius: '50%',
+  animation: 'spin 1s linear infinite'
+};
+
+const loadingTextStyle: React.CSSProperties = {
+  color: PALETTE.textGray,
+  fontSize: '1rem'
 };
 
 const navStyle: React.CSSProperties = {
@@ -1517,14 +1471,6 @@ const emailTextStyle: React.CSSProperties = {
   fontSize: '0.85rem'
 };
 
-const sexoBadgeStyle: React.CSSProperties = {
-  padding: '0.25rem 0.75rem',
-  borderRadius: '8px',
-  fontSize: '0.8rem',
-  fontWeight: '700',
-  display: 'inline-block'
-};
-
 const seccionBadgeStyle: React.CSSProperties = {
   background: 'rgba(0,187,126,0.1)',
   color: PALETTE.principal,
@@ -1532,16 +1478,6 @@ const seccionBadgeStyle: React.CSSProperties = {
   borderRadius: '8px',
   fontSize: '0.8rem',
   fontWeight: '700',
-  display: 'inline-block'
-};
-
-const especialidadBadgeStyle: React.CSSProperties = {
-  background: 'rgba(0,187,126,0.1)',
-  color: PALETTE.principal,
-  padding: '0.25rem 0.75rem',
-  borderRadius: '8px',
-  fontSize: '0.8rem',
-  fontWeight: '600',
   display: 'inline-block'
 };
 
@@ -1560,7 +1496,6 @@ const emptyStateStyle: React.CSSProperties = {
   fontSize: '1rem'
 };
 
-// Estilos para Salones
 const gridContainerStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
@@ -1643,25 +1578,6 @@ const infoValueStyle: React.CSSProperties = {
   fontWeight: '500'
 };
 
-const salonDocentesStyle: React.CSSProperties = {
-  marginTop: '0.5rem'
-};
-
-const docentesMiniListStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '0.3rem',
-  marginTop: '0.3rem'
-};
-
-const docenteMiniTagStyle: React.CSSProperties = {
-  background: 'rgba(0,187,126,0.08)',
-  padding: '0.2rem 0.6rem',
-  borderRadius: '6px',
-  fontSize: '0.75rem',
-  color: PALETTE.principal
-};
-
 const estudiantesPreviewStyle: React.CSSProperties = {
   marginTop: '0.5rem'
 };
@@ -1715,7 +1631,6 @@ const sinAsignarStyle: React.CSSProperties = {
   fontStyle: 'italic'
 };
 
-// Estilos para Actualizar Datos
 const actualizarHeaderStyle: React.CSSProperties = {
   padding: '1rem',
   background: 'rgba(0,187,126,0.05)',
@@ -1772,7 +1687,6 @@ const checkboxStyle: React.CSSProperties = {
   accentColor: PALETTE.principal
 };
 
-// Estilos de Modales
 const modalOverlayStyle: React.CSSProperties = {
   position: 'fixed',
   top: 0,
@@ -1787,7 +1701,6 @@ const modalOverlayStyle: React.CSSProperties = {
   justifyContent: 'center'
 };
 
-// Estilos Modal Detalle Salon
 const modalDetalleContentStyle: React.CSSProperties = {
   background: '#1a2e26',
   borderRadius: '20px',
@@ -1957,7 +1870,6 @@ const modalFooterTextStyle: React.CSSProperties = {
   fontSize: '0.85rem'
 };
 
-// Estilos Modal Crear/Editar Salon
 const modalContentStyle: React.CSSProperties = {
   background: '#1a2e26',
   borderRadius: '20px',
@@ -2088,80 +2000,6 @@ const selectedStudentTagStyle: React.CSSProperties = {
   borderRadius: '6px',
   fontSize: '0.8rem',
   color: PALETTE.white
-};
-
-// Estilos para asignacion de docentes y estudiantes en modal
-const docentesSeleccionadosContainerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '0.5rem',
-  padding: '0.8rem',
-  background: 'rgba(0,0,0,0.2)',
-  borderRadius: '10px',
-  minHeight: '50px'
-};
-
-const docenteSeleccionadoStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
-  background: 'rgba(0,187,126,0.15)',
-  padding: '0.25rem 0.75rem',
-  borderRadius: '8px',
-  fontSize: '0.85rem',
-  color: PALETTE.white
-};
-
-const removerDocenteStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: PALETTE.textGray,
-  cursor: 'pointer',
-  fontSize: '0.8rem'
-};
-
-const busquedaDocentesStyle: React.CSSProperties = {
-  marginTop: '0.5rem'
-};
-
-const listaDocentesStyle: React.CSSProperties = {
-  maxHeight: '200px',
-  overflow: 'auto',
-  marginTop: '0.5rem',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem'
-};
-
-const docenteDisponibleStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '0.5rem 0.8rem',
-  background: 'rgba(255,255,255,0.03)',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  transition: 'background 0.2s'
-};
-
-const docenteEspecialidadTagStyle: React.CSSProperties = {
-  color: PALETTE.textGray,
-  fontSize: '0.75rem',
-  marginLeft: '0.5rem'
-};
-
-const agregarDocenteStyle: React.CSSProperties = {
-  background: 'rgba(0,187,126,0.2)',
-  border: 'none',
-  borderRadius: '50%',
-  width: '24px',
-  height: '24px',
-  color: PALETTE.principal,
-  fontSize: '1rem',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center'
 };
 
 const estudiantesSeleccionadosContainerStyle: React.CSSProperties = {

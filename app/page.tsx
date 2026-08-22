@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 const COLORES = {
@@ -10,19 +11,22 @@ const COLORES = {
   textLight: '#f3f4f6'
 };
 
-let localUsers: any[] = [];
-
 type UserRole = 'teacher' | 'student' | 'control';
 
 const AuthPage: React.FC = () => {
   const router = useRouter();
+  const { data: session } = useSession();
   const [userRole, setUserRole] = useState<UserRole>('teacher');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: '',
+    nombres: '',
+    apellidos: '',
+    cedula: '',
+    fechaNacimiento: '',
     email: '',
     password: '',
+    telefono: '',
     nivel: '',
     grado: '',
     seccion: ''
@@ -101,204 +105,243 @@ const AuthPage: React.FC = () => {
     return `/Classroom/${nivelPath}/${gradoPath}/${seccionPath}`;
   };
 
-  const handleQuickLogin = (rol: 'teacher' | 'student' | 'control') => {
+  const handleQuickLogin = async (rol: 'teacher' | 'student' | 'control') => {
     setLoading(true);
     
-    setTimeout(() => {
-      let userData: any = {
-        id: Date.now(),
-        nombre: rol === 'teacher' ? 'Usuario de Prueba Docente' : 
-                rol === 'control' ? 'Control de Estudios' : 'Usuario de Prueba Estudiante',
-        email: rol === 'teacher' ? 'prueba@docente.com' : 
-               rol === 'control' ? 'control@colegio.com' : 'prueba@estudiante.com',
-        rol: rol === 'teacher' ? 'docente' : 
-             rol === 'control' ? 'control_estudios' : 'estudiante'
-      };
+    try {
+      const email = rol === 'teacher' ? 'prueba@docente.com' : 
+                     rol === 'control' ? 'control@colegio.com' : 'prueba@estudiante.com';
+      const password = '123456';
 
-      if (rol === 'student') {
-        const nivelEjemplo = 'primaria';
-        const gradoEjemplo = '1er_grado';
-        const seccionEjemplo = 'A';
-        
-        userData = {
-          ...userData,
-          nivel: nivelEjemplo,
-          grado: gradoEjemplo,
-          seccion: seccionEjemplo
-        };
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
 
-        localStorage.setItem('token', `quick-${rol}-${Date.now()}`);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        alert(`Bienvenido ${userData.nombre} (Estudiante)`);
-        const ruta = construirRutaClassroom(nivelEjemplo, gradoEjemplo, seccionEjemplo);
-        router.push(ruta);
-      } else if (rol === 'control') {
-        localStorage.setItem('token', `quick-${rol}-${Date.now()}`);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        alert(`Bienvenido ${userData.nombre} (Control de Estudios)`);
-        router.push('/control_estudios');
-      } else {
-        localStorage.setItem('token', `quick-${rol}-${Date.now()}`);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        alert(`Bienvenido ${userData.nombre} (Docente)`);
-        router.push('/editar');
+      if (result?.error) {
+        alert('Error en el inicio rapido. Por favor, registrese primero.');
+        setLoading(false);
+        return;
       }
+
+      const userResponse = await fetch('/api/auth/session');
+      const sessionData = await userResponse.json();
       
-      router.refresh();
+      if (sessionData?.user) {
+        localStorage.setItem('user', JSON.stringify(sessionData.user));
+        
+        const rol = sessionData.user.rol;
+        
+        if (rol === 'docente') {
+          router.push('/editar');
+        } else if (rol === 'control_estudios') {
+          router.push('/control_estudios');
+        } else if (rol === 'estudiante') {
+          router.push('/dashboard/estudiante');
+        } else {
+          router.push('/');
+        }
+        router.refresh();
+      }
+    } catch (error) {
+      console.error('Error en inicio rapido:', error);
+      alert('Error al iniciar sesion');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
     try {
-      if (userRole === 'teacher') {
-        if (!isLogin) {
-          const existingUser = localUsers.find(
-            u => u.email === formData.email && u.rol === 'docente'
-          );
-          
-          if (existingUser) {
-            alert("Este correo ya está registrado como docente.");
-          } else {
-            const newTeacher = {
-              id: Date.now(),
-              nombre: formData.nombre,
-              email: formData.email,
-              password: formData.password,
-              rol: 'docente'
-            };
-            localUsers.push(newTeacher);
-            
-            alert(`Cuenta de docente creada con éxito. Bienvenido ${formData.nombre}`);
-            setIsLogin(true);
-            setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
-          }
-        } else {
-          const teacher = localUsers.find(
-            u => u.email === formData.email && u.password === formData.password && u.rol === 'docente'
-          );
+      if (!isLogin) {
+        const roleMap = {
+          teacher: 'docente',
+          student: 'estudiante',
+          control: 'control_estudios'
+        };
 
-          if (teacher) {
-            localStorage.setItem('token', `teacher-${teacher.id}-${Date.now()}`);
-            localStorage.setItem('user', JSON.stringify({
-              id: teacher.id,
-              nombre: teacher.nombre,
-              email: teacher.email,
-              rol: 'docente'
-            }));
+        const userData = {
+          nombre: `${formData.nombres} ${formData.apellidos}`,
+          email: formData.email,
+          password: formData.password,
+          rol: roleMap[userRole],
+          nivel: formData.nivel || null,
+          grado: formData.grado || null,
+          seccion: formData.seccion || null
+        };
+
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(userData),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.error || 'Error al registrar usuario');
+          setLoading(false);
+          return;
+        }
+
+        // ========== CREAR ESTUDIANTE ==========
+        if (userRole === 'student') {
+          console.log('📌 Datos del formulario:', {
+            nivel: formData.nivel,
+            grado: formData.grado,
+            seccion: formData.seccion,
+            fechaNacimiento: formData.fechaNacimiento
+          });
+
+          let cedula = formData.cedula && formData.cedula.trim() !== '' 
+            ? formData.cedula 
+            : `V-${Date.now().toString().slice(-8)}`;
+
+          const estudianteData = {
+            nombres: formData.nombres,
+            apellidos: formData.apellidos,
+            cedulaIdentidad: cedula,
+            fechaNacimiento: formData.fechaNacimiento || new Date().toISOString().split('T')[0],
+            edad: '',
+            sexo: '',
+            nivel: formData.nivel || '',
+            grado: formData.grado || '',
+            seccion: formData.seccion || '',
+            numeroTelefonoCelular: formData.telefono || '',
+            correoElectronico: formData.email,
+            userId: data.id
+          };
+
+          console.log('📤 Enviando datos de estudiante:', JSON.stringify(estudianteData, null, 2));
+
+          let resEstudiante = await fetch('/api/estudiantes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(estudianteData)
+          });
+
+          // Si falla por cédula duplicada, intentar con una cédula generada
+          if (!resEstudiante.ok) {
+            const errorText = await resEstudiante.text();
+            console.error('❌ Error al crear estudiante:', errorText);
             
-            alert(`Bienvenido ${teacher.nombre}`);
-            router.push('/editar');
-            router.refresh();
-          } else {
-            alert("Credenciales incorrectas. Verifica tu email y contraseña.");
+            if (errorText.includes('cedulaIdentidad') || errorText.includes('Unique constraint')) {
+              console.log('🔄 Cédula duplicada, generando una automática...');
+              
+              const nuevoEstudianteData = {
+                ...estudianteData,
+                cedulaIdentidad: `V-${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 100)}`
+              };
+              
+              resEstudiante = await fetch('/api/estudiantes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(nuevoEstudianteData)
+              });
+              
+              if (resEstudiante.ok) {
+                const estudianteCreado = await resEstudiante.json();
+                console.log('✅ Estudiante creado con cédula generada:', estudianteCreado);
+              } else {
+                const errorText2 = await resEstudiante.text();
+                console.error('❌ Error al crear estudiante con cédula generada:', errorText2);
+              }
+            }
+          }
+
+          if (resEstudiante.ok) {
+            const estudianteCreado = await resEstudiante.json();
+            console.log('✅ Estudiante creado exitosamente:', estudianteCreado);
           }
         }
-      } else if (userRole === 'control') {
-        if (!isLogin) {
-          const existingUser = localUsers.find(
-            u => u.email === formData.email && u.rol === 'control_estudios'
-          );
-          
-          if (existingUser) {
-            alert("Este correo ya está registrado como Control de Estudios.");
-          } else {
-            const newControl = {
-              id: Date.now(),
-              nombre: formData.nombre,
-              email: formData.email,
-              password: formData.password,
-              rol: 'control_estudios'
-            };
-            localUsers.push(newControl);
-            
-            alert(`Cuenta de Control de Estudios creada con éxito. Bienvenido ${formData.nombre}`);
-            setIsLogin(true);
-            setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
-          }
-        } else {
-          const control = localUsers.find(
-            u => u.email === formData.email && u.password === formData.password && u.rol === 'control_estudios'
-          );
 
-          if (control) {
-            localStorage.setItem('token', `control-${control.id}-${Date.now()}`);
-            localStorage.setItem('user', JSON.stringify({
-              id: control.id,
-              nombre: control.nombre,
-              email: control.email,
-              rol: 'control_estudios'
-            }));
-            
-            alert(`Bienvenido ${control.nombre}`);
-            router.push('/control_estudios');
-            router.refresh();
-          } else {
-            alert("Credenciales incorrectas. Verifica tu email y contraseña.");
+        // ========== CREAR DOCENTE ==========
+        if (userRole === 'teacher') {
+          const docenteData = {
+            nombres: formData.nombres,
+            apellidos: formData.apellidos,
+            cedulaIdentidad: formData.cedula || 'V-00000000',
+            email: formData.email,
+            telefono: formData.telefono || '',
+            especialidad: '',
+            nivel: '',
+            seccion: '',
+            fechaContratacion: new Date().toISOString().split('T')[0],
+            userId: data.id
+          };
+
+          console.log('📤 Enviando datos de docente:', JSON.stringify(docenteData, null, 2));
+
+          const resDocente = await fetch('/api/docentes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(docenteData)
+          });
+
+          if (!resDocente.ok) {
+            console.error('❌ Error al crear docente:', await resDocente.text());
           }
         }
-      } else {
-        if (!isLogin) {
-          const existingUser = localUsers.find(
-            u => u.email === formData.email && u.rol === 'estudiante'
-          );
-          
-          if (existingUser) {
-            alert("Este correo ya está registrado como estudiante.");
-          } else {
-            const newStudent = {
-              id: Date.now(),
-              nombre: formData.nombre,
-              email: formData.email,
-              password: formData.password,
-              nivel: formData.nivel,
-              grado: formData.grado,
-              seccion: formData.seccion,
-              rol: 'estudiante'
-            };
-            localUsers.push(newStudent);
-            
-            alert(`Cuenta de estudiante creada con éxito. Bienvenido ${formData.nombre}`);
-            setIsLogin(true);
-            setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
-          }
-        } else {
-          const student = localUsers.find(
-            u => u.email === formData.email && u.password === formData.password && u.rol === 'estudiante'
-          );
 
-          if (student) {
-            localStorage.setItem('token', `student-${student.id}-${Date.now()}`);
-            localStorage.setItem('user', JSON.stringify({
-              id: student.id,
-              nombre: student.nombre,
-              email: student.email,
-              nivel: student.nivel,
-              grado: student.grado,
-              seccion: student.seccion,
-              rol: 'estudiante'
-            }));
-            
-            alert(`Bienvenido ${student.nombre}`);
-            const ruta = construirRutaClassroom(student.nivel, student.grado, student.seccion);
-            router.push(ruta);
-            router.refresh();
-          } else {
-            alert("Credenciales incorrectas. Verifica tu email y contraseña.");
-          }
+        alert(`Cuenta creada con exito. Bienvenido ${formData.nombres}`);
+        setIsLogin(true);
+        setFormData({ 
+          nombres: '', 
+          apellidos: '', 
+          cedula: '', 
+          fechaNacimiento: '', 
+          email: '', 
+          password: '', 
+          telefono: '', 
+          nivel: '', 
+          grado: '', 
+          seccion: '' 
+        });
+        setLoading(false);
+        return;
+      }
+
+      // ========== LOGIN ==========
+      const result = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        alert('Credenciales incorrectas. Verifica tu email y contrasena.');
+        setLoading(false);
+        return;
+      }
+
+      const userResponse = await fetch('/api/auth/session');
+      const sessionData = await userResponse.json();
+      
+      if (sessionData?.user) {
+        localStorage.setItem('user', JSON.stringify(sessionData.user));
+        
+        const rol = sessionData.user.rol;
+        
+        if (rol === 'docente') {
+          router.push('/editar');
+        } else if (rol === 'control_estudios') {
+          router.push('/control_estudios');
+        } else if (rol === 'estudiante') {
+          router.push('/dashboard/estudiante');
+        } else {
+          router.push('/');
         }
+        router.refresh();
       }
     } catch (error) {
       console.error('Error:', error);
-      alert("Error de conexión. Verifica que el servidor esté funcionando.");
+      alert('Error de conexion. Verifica que el servidor este funcionando.');
     } finally {
       setLoading(false);
     }
@@ -319,13 +362,13 @@ const AuthPage: React.FC = () => {
       <div style={{
         position: 'absolute',
         top: 0, left: 0, width: '100%', height: '100%',
-        backgroundImage: 'url("/assets/img/fondo2.gif")',
+        backgroundImage: 'url("/assets/img/pc2.jpeg")',
         backgroundSize: 'cover',
         opacity: 0.1,
         zIndex: 1
       }} />
 
-      <main style={{ zIndex: 10, width: '100%', maxWidth: '450px', padding: '20px' }}>
+      <main style={{ zIndex: 10, width: '100%', maxWidth: '480px', padding: '20px' }}>
         <div style={glassCardStyle}>
           
           <div style={roleSelectorStyle}>
@@ -333,7 +376,7 @@ const AuthPage: React.FC = () => {
               onClick={() => {
                 setUserRole('teacher');
                 setIsLogin(true);
-                setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
+                setFormData({ nombres: '', apellidos: '', cedula: '', fechaNacimiento: '', email: '', password: '', telefono: '', nivel: '', grado: '', seccion: '' });
               }}
               style={{
                 ...roleButtonStyle,
@@ -348,7 +391,7 @@ const AuthPage: React.FC = () => {
               onClick={() => {
                 setUserRole('student');
                 setIsLogin(true);
-                setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
+                setFormData({ nombres: '', apellidos: '', cedula: '', fechaNacimiento: '', email: '', password: '', telefono: '', nivel: '', grado: '', seccion: '' });
               }}
               style={{
                 ...roleButtonStyle,
@@ -363,7 +406,7 @@ const AuthPage: React.FC = () => {
               onClick={() => {
                 setUserRole('control');
                 setIsLogin(true);
-                setFormData({ nombre: '', email: '', password: '', nivel: '', grado: '', seccion: '' });
+                setFormData({ nombres: '', apellidos: '', cedula: '', fechaNacimiento: '', email: '', password: '', telefono: '', nivel: '', grado: '', seccion: '' });
               }}
               style={{
                 ...roleButtonStyle,
@@ -417,14 +460,39 @@ const AuthPage: React.FC = () => {
             {!isLogin && (
               <>
                 <div style={{ textAlign: 'left' }}>
-                  <label style={labelStyle}>Nombre Completo</label>
+                  <label style={labelStyle}>Nombres *</label>
                   <input 
                     type="text" 
-                    placeholder={userRole === 'teacher' ? "Ej. Prof. García" : 
-                                userRole === 'control' ? "Ej. Coordinador" : "Ej. María Pérez"} 
+                    placeholder="Ej: Maria Jose" 
                     style={inputStyle} 
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                    value={formData.nombres}
+                    onChange={(e) => setFormData({...formData, nombres: e.target.value})}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div style={{ textAlign: 'left' }}>
+                  <label style={labelStyle}>Apellidos *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: Perez Gonzalez" 
+                    style={inputStyle} 
+                    value={formData.apellidos}
+                    onChange={(e) => setFormData({...formData, apellidos: e.target.value})}
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div style={{ textAlign: 'left' }}>
+                  <label style={labelStyle}>Cedula *</label>
+                  <input 
+                    type="text" 
+                    placeholder="V-12345678" 
+                    style={inputStyle} 
+                    value={formData.cedula}
+                    onChange={(e) => setFormData({...formData, cedula: e.target.value})}
                     required
                     disabled={loading}
                   />
@@ -433,7 +501,31 @@ const AuthPage: React.FC = () => {
                 {userRole === 'student' && (
                   <>
                     <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Nivel de Estudio</label>
+                      <label style={labelStyle}>Fecha de Nacimiento *</label>
+                      <input 
+                        type="date" 
+                        style={inputStyle} 
+                        value={formData.fechaNacimiento}
+                        onChange={(e) => setFormData({...formData, fechaNacimiento: e.target.value})}
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div style={{ textAlign: 'left' }}>
+                      <label style={labelStyle}>Telefono</label>
+                      <input 
+                        type="text" 
+                        placeholder="0412-1234567" 
+                        style={inputStyle} 
+                        value={formData.telefono}
+                        onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+                        disabled={loading}
+                      />
+                    </div>
+
+                    <div style={{ textAlign: 'left' }}>
+                      <label style={labelStyle}>Nivel de Estudio *</label>
                       <select 
                         style={inputStyle}
                         value={formData.nivel}
@@ -457,7 +549,7 @@ const AuthPage: React.FC = () => {
                     </div>
 
                     <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Grado/Año</label>
+                      <label style={labelStyle}>Grado/Año *</label>
                       <select 
                         style={inputStyle}
                         value={formData.grado}
@@ -477,7 +569,7 @@ const AuthPage: React.FC = () => {
                     </div>
 
                     <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Sección</label>
+                      <label style={labelStyle}>Seccion *</label>
                       <select 
                         style={inputStyle}
                         value={formData.seccion}
@@ -485,7 +577,7 @@ const AuthPage: React.FC = () => {
                         required
                         disabled={loading}
                       >
-                        <option value="">Seleccionar sección</option>
+                        <option value="">Seleccionar seccion</option>
                         {secciones.map((seccion) => (
                           <option key={seccion.value} value={seccion.value}>
                             {seccion.label}
@@ -495,11 +587,25 @@ const AuthPage: React.FC = () => {
                     </div>
                   </>
                 )}
+
+                {userRole === 'teacher' && (
+                  <div style={{ textAlign: 'left' }}>
+                    <label style={labelStyle}>Telefono</label>
+                    <input 
+                      type="text" 
+                      placeholder="0412-1234567" 
+                      style={inputStyle} 
+                      value={formData.telefono}
+                      onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+                      disabled={loading}
+                    />
+                  </div>
+                )}
               </>
             )}
 
             <div style={{ textAlign: 'left' }}>
-              <label style={labelStyle}>Correo Electrónico</label>
+              <label style={labelStyle}>Correo Electronico *</label>
               <input 
                 type="email" 
                 placeholder={userRole === 'teacher' ? "usuario@colegio.com" : 
@@ -513,7 +619,7 @@ const AuthPage: React.FC = () => {
             </div>
 
             <div style={{ textAlign: 'left' }}>
-              <label style={labelStyle}>Contraseña</label>
+              <label style={labelStyle}>Contraseña *</label>
               <input 
                 type="password" 
                 placeholder="••••••••" 
@@ -534,8 +640,8 @@ const AuthPage: React.FC = () => {
             </button>
           </form>
 
-          <p style={{ marginTop: '20px', color: '#9ca3af', fontSize: '0.75rem' }}>
-            
+          <p style={{ marginTop: '20px', color: '#9ca3af', fontSize: '0.75rem', opacity: 0.5 }}>
+            Sistema de Gestion Educativa 2024
           </p>
         </div>
       </main>
