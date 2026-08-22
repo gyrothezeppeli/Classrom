@@ -33,6 +33,8 @@ interface Docente {
   cedulaIdentidad: string;
   email: string;
   telefono: string;
+  nivel: string;
+  seccion: string;
   fechaContratacion: string;
   activo: boolean;
   userId?: string;
@@ -488,13 +490,15 @@ const GestionInstitutoPage: React.FC = () => {
                       <th style={tableHeaderStyle}>Apellidos</th>
                       <th style={tableHeaderStyle}>Email</th>
                       <th style={tableHeaderStyle}>Telefono</th>
+                      <th style={tableHeaderStyle}>Nivel</th>
+                      <th style={tableHeaderStyle}>Seccion</th>
                       <th style={tableHeaderStyle}>Contratacion</th>
                       <th style={tableHeaderStyle}>Estado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {docentesFiltrados.length === 0 ? (
-                      <tr><td colSpan={7} style={emptyStateStyle}>No se encontraron docentes</td></tr>
+                      <tr><td colSpan={9} style={emptyStateStyle}>No se encontraron docentes</td></tr>
                     ) : (
                       docentesFiltrados.map((d) => (
                         <tr key={d.id} style={tableRowStyle}>
@@ -503,6 +507,8 @@ const GestionInstitutoPage: React.FC = () => {
                           <td style={tableCellStyle}>{d.apellidos}</td>
                           <td style={tableCellStyle}><span style={emailTextStyle}>{d.email}</span></td>
                           <td style={tableCellStyle}>{d.telefono || '-'}</td>
+                          <td style={tableCellStyle}>{niveles.find(n => n.id === d.nivel)?.nombre || '-'}</td>
+                          <td style={tableCellStyle}><span style={seccionBadgeStyle}>{d.seccion || '-'}</span></td>
                           <td style={tableCellStyle}>{formatFecha(d.fechaContratacion)}</td>
                           <td style={tableCellStyle}>
                             <span style={{ ...estadoBadgeStyle, background: d.activo ? 'rgba(0,187,126,0.15)' : 'rgba(156,163,175,0.1)', color: d.activo ? PALETTE.principal : '#9ca3af' }}>
@@ -692,6 +698,8 @@ const GestionInstitutoPage: React.FC = () => {
     </div>
   );
 };
+
+// ========== COMPONENTES DEL MODAL ==========
 
 interface SalonModalProps {
   salon: Salon | null;
@@ -1156,7 +1164,8 @@ const EdicionMasivaModal: React.FC<EdicionMasivaModalProps> = ({
   );
 };
 
-// Estilos
+// ========== ESTILOS ==========
+
 const containerStyle: React.CSSProperties = {
   minHeight: '100vh',
   background: PALETTE.deepBg,
@@ -1700,6 +1709,10 @@ const modalOverlayStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center'
 };
+
+// ... (resto de estilos de modales)
+
+// Para completar, aquí están los estilos de modales que faltan:
 
 const modalDetalleContentStyle: React.CSSProperties = {
   background: '#1a2e26',

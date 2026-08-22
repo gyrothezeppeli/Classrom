@@ -1,7 +1,7 @@
 // app/api/auth/[...nextauth]/route.ts
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
+import { PrismaAdapter } from "@next-auth/prisma-adapter"; // <- Cambiar import
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
@@ -15,20 +15,26 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         });
 
-        if (!user) return null;
+        if (!user) {
+          return null;
+        }
 
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
-        if (!isPasswordValid) return null;
+        if (!isPasswordValid) {
+          return null;
+        }
 
         return {
           id: user.id,
@@ -49,22 +55,22 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.nombre = user.nombre;
         token.rol = user.rol;
         token.nivel = user.nivel;
         token.grado = user.grado;
         token.seccion = user.seccion;
-        token.nombre = user.nombre;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        session.user.nombre = token.nombre as string;
         session.user.rol = token.rol as string;
         session.user.nivel = token.nivel as string | null;
         session.user.grado = token.grado as string | null;
         session.user.seccion = token.seccion as string | null;
-        session.user.nombre = token.nombre as string;
       }
       return session;
     }

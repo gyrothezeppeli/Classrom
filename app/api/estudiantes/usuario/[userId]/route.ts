@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const { userId } = await params;
@@ -33,7 +33,6 @@ export async function GET(
 
     console.log("✅ Estudiante encontrado:", estudiante.id);
 
-    // Transformar los datos al formato que espera el dashboard
     const estudianteData = {
       id: estudiante.id,
       nombre: estudiante.nombres,
@@ -42,7 +41,7 @@ export async function GET(
       seccion: estudiante.seccion,
       cedula: estudiante.cedulaIdentidad,
       correo: estudiante.correoElectronico,
-      materias: [] // Por ahora vacío, luego se pueden cargar las materias
+      materias: []
     };
 
     return NextResponse.json(estudianteData);
