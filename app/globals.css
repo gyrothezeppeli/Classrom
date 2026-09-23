@@ -1,26 +1,465 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ============================================ */
+/* VARIABLES DE TEMA (paleta oscura verdosa)    */
+/* ============================================ */
+:root {
+  --background: oklch(0.23 0.02 155);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.25 0.02 155);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.22 0.02 155);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.72 0.17 155);
+  --primary-foreground: oklch(0.15 0.02 155);
+  --secondary: oklch(0.3 0.02 155);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.3 0.02 155);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.3 0.02 155);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.6 0.22 27);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.17 155);
+  --chart-1: oklch(0.72 0.17 155);
+  --chart-2: oklch(0.6 0.15 200);
+  --chart-3: oklch(0.5 0.1 300);
+  --chart-4: oklch(0.7 0.15 60);
+  --chart-5: oklch(0.65 0.2 350);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.22 0.02 155);
+  --sidebar-foreground: oklch(0.97 0 0);
+  --sidebar-primary: oklch(0.72 0.17 155);
+  --sidebar-primary-foreground: oklch(0.15 0.02 155);
+  --sidebar-accent: oklch(0.3 0.02 155);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.72 0.17 155);
+}
+
+.dark {
+  --background: oklch(0.23 0.02 155);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.25 0.02 155);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.22 0.02 155);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.72 0.17 155);
+  --primary-foreground: oklch(0.15 0.02 155);
+  --secondary: oklch(0.3 0.02 155);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.3 0.02 155);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.3 0.02 155);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.6 0.22 27);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.17 155);
+  --chart-1: oklch(0.72 0.17 155);
+  --chart-2: oklch(0.6 0.15 200);
+  --chart-3: oklch(0.5 0.1 300);
+  --chart-4: oklch(0.7 0.15 60);
+  --chart-5: oklch(0.65 0.2 350);
+  --sidebar: oklch(0.22 0.02 155);
+  --sidebar-foreground: oklch(0.97 0 0);
+  --sidebar-primary: oklch(0.72 0.17 155);
+  --sidebar-primary-foreground: oklch(0.15 0.02 155);
+  --sidebar-accent: oklch(0.3 0.02 155);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.72 0.17 155);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ============================================ */
+/* LIQUID GLASS — LOGIN (iOS 26)                */
+/* ============================================ */
+
+@keyframes liquidLoginIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(30px);
+    filter: blur(20px) brightness(1.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.005) translateY(-2px);
+    filter: blur(1px) brightness(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0px) brightness(1);
+  }
+}
+
+@keyframes liquidLoginContent {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ✨ SHIMMER VERDE — más claro y más lento */
+@keyframes liquidLoginShimmer {
+  0% {
+    background-position: -250% center;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    background-position: 250% center;
+    opacity: 0;
+  }
+}
+
+.liquid-login-card {
+  position: relative;
+  overflow: hidden;
+  background: rgba(20, 40, 30, 0.35);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 40px 100px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(0, 187, 126, 0.08);
+  animation: liquidLoginIn 0.9s cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+  will-change: transform, filter, opacity;
+}
+
+/* ✨ BRILLO VERDE — más claro y más lento */
+.liquid-login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 25%,
+    rgba(0, 187, 126, 0.05) 38%,
+    rgba(0, 187, 126, 0.14) 50%,
+    rgba(0, 187, 126, 0.05) 62%,
+    transparent 75%
+  );
+  background-size: 250% 100%;
+  animation: liquidLoginShimmer 7s ease-in-out 1s infinite;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.liquid-login-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(0, 187, 126, 0.15) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.liquid-login-content {
+  position: relative;
+  z-index: 2;
+  animation: liquidLoginContent 0.7s ease-out 0.3s backwards;
+}
+
+/* ============================================ */
+/* LIQUID GLASS — MODALES (iOS 26)              */
+/* ============================================ */
+
+@keyframes liquidBackdrop {
+  0% {
+    backdrop-filter: blur(0px) saturate(100%);
+    background: rgba(10, 20, 16, 0);
+  }
+  100% {
+    backdrop-filter: blur(30px) saturate(150%);
+    background: rgba(10, 20, 16, 0.65);
+  }
+}
+
+@keyframes liquidCapsule {
+  0% {
+    opacity: 0;
+    transform: scale(0.12) translateY(80px);
+    filter: blur(24px) brightness(1.6);
+    border-radius: 999px;
+  }
+  15% {
+    opacity: 0.7;
+    transform: scale(0.18) translateY(60px);
+    filter: blur(18px) brightness(1.5);
+    border-radius: 999px;
+  }
+  35% {
+    opacity: 1;
+    transform: scale(0.35) translateY(35px);
+    filter: blur(10px) brightness(1.3);
+    border-radius: 999px;
+  }
+  55% {
+    transform: scale(0.7) translateY(15px);
+    filter: blur(5px) brightness(1.15);
+    border-radius: 60px;
+  }
+  75% {
+    transform: scale(0.94) translateY(4px);
+    filter: blur(1.5px) brightness(1.05);
+    border-radius: 34px;
+  }
+  90% {
+    transform: scale(1.015) translateY(-1px);
+    filter: blur(0px) brightness(1);
+    border-radius: 27px;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0px) brightness(1);
+    border-radius: 28px;
+  }
+}
+
+@keyframes liquidShimmer {
+  0% {
+    background-position: -250% center;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 250% center;
+    opacity: 0;
+  }
+}
+
+@keyframes liquidContentReveal {
+  0% {
+    opacity: 0;
+    filter: blur(14px);
+    transform: translateY(18px) scale(0.98);
+  }
+  60% {
+    opacity: 0.8;
+    filter: blur(4px);
+    transform: translateY(4px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.liquid-overlay {
+  animation: liquidBackdrop 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  will-change: backdrop-filter, background;
+}
+
+.liquid-modal {
+  animation: liquidCapsule 0.65s cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  background: rgba(26, 46, 38, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 25px 80px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(0, 187, 126, 0.15);
+  will-change: transform, filter, border-radius, opacity;
+  transform-origin: center center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.liquid-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: liquidShimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) 0.4s;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: inherit;
+  will-change: background-position, opacity;
+}
+
+.liquid-modal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at 30% 15%,
+    rgba(0, 187, 126, 0.18) 0%,
+    transparent 55%
+  );
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.liquid-content {
+  position: relative;
+  z-index: 3;
+  animation: liquidContentReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.25s backwards;
+  will-change: opacity, filter, transform;
+}
+
+/* ============================================ */
+/* LIQUID GLASS — MATERIA CARDS                 */
+/* ============================================ */
+
+@keyframes liquidMateriaIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+    filter: blur(8px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.liquid-materia-card {
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  background: rgba(26, 46, 38, 0.5) !important;
+  animation: liquidMateriaIn 0.6s cubic-bezier(0.22, 1.2, 0.36, 1) backwards;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, box-shadow;
+}
+
+.liquid-materia-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  background: rgba(26, 46, 38, 0.65) !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 187, 126, 0.1);
+}
+
+.liquid-materia-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.06) 55%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-position: 200% center;
+  opacity: 0;
+  transition: opacity 0.35s ease, background-position 0.8s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.liquid-materia-card:hover::before {
+  opacity: 1;
+  background-position: -200% center;
+}
+
+.liquid-materia-card > * {
+  position: relative;
+  z-index: 2;
 }

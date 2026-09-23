@@ -1,7 +1,13 @@
+// app/layout.tsx
+
 import type { Metadata } from 'next';
-import 'bootstrap/dist/css/bootstrap.min.css';
 import './globals.css';
 import { Providers } from './providers';
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+import { Toaster } from 'sileo';
+
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: 'U.E Ciudad Cuatricentenaria - Start Bootstrap Theme',
@@ -17,21 +23,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="es" className={cn("dark font-sans", geist.variable)}>
       <head>
         {/* Font Awesome */}
-        <link 
-          rel="stylesheet" 
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0/css/all.min.css" 
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0/css/all.min.css"
         />
-        {/* Google Fonts: Agregada Saira Stencil One */}
-        <link 
-          href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Montserrat:wght@400;700&display=swap" 
+        {/* Google Fonts */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Montserrat:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <Toaster position="top-right" />
+        </Providers>
       </body>
     </html>
   );

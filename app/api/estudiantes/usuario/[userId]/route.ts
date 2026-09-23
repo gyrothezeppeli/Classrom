@@ -1,54 +1,64 @@
 // app/api/estudiantes/usuario/[userId]/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const { userId } = await params;
 
-    console.log("🔍 Buscando estudiante con userId:", userId);
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'ID de usuario requerido' },
+        { status: 400 }
+      );
+    }
 
     const estudiante = await prisma.estudiante.findUnique({
-      where: { userId: userId },
+      where: {
+        userId: userId
+      },
       include: {
         user: {
           select: {
+            nombre: true,
+            apellido: true,
             email: true,
-            nombre: true
+            telefono: true
           }
         }
       }
     });
 
     if (!estudiante) {
-      console.log("❌ Estudiante no encontrado para userId:", userId);
       return NextResponse.json(
-        { error: "Estudiante no encontrado" },
+        { error: 'Estudiante no encontrado para este usuario' },
         { status: 404 }
       );
     }
 
-    console.log("✅ Estudiante encontrado:", estudiante.id);
-
-    const estudianteData = {
+    return NextResponse.json({
       id: estudiante.id,
-      nombre: estudiante.nombres,
-      apellido: estudiante.apellidos,
+      userId: estudiante.userId,
+      nombres: estudiante.user.nombre,
+      apellidos: estudiante.user.apellido || '',
+      correoElectronico: estudiante.user.email,
+      telefono: estudiante.user.telefono || '',
+      cedulaIdentidad: estudiante.cedulaIdentidad || '', // ✅ CORREGIDO
+      nivel: estudiante.nivel,
       grado: estudiante.grado,
       seccion: estudiante.seccion,
-      cedula: estudiante.cedulaIdentidad,
-      correo: estudiante.correoElectronico,
-      materias: []
-    };
+      createdAt: estudiante.createdAt,
+      updatedAt: estudiante.updatedAt
+    });
 
-    return NextResponse.json(estudianteData);
   } catch (error) {
-    console.error("❌ Error al obtener estudiante:", error);
+    console.error('Error al obtener estudiante:', error);
     return NextResponse.json(
-      { error: "Error al obtener estudiante" },
+      { error: 'Error al obtener los datos del estudiante' },
       { status: 500 }
     );
   }

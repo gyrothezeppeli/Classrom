@@ -1,58 +1,99 @@
+// app/editar/page.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { sileo } from 'sileo';
+
+// ============ SHADCN UI ============
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  FileDown,
+  Eye,
+  Pencil,
+  Trash2,
+  Plus,
+  X,
+  Save,
+  LogOut,
+  BookOpen,
+  Bell,
+  FileText,
+  ClipboardList,
+  ArrowLeft,
+} from "lucide-react";
 
 const PALETTE = {
   principal: '#00BB7E',
   deepBg: '#1a2e26',
   cardBg: 'rgba(255, 255, 255, 0.03)',
-  textGray: '#9ca3af'
+  textGray: '#9ca3af',
+  danger: '#ef4444'
 };
 
 const TIPOS_CONTENIDO = [
-  { id: 'tarea', nombre: 'Tarea' },
-  { id: 'aviso', nombre: 'Aviso' },
-  { id: 'material', nombre: 'Material' },
-  { id: 'plan_evaluacion', nombre: 'Plan de Evaluacion' }
+  { id: 'tarea', nombre: 'Tarea', icon: BookOpen },
+  { id: 'aviso', nombre: 'Aviso', icon: Bell },
+  { id: 'material', nombre: 'Material', icon: FileText },
+  { id: 'plan_evaluacion', nombre: 'Plan de Evaluación', icon: ClipboardList }
 ];
 
 const MATERIAS_POR_NIVEL = {
   inicial: [
-    'Lenguaje y Comunicacion',
-    'Matematica',
-    'Exploracion del Entorno',
-    'Expresion Artistica',
-    'Educacion Fisica'
+    'Lenguaje y Comunicación',
+    'Matemáticas',
+    'Expresión Artística',
+    'Educación Física'
   ],
   primaria: [
-    'Lengua Espanola',
-    'Matematica',
+    'Lengua Española',
+    'Matemáticas',
     'Ciencias Sociales',
     'Ciencias Naturales',
-    'Ingles',
-    'Educacion Artistica',
-    'Educacion Fisica',
-    'Formacion Humana'
+    'Inglés',
+    'Educación Artística',
+    'Educación Física'
   ],
   media: [
-    'Lengua Espanola',
-    'Matematica',
+    'Lengua Española',
+    'Matemáticas',
     'Historia',
-    'Geografia',
-    'Biologia',
-    'Quimica',
-    'Fisica',
-    'Ingles',
-    'Frances',
-    'Filosofia',
-    'Educacion Fisica',
+    'Geografía',
+    'Biología',
+    'Química',
+    'Física',
+    'Inglés',
+    'Educación Física',
     'Arte',
-    'Informatica'
+    'Informática'
   ]
 };
 
-// Tipo para las filas del plan de evaluación
+const SECCIONES_DISPONIBLES = ['A', 'B', 'C', 'D', 'E'];
+
 interface FilaPlan {
   id: string;
   fecha: string;
@@ -65,26 +106,45 @@ interface FilaPlan {
   criteriosEvaluacion: string;
 }
 
-// Tipo para el plan de evaluación completo
 interface PlanEvaluacion {
   id: string;
   areaFormacion: string;
   docente: string;
+  docenteId?: string;
   ano: string;
   secciones: string;
   filas: FilaPlan[];
   nivel: string;
   grado: string;
   materia: string;
+  createdAt?: string;
+}
+
+interface DocenteInfo {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  email: string;
+  especialidad?: string;
+  user?: {
+    nombre: string;
+    apellido: string;
+    email: string;
+  };
 }
 
 const EditTasksPage: React.FC = () => {
-  // Estados originales
-  const [nivelSeleccionado, setNivelSeleccionado] = useState('media');
-  const [gradoSeleccionado, setGradoSeleccionado] = useState('');
-  const [seccionSeleccionada, setSeccionSeleccionada] = useState('');
-  const [tipoContenido, setTipoContenido] = useState('tarea');
-  const [materia, setMateria] = useState('');
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [docenteInfo, setDocenteInfo] = useState<DocenteInfo | null>(null);
+  const [cargandoDocente, setCargandoDocente] = useState(true);
+
+  const [nivelSeleccionado, setNivelSeleccionado] = useState<string>('media');
+  const [gradoSeleccionado, setGradoSeleccionado] = useState<string>('');
+  const [seccionSeleccionada, setSeccionSeleccionada] = useState<string>('');
+  const [tipoContenido, setTipoContenido] = useState<string>('tarea');
+  const [materia, setMateria] = useState<string>('');
+  const [cargandoPlanes, setCargandoPlanes] = useState(true);
   const [contenido, setContenido] = useState({
     titulo: '',
     descripcion: '',
@@ -97,12 +157,11 @@ const EditTasksPage: React.FC = () => {
     enlaces: ''
   });
 
-  // Estados para el plan de evaluación
   const [mostrarGestorPlan, setMostrarGestorPlan] = useState(false);
   const [modoEdicionPlan, setModoEdicionPlan] = useState(false);
   const [planEditandoId, setPlanEditandoId] = useState<string | null>(null);
-  
-  // Estado para el plan de evaluación actual
+  const [vistaPreviaPlan, setVistaPreviaPlan] = useState<PlanEvaluacion | null>(null);
+
   const [planActual, setPlanActual] = useState<PlanEvaluacion>({
     id: '',
     areaFormacion: '',
@@ -115,55 +174,19 @@ const EditTasksPage: React.FC = () => {
     materia: ''
   });
 
-  // Estado para los planes guardados
-  const [planesGuardados, setPlanesGuardados] = useState<PlanEvaluacion[]>([
-    {
-      id: '1',
-      areaFormacion: 'Matematica',
-      docente: 'Prof. Juan Perez',
-      ano: '1er Año',
-      secciones: 'A, B',
-      nivel: 'media',
-      grado: '1ro',
-      materia: 'Matematica',
-      filas: [
-        {
-          id: '1-1',
-          fecha: '2026-03-01',
-          referenteTeorico: 'Operaciones básicas',
-          estrategiaEvaluacion: 'Resolución de problemas',
-          tecnicaEvaluacion: 'Prueba escrita',
-          instrumentoEvaluacion: 'Cuestionario',
-          ptos: '20',
-          porcentaje: '30',
-          criteriosEvaluacion: 'Procedimiento correcto'
-        },
-        {
-          id: '1-2',
-          fecha: '2026-03-15',
-          referenteTeorico: 'Ecuaciones lineales',
-          estrategiaEvaluacion: 'Análisis de casos',
-          tecnicaEvaluacion: 'Prueba práctica',
-          instrumentoEvaluacion: 'Ejercicios resueltos',
-          ptos: '30',
-          porcentaje: '40',
-          criteriosEvaluacion: 'Razonamiento lógico'
-        }
-      ]
-    }
-  ]);
+  const [planesGuardados, setPlanesGuardados] = useState<PlanEvaluacion[]>([]);
 
   const niveles = [
-    { id: 'inicial', nombre: 'Educacion Inicial' },
-    { id: 'primaria', nombre: 'Educacion Primaria' },
-    { id: 'media', nombre: 'Educacion Media' }
+    { id: 'inicial', nombre: 'Educación Inicial' },
+    { id: 'primaria', nombre: 'Educación Primaria' },
+    { id: 'media', nombre: 'Educación Media' }
   ];
 
   const gradosPorNivel = {
     inicial: [
-      { id: 'prekinder', nombre: 'Pre-Kinder', secciones: ['A', 'B', 'C'] },
-      { id: 'kinder', nombre: 'Kinder', secciones: ['A', 'B', 'C'] },
-      { id: 'preparatorio', nombre: 'Preparatorio', secciones: ['A', 'B'] }
+      { id: '1er nivel', nombre: '1er Nivel', secciones: [] as string[] },
+      { id: '2do nivel', nombre: '2do Nivel', secciones: [] as string[] },
+      { id: '3er nivel', nombre: '3er Nivel', secciones: [] as string[] }
     ],
     primaria: [
       { id: '1ro', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
@@ -184,83 +207,277 @@ const EditTasksPage: React.FC = () => {
 
   const gradosActuales = gradosPorNivel[nivelSeleccionado as keyof typeof gradosPorNivel] || [];
   const materiasDisponibles = MATERIAS_POR_NIVEL[nivelSeleccionado as keyof typeof MATERIAS_POR_NIVEL] || [];
-  
-  const seccionesActuales = gradoSeleccionado 
+
+  const seccionesActuales = gradoSeleccionado
     ? gradosActuales.find(g => g.id === gradoSeleccionado)?.secciones || []
     : [];
 
-  // Filtrar planes guardados
+  // ============ GESTIÓN DE SESIÓN ============
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
+    const cargarDocente = async () => {
+      if (status !== 'authenticated' || !session?.user) return;
+
+      try {
+        setCargandoDocente(true);
+        const response = await fetch('/api/docentes?me=true');
+
+        if (response.ok) {
+          const data = await response.json();
+          setDocenteInfo({
+            id: data.id,
+            nombres: data.nombre || data.nombres || '',
+            apellidos: data.apellido || data.apellidos || '',
+            email: data.email || '',
+            especialidad: data.especialidad || ''
+          });
+        } else if (response.status === 404) {
+          await crearDocenteAutomaticamente();
+        }
+      } catch (error) {
+        console.error('Error al cargar docente:', error);
+      } finally {
+        setCargandoDocente(false);
+      }
+    };
+
+    cargarDocente();
+  }, [session, status]);
+
+  const crearDocenteAutomaticamente = async () => {
+    try {
+      const response = await fetch('/api/docentes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: session?.user?.id,
+          especialidad: 'General',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDocenteInfo({
+          id: data.docente.id,
+          nombres: data.docente.nombre || '',
+          apellidos: data.docente.apellido || '',
+          email: data.docente.email || '',
+          especialidad: data.docente.especialidad || ''
+        });
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const cargarPlanes = async () => {
+    try {
+      setCargandoPlanes(true);
+      let url = '/api/planes-evaluacion';
+
+      if (docenteInfo?.id) {
+        url += `?docenteId=${docenteInfo.id}`;
+      }
+
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+
+        const planesNormalizados = data.map((plan: any) => ({
+          ...plan,
+          secciones: plan.secciones || plan.seccion || 'A',
+          areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
+          docente: plan.docente || 'Docente',
+          ano: plan.ano || plan.grado || '1ro',
+          filas: Array.isArray(plan.filas) ? plan.filas : []
+        }));
+
+        setPlanesGuardados(planesNormalizados);
+      } else {
+        setPlanesGuardados([]);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setPlanesGuardados([]);
+    } finally {
+      setCargandoPlanes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (status === 'authenticated' && docenteInfo?.id) {
+      cargarPlanes();
+    }
+  }, [status, docenteInfo]);
+
+  useEffect(() => {
+    if (status === 'authenticated' && docenteInfo?.id) {
+      cargarPlanes();
+    }
+  }, [nivelSeleccionado, gradoSeleccionado, seccionSeleccionada, docenteInfo]);
+
   const planesFiltrados = planesGuardados.filter(plan => {
     let coincide = true;
+
+    if (!plan) return false;
+
     if (nivelSeleccionado && plan.nivel !== nivelSeleccionado) coincide = false;
     if (gradoSeleccionado && plan.grado !== gradoSeleccionado) coincide = false;
-    if (seccionSeleccionada && !plan.secciones.includes(seccionSeleccionada)) coincide = false;
+
+    if (seccionSeleccionada) {
+      const seccionesPlan = plan.secciones || (plan as any).seccion || '';
+      if (typeof seccionesPlan === 'string') {
+        if (!seccionesPlan.includes(seccionSeleccionada)) coincide = false;
+      } else if (Array.isArray(seccionesPlan)) {
+        if (!seccionesPlan.includes(seccionSeleccionada)) coincide = false;
+      } else {
+        coincide = false;
+      }
+    }
+
     return coincide;
   });
 
-  // Funciones originales
   const handleNivelChange = (nivelId: string) => {
     setNivelSeleccionado(nivelId);
     setGradoSeleccionado('');
     setSeccionSeleccionada('');
     setMateria('');
+    setVistaPreviaPlan(null);
   };
 
-  const handlePublicar = (e: React.FormEvent) => {
+  const handlePublicar = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!gradoSeleccionado) {
-      alert('Por favor seleccione un grado/año');
+      sileo.warning({ title: 'Datos incompletos', description: 'Por favor seleccione un grado/año' });
       return;
     }
-    
-    if (!seccionSeleccionada) {
-      alert('Por favor seleccione una seccion');
+
+    if (nivelSeleccionado !== 'inicial' && !seccionSeleccionada) {
+      sileo.warning({ title: 'Datos incompletos', description: 'Por favor seleccione una sección' });
       return;
     }
 
     if (!materia) {
-      alert('Por favor seleccione una materia');
+      sileo.warning({ title: 'Datos incompletos', description: 'Por favor seleccione una materia' });
       return;
     }
-    
+
+    if (!contenido.titulo) {
+      sileo.warning({ title: 'Datos incompletos', description: 'Por favor ingrese un título' });
+      return;
+    }
+
+    if (!docenteInfo?.id) {
+      sileo.error({ title: 'Error', description: 'No se encontró información del docente. Recargue la página.' });
+      return;
+    }
+
     const nivelNombre = niveles.find(n => n.id === nivelSeleccionado)?.nombre;
     const gradoNombre = gradosActuales.find(g => g.id === gradoSeleccionado)?.nombre;
     const tipoNombre = TIPOS_CONTENIDO.find(t => t.id === tipoContenido)?.nombre;
-    
-    let mensaje = `${tipoNombre} publicado exitosamente en:\n`;
-    mensaje += `${nivelNombre}\n`;
-    mensaje += `${gradoNombre}\n`;
-    mensaje += `Seccion ${seccionSeleccionada}\n`;
-    mensaje += `Materia: ${materia}\n\n`;
-    mensaje += `Titulo: ${contenido.titulo}\n`;
-    
-    if (contenido.descripcion) mensaje += `Descripcion: ${contenido.descripcion}\n`;
-    if (contenido.fecha) mensaje += `Fecha: ${contenido.fecha}\n`;
-    if (contenido.recursos) mensaje += `Recursos: ${contenido.recursos}\n`;
-    if (contenido.objetivos) mensaje += `Objetivos: ${contenido.objetivos}\n`;
-    if (contenido.criterios) mensaje += `Criterios: ${contenido.criterios}\n`;
-    if (contenido.ponderacion) mensaje += `Ponderacion: ${contenido.ponderacion}\n`;
-    if (contenido.enlaces) mensaje += `Enlaces: ${contenido.enlaces}\n`;
-    
-    console.log(`Publicando ${tipoContenido}:`, contenido);
-    alert(mensaje);
-    
-    setContenido({
-      titulo: '',
-      descripcion: '',
-      fecha: '',
-      materia: '',
-      recursos: '',
-      objetivos: '',
-      criterios: '',
-      ponderacion: '',
-      enlaces: ''
-    });
-    setMateria('');
+
+    try {
+      const fechaFinal = contenido.fecha || new Date().toISOString().split('T')[0];
+
+      let endpoint = '/api/tareas';
+      let payload: any = {};
+
+      if (tipoContenido === 'aviso') {
+        endpoint = '/api/avisos';
+        payload = {
+          titulo: contenido.titulo.trim(),
+          descripcion: contenido.descripcion || '',
+          fecha: fechaFinal,
+          nivel: nivelSeleccionado,
+          grado: gradoSeleccionado,
+          seccion: seccionSeleccionada || 'Única',
+          materia,
+          docenteId: docenteInfo.id,
+        };
+      } else if (tipoContenido === 'material') {
+        endpoint = '/api/materiales';
+        payload = {
+          titulo: contenido.titulo.trim(),
+          descripcion: contenido.descripcion || '',
+          enlace: contenido.enlaces || '',
+          fecha: fechaFinal,
+          nivel: nivelSeleccionado,
+          grado: gradoSeleccionado,
+          seccion: seccionSeleccionada || 'Única',
+          materia,
+          docenteId: docenteInfo.id,
+        };
+      } else {
+        endpoint = '/api/tareas';
+        payload = {
+          titulo: contenido.titulo.trim(),
+          descripcion: contenido.descripcion || '',
+          fechaEntrega: fechaFinal,
+          recursos: contenido.recursos || '',
+          objetivos: contenido.objetivos || '',
+          ponderacion: contenido.ponderacion || '',
+          nivel: nivelSeleccionado,
+          grado: gradoSeleccionado,
+          seccion: seccionSeleccionada || 'Única',
+          materia,
+          docenteId: docenteInfo.id,
+        };
+      }
+
+      console.log(`Enviando a ${endpoint}:`, payload);
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        sileo.error({
+          title: 'Error al publicar',
+          description: errorData.error || response.statusText,
+        });
+        return;
+      }
+
+      const data = await response.json();
+
+      sileo.success({
+        title: `${tipoNombre} publicado exitosamente`,
+        description: `${nivelNombre} • ${gradoNombre}${seccionSeleccionada ? ` - Sección ${seccionSeleccionada}` : ''} • ${materia} • Asignado a ${data.estudiantesAsignados || 0} estudiantes`,
+      });
+
+      setContenido({
+        titulo: '',
+        descripcion: '',
+        fecha: '',
+        materia: '',
+        recursos: '',
+        objetivos: '',
+        criterios: '',
+        ponderacion: '',
+        enlaces: ''
+      });
+      setMateria('');
+    } catch (error) {
+      console.error('Error al publicar:', error);
+      sileo.error({
+        title: 'Error de conexión',
+        description: 'No se pudo publicar el contenido',
+      });
+    }
   };
 
-  // Funciones del plan de evaluación
   const agregarFila = () => {
     const nuevaFila: FilaPlan = {
       id: `fila-${Date.now()}`,
@@ -289,911 +506,1322 @@ const EditTasksPage: React.FC = () => {
   const actualizarFila = (id: string, campo: keyof FilaPlan, valor: string) => {
     setPlanActual({
       ...planActual,
-      filas: planActual.filas.map(fila => 
+      filas: planActual.filas.map(fila =>
         fila.id === id ? { ...fila, [campo]: valor } : fila
       )
     });
   };
 
-  const guardarPlan = () => {
+  const guardarPlan = async () => {
     if (!planActual.areaFormacion || !planActual.docente || !planActual.ano) {
-      alert('Por favor complete los campos del encabezado del plan');
+      sileo.warning({ title: 'Datos incompletos', description: 'Complete los campos del encabezado del plan' });
+      return;
+    }
+
+    if (!gradoSeleccionado) {
+      sileo.warning({ title: 'Datos incompletos', description: 'Seleccione un grado/año antes de guardar el plan' });
       return;
     }
 
     if (planActual.filas.length === 0) {
-      alert('Por favor agregue al menos una fila al plan');
+      sileo.warning({ title: 'Datos incompletos', description: 'Agregue al menos una fila al plan' });
       return;
     }
 
-    if (modoEdicionPlan && planEditandoId) {
-      // Actualizar plan existente
-      setPlanesGuardados(planesGuardados.map(plan => 
-        plan.id === planEditandoId ? { ...planActual, id: planEditandoId } : plan
-      ));
-      alert('Plan de evaluación actualizado exitosamente');
-    } else {
-      // Crear nuevo plan
-      const nuevoPlan = {
-        ...planActual,
-        id: `plan-${Date.now()}`,
-        nivel: nivelSeleccionado,
-        grado: gradoSeleccionado,
-        materia: materia
-      };
-      setPlanesGuardados([...planesGuardados, nuevoPlan]);
-      alert('Plan de evaluación creado exitosamente');
-    }
+    try {
+      if (!session?.user) {
+        sileo.error({ title: 'Sesión requerida', description: 'Debes iniciar sesión como docente' });
+        return;
+      }
 
-    // Resetear y salir
-    setMostrarGestorPlan(false);
-    setModoEdicionPlan(false);
-    setPlanEditandoId(null);
-    setPlanActual({
-      id: '',
-      areaFormacion: '',
-      docente: '',
-      ano: '',
-      secciones: '',
-      filas: [],
-      nivel: '',
-      grado: '',
-      materia: ''
-    });
+      if (!docenteInfo?.id) {
+        const response = await fetch('/api/docentes?me=true');
+        if (response.ok) {
+          const data = await response.json();
+
+          setDocenteInfo({
+            id: data.id,
+            nombres: data.nombre || data.nombres || '',
+            apellidos: data.apellido || data.apellidos || '',
+            email: data.email || '',
+            especialidad: data.especialidad || ''
+          });
+
+          setTimeout(() => {
+            guardarPlanConDocente(data.id);
+          }, 100);
+          return;
+        } else {
+          sileo.error({ title: 'Error', description: 'No se encontró información del docente' });
+          return;
+        }
+      }
+
+      await guardarPlanConDocente(docenteInfo.id);
+
+    } catch (error) {
+      console.error('Error al guardar plan:', error);
+      sileo.error({
+        title: 'Error al guardar el plan',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+      });
+    }
+  };
+
+  const guardarPlanConDocente = async (docenteId: string) => {
+    try {
+      if (!docenteId) {
+        sileo.error({ title: 'Error', description: 'No se encontró el ID del docente' });
+        return;
+      }
+
+      const planData = {
+        titulo: planActual.areaFormacion.trim() || 'Plan de Evaluación',
+        descripcion: `Plan de evaluación de ${planActual.areaFormacion}`,
+        nivel: nivelSeleccionado || 'media',
+        grado: gradoSeleccionado || '1ro',
+        seccion: planActual.secciones || seccionSeleccionada || 'Única',
+        materia: (materia || planActual.materia || planActual.areaFormacion || '').trim(),
+        docenteId: docenteId,
+        filas: planActual.filas || [],
+      };
+
+      let response;
+      let url = '/api/planes-evaluacion';
+      let method = 'POST';
+
+      if (modoEdicionPlan && planEditandoId) {
+        url = `/api/planes-evaluacion/${planEditandoId}`;
+        method = 'PUT';
+      }
+
+      response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(planData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          sileo.error({ title: 'Error', description: errorJson.error || errorText });
+        } catch {
+          sileo.error({ title: 'Error', description: errorText });
+        }
+        return;
+      }
+
+      await response.json();
+      sileo.success({ title: modoEdicionPlan ? 'Plan actualizado' : 'Plan creado' });
+
+      await cargarPlanes();
+
+      setMostrarGestorPlan(false);
+      setModoEdicionPlan(false);
+      setPlanEditandoId(null);
+      setVistaPreviaPlan(null);
+      setPlanActual({
+        id: '',
+        areaFormacion: '',
+        docente: '',
+        ano: '',
+        secciones: '',
+        filas: [],
+        nivel: '',
+        grado: '',
+        materia: ''
+      });
+
+    } catch (error) {
+      console.error('Error en guardarPlanConDocente:', error);
+      sileo.error({
+        title: 'Error al guardar el plan',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+      });
+    }
   };
 
   const editarPlan = (plan: PlanEvaluacion) => {
-    setPlanActual({ ...plan });
+    setPlanActual({
+      ...plan,
+      filas: Array.isArray(plan.filas) ? plan.filas : []
+    });
     setModoEdicionPlan(true);
     setPlanEditandoId(plan.id);
     setMostrarGestorPlan(true);
+    setVistaPreviaPlan(null);
+  };
+
+  const verPlan = (plan: PlanEvaluacion) => {
+    setVistaPreviaPlan({
+      ...plan,
+      filas: Array.isArray(plan.filas) ? plan.filas : []
+    });
+    setMostrarGestorPlan(false);
+  };
+
+  const cerrarVistaPrevia = () => {
+    setVistaPreviaPlan(null);
   };
 
   const nuevoPlan = () => {
+    const gradoPorDefecto = gradoSeleccionado || (gradosActuales.length > 0 ? gradosActuales[0].id : '');
+    const seccionPorDefecto = nivelSeleccionado === 'inicial' ? '' : (seccionSeleccionada || 'A');
+
+    const nombreDocente = session?.user?.name ||
+      docenteInfo?.nombres ||
+      docenteInfo?.user?.nombre ||
+      'Docente';
+
     setPlanActual({
       id: '',
       areaFormacion: '',
-      docente: '',
-      ano: '',
-      secciones: '',
+      docente: nombreDocente,
+      ano: gradoPorDefecto,
+      secciones: seccionPorDefecto,
       filas: [],
       nivel: nivelSeleccionado,
-      grado: gradoSeleccionado,
-      materia: materia
+      grado: gradoPorDefecto,
+      materia: materia || ''
     });
+
+    if (gradoPorDefecto) setGradoSeleccionado(gradoPorDefecto);
+    if (seccionPorDefecto) setSeccionSeleccionada(seccionPorDefecto);
+
     setModoEdicionPlan(false);
     setPlanEditandoId(null);
     setMostrarGestorPlan(true);
+    setVistaPreviaPlan(null);
   };
 
+  // ✅ CORREGIDO: usa window.confirm en lugar de sileo.action con cancel
+  const eliminarPlan = (id: string) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este plan de evaluación?')) {
+      return;
+    }
+    ejecutarEliminarPlan(id);
+  };
+
+  const ejecutarEliminarPlan = async (id: string) => {
+    try {
+      const response = await fetch(`/api/planes-evaluacion/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        sileo.success({ title: 'Plan eliminado exitosamente' });
+        await cargarPlanes();
+        if (vistaPreviaPlan?.id === id) {
+          setVistaPreviaPlan(null);
+        }
+      } else {
+        const error = await response.text();
+        sileo.error({ title: 'Error', description: error });
+      }
+    } catch (error) {
+      console.error('Error al eliminar:', error);
+      sileo.error({ title: 'Error al eliminar el plan' });
+    }
+  };
+
+  const exportarAPDF = async (plan: PlanEvaluacion) => {
+    try {
+      console.log('Iniciando exportación a PDF...');
+
+      const filas = Array.isArray(plan.filas) ? plan.filas : [];
+
+      const jsPDFModule = await import('jspdf');
+      const autoTableModule = await import('jspdf-autotable');
+
+      const JsPDFClass = (jsPDFModule as any).default || (jsPDFModule as any).jsPDF;
+      const autoTableFn = (autoTableModule as any).default || autoTableModule;
+
+      const doc = new JsPDFClass({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      doc.setFillColor(0, 187, 126);
+      doc.rect(0, 0, pageWidth, 25, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PLAN DE EVALUACIÓN', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('U.E Ciudad Cuatricentenaria', pageWidth / 2, 19, { align: 'center' });
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+      let yPos = 35;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Área:', 14, yPos);
+      doc.text('Docente:', 80, yPos);
+      doc.text('Año:', 160, yPos);
+      doc.text('Sección:', 220, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(plan.areaFormacion || 'N/A', 30, yPos);
+      doc.text(plan.docente || 'N/A', 100, yPos);
+      doc.text(plan.ano || 'N/A', 175, yPos);
+      doc.text(plan.secciones || 'N/A', 240, yPos);
+
+      yPos += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Nivel:', 14, yPos);
+      doc.text('Grado:', 80, yPos);
+      doc.text('Materia:', 160, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(plan.nivel || 'N/A', 30, yPos);
+      doc.text(plan.grado || 'N/A', 100, yPos);
+      doc.text(plan.materia || 'N/A', 175, yPos);
+
+      yPos += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Fecha de exportación:', 14, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(new Date().toLocaleDateString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }), 65, yPos);
+
+      const tableData = filas.map((fila, index) => [
+        (index + 1).toString(),
+        fila.fecha || '-',
+        fila.referenteTeorico || '-',
+        fila.estrategiaEvaluacion || '-',
+        fila.tecnicaEvaluacion || '-',
+        fila.instrumentoEvaluacion || '-',
+        fila.ptos || '-',
+        fila.porcentaje || '-',
+        fila.criteriosEvaluacion || '-'
+      ]);
+
+      const tableConfig = {
+        startY: yPos + 5,
+        head: [['#', 'FECHA', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS']],
+        body: tableData.length > 0 ? tableData : [['-', '-', '-', 'Sin filas registradas', '-', '-', '-', '-', '-']],
+        theme: 'grid' as const,
+        styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] as [number, number, number] },
+        headStyles: {
+          fillColor: [0, 187, 126] as [number, number, number],
+          textColor: [255, 255, 255] as [number, number, number],
+          fontStyle: 'bold' as const
+        },
+        alternateRowStyles: { fillColor: [240, 250, 245] as [number, number, number] },
+        margin: { top: 10, right: 10, bottom: 15, left: 10 }
+      };
+
+      if (typeof autoTableFn === 'function') {
+        autoTableFn(doc, tableConfig);
+      } else if ((doc as any).autoTable) {
+        (doc as any).autoTable(tableConfig);
+      }
+
+      const finalY = (doc as any).lastAutoTable?.finalY || yPos + 50;
+      const totalPuntos = filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total de filas: ${filas.length}`, 14, finalY + 8);
+      doc.text(`Puntos totales: ${totalPuntos}`, 80, finalY + 8);
+
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(150, 150, 150);
+        doc.text(
+          `Página ${i} de ${totalPages} - Portal Docente`,
+          pageWidth / 2,
+          pageHeight - 5,
+          { align: 'center' }
+        );
+      }
+
+      const nombreArchivo = `Plan_Evaluacion_${(plan.areaFormacion || 'plan').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      doc.save(nombreArchivo);
+
+      sileo.success({
+        title: 'PDF exportado',
+        description: nombreArchivo,
+      });
+
+    } catch (error) {
+      console.error('Error al exportar PDF:', error);
+      sileo.error({
+        title: 'Error al exportar el PDF',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+      });
+    }
+  };
+
+  // ============ RENDER CAMPOS ESPECÍFICOS ============
   const renderCamposEspecificos = () => {
     switch (tipoContenido) {
       case 'tarea':
         return (
           <>
             <div>
-              <label style={labelStyle}>Recursos / Material de apoyo</label>
-              <input 
-                type="text" 
-                placeholder="Ej: Libro paginas 45-50, Video explicativo..." 
-                style={inputStyle}
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Recursos / Material de apoyo
+              </Label>
+              <Input
+                className="bg-black/40 border-white/10 text-white mt-2"
+                placeholder="Ej: Libro páginas 45-50, Video explicativo..."
                 value={contenido.recursos}
-                onChange={(e) => setContenido({...contenido, recursos: e.target.value})}
+                onChange={(e) => setContenido({ ...contenido, recursos: e.target.value })}
               />
             </div>
             <div>
-              <label style={labelStyle}>Objetivos de la tarea</label>
-              <textarea 
-                placeholder="Ej: Comprender los conceptos basicos de..." 
-                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Objetivos de la tarea
+              </Label>
+              <Textarea
+                className="bg-black/40 border-white/10 text-white mt-2 min-h-20"
+                placeholder="Ej: Comprender los conceptos básicos de..."
                 value={contenido.objetivos}
-                onChange={(e) => setContenido({...contenido, objetivos: e.target.value})}
+                onChange={(e) => setContenido({ ...contenido, objetivos: e.target.value })}
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label style={labelStyle}>Fecha Limite</label>
-                <input 
-                  type="date" 
-                  style={inputStyle} 
+                <Label className="text-emerald-400 text-xs uppercase font-bold">
+                  Fecha Límite
+                </Label>
+                <Input
+                  type="date"
+                  className="bg-black/40 border-white/10 text-white mt-2"
                   value={contenido.fecha}
-                  onChange={(e) => setContenido({...contenido, fecha: e.target.value})}
-                  required
+                  onChange={(e) => setContenido({ ...contenido, fecha: e.target.value })}
                 />
               </div>
               <div>
-                <label style={labelStyle}>Ponderacion (%)</label>
-                <input 
-                  type="number" 
-                  placeholder="Ej: 15" 
-                  style={inputStyle}
+                <Label className="text-emerald-400 text-xs uppercase font-bold">
+                  Ponderación (%)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="Ej: 15"
+                  className="bg-black/40 border-white/10 text-white mt-2"
                   value={contenido.ponderacion}
-                  onChange={(e) => setContenido({...contenido, ponderacion: e.target.value})}
-                  min="0"
-                  max="100"
+                  onChange={(e) => setContenido({ ...contenido, ponderacion: e.target.value })}
                 />
               </div>
             </div>
           </>
         );
-      
+
       case 'aviso':
         return (
           <>
             <div>
-              <label style={labelStyle}>Mensaje del aviso</label>
-              <textarea 
-                placeholder="Escriba el mensaje que desea comunicar..." 
-                style={{ ...inputStyle, minHeight: '120px', resize: 'vertical' }}
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Mensaje del aviso
+              </Label>
+              <Textarea
+                className="bg-black/40 border-white/10 text-white mt-2 min-h-30"
+                placeholder="Escriba el mensaje que desea comunicar..."
                 value={contenido.descripcion}
-                onChange={(e) => setContenido({...contenido, descripcion: e.target.value})}
-                required
+                onChange={(e) => setContenido({ ...contenido, descripcion: e.target.value })}
               />
             </div>
             <div>
-              <label style={labelStyle}>Fecha del aviso</label>
-              <input 
-                type="date" 
-                style={inputStyle} 
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Fecha del aviso
+              </Label>
+              <Input
+                type="date"
+                className="bg-black/40 border-white/10 text-white mt-2"
                 value={contenido.fecha}
-                onChange={(e) => setContenido({...contenido, fecha: e.target.value})}
-                required
+                onChange={(e) => setContenido({ ...contenido, fecha: e.target.value })}
               />
             </div>
           </>
         );
-      
+
       case 'material':
         return (
           <>
             <div>
-              <label style={labelStyle}>Descripcion del material</label>
-              <textarea 
-                placeholder="Describa el material que se compartira..." 
-                style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Descripción del material
+              </Label>
+              <Textarea
+                className="bg-black/40 border-white/10 text-white mt-2 min-h-25"
+                placeholder="Describa el material que se compartirá..."
                 value={contenido.descripcion}
-                onChange={(e) => setContenido({...contenido, descripcion: e.target.value})}
-                required
+                onChange={(e) => setContenido({ ...contenido, descripcion: e.target.value })}
               />
             </div>
             <div>
-              <label style={labelStyle}>Enlace(s) de descarga</label>
-              <input 
-                type="text" 
-                placeholder="Ej: https://drive.google.com/..." 
-                style={inputStyle}
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Enlace(s) de descarga
+              </Label>
+              <Input
+                className="bg-black/40 border-white/10 text-white mt-2"
+                placeholder="Ej: https://drive.google.com/..."
                 value={contenido.enlaces}
-                onChange={(e) => setContenido({...contenido, enlaces: e.target.value})}
+                onChange={(e) => setContenido({ ...contenido, enlaces: e.target.value })}
               />
             </div>
             <div>
-              <label style={labelStyle}>Recursos adicionales</label>
-              <input 
-                type="text" 
-                placeholder="Ej: Guia en PDF, Presentacion, Video..." 
-                style={inputStyle}
-                value={contenido.recursos}
-                onChange={(e) => setContenido({...contenido, recursos: e.target.value})}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Fecha de publicacion</label>
-              <input 
-                type="date" 
-                style={inputStyle} 
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Fecha de publicación
+              </Label>
+              <Input
+                type="date"
+                className="bg-black/40 border-white/10 text-white mt-2"
                 value={contenido.fecha}
-                onChange={(e) => setContenido({...contenido, fecha: e.target.value})}
-                required
+                onChange={(e) => setContenido({ ...contenido, fecha: e.target.value })}
               />
             </div>
           </>
         );
-      
-      case 'plan_evaluacion':
-        return null;
-      
+
       default:
         return null;
     }
   };
 
-  // Renderizar el formulario del plan de evaluación
-  const renderPlanForm = () => (
-    <div style={glassCardStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ color: PALETTE.principal, fontSize: '1.5rem' }}>
-          {modoEdicionPlan ? 'EDITAR PLAN DE EVALUACIÓN' : 'NUEVO PLAN DE EVALUACIÓN'}
-        </h2>
-        <button
-          onClick={() => {
-            setMostrarGestorPlan(false);
-            setModoEdicionPlan(false);
-            setPlanEditandoId(null);
-          }}
-          style={{
-            padding: '10px 20px',
-            background: 'rgba(255,0,0,0.2)',
-            border: '1px solid rgba(255,0,0,0.3)',
-            borderRadius: '10px',
-            color: '#ff6b6b',
-            cursor: 'pointer'
-          }}
-        >
-          ✕ Cerrar
-        </button>
-      </div>
-      
-      {/* Encabezado del Plan */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '1fr 1fr 1fr 1fr', 
-        gap: '15px',
-        marginBottom: '25px',
-        background: 'rgba(0,0,0,0.2)',
-        padding: '20px',
-        borderRadius: '12px'
-      }}>
-        <div>
-          <label style={labelStyle}>Área de Formación</label>
-          <select 
-            style={inputStyle}
-            value={planActual.areaFormacion}
-            onChange={(e) => setPlanActual({...planActual, areaFormacion: e.target.value})}
-            required
+  // ============ VISTA PREVIA ============
+  const renderVistaPreviaPlan = () => {
+    if (!vistaPreviaPlan) return null;
+
+    const filas = Array.isArray(vistaPreviaPlan.filas) ? vistaPreviaPlan.filas : [];
+    const totalPuntos = filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0);
+
+    return (
+      <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
+          <CardTitle className="text-emerald-400 text-2xl">
+            Vista Previa — Plan de Evaluación
+          </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => exportarAPDF(vistaPreviaPlan)}
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              <FileDown className="mr-2 h-4 w-4" /> Exportar a PDF
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => editarPlan(vistaPreviaPlan)}
+              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10"
+            >
+              <Pencil className="mr-2 h-4 w-4" /> Editar Plan
+            </Button>
+            <Button variant="destructive" onClick={cerrarVistaPrevia}>
+              <X className="mr-2 h-4 w-4" /> Cerrar Vista Previa
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-black/30 p-5 rounded-xl border border-white/5">
+            {[
+              { label: "Área de Formación", value: vistaPreviaPlan.areaFormacion },
+              { label: "Docente", value: vistaPreviaPlan.docente },
+              { label: "Año", value: vistaPreviaPlan.ano },
+              { label: "Secciones", value: vistaPreviaPlan.secciones },
+            ].map((item) => (
+              <div key={item.label}>
+                <Label className="text-[0.65rem] uppercase text-emerald-400">
+                  {item.label}
+                </Label>
+                <p className="text-white font-semibold mt-1">{item.value || "—"}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-white/10 overflow-auto">
+            {filas.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p>Este plan no tiene filas registradas</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
+                    {[
+                      "FECHA",
+                      "REFERENTE TEÓRICO-PRÁCTICO",
+                      "ESTRATEGIA",
+                      "TÉCNICA",
+                      "INSTRUMENTO",
+                      "PTOS",
+                      "%",
+                      "CRITERIOS",
+                    ].map((h) => (
+                      <TableHead
+                        key={h}
+                        className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center"
+                      >
+                        {h}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filas.map((fila) => (
+                    <TableRow key={fila.id} className="border-white/5 hover:bg-white/5">
+                      <TableCell className="text-center text-white">{fila.fecha || "-"}</TableCell>
+                      <TableCell className="text-white">{fila.referenteTeorico || "-"}</TableCell>
+                      <TableCell className="text-white">{fila.estrategiaEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-white">{fila.tecnicaEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-white">{fila.instrumentoEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-center text-white">{fila.ptos || "-"}</TableCell>
+                      <TableCell className="text-center text-white">{fila.porcentaje || "-"}</TableCell>
+                      <TableCell className="text-white">{fila.criteriosEvaluacion || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+
+          <div className="flex justify-between items-center flex-wrap gap-3 text-gray-400 text-sm">
+            <div className="flex gap-4">
+              <span>
+                Total de filas: <strong className="text-white">{filas.length}</strong>
+              </span>
+              <span>
+                Puntos totales: <strong className="text-white">{totalPuntos}</strong>
+              </span>
+            </div>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => eliminarPlan(vistaPreviaPlan.id)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // ============ FORMULARIO DE PLAN ============
+  const renderPlanForm = () => {
+    const gradoActual = gradosActuales.find((g) => g.id === planActual.ano);
+
+    return (
+      <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-emerald-400 text-2xl">
+            {modoEdicionPlan ? "Editar Plan de Evaluación" : "Nuevo Plan de Evaluación"}
+          </CardTitle>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setMostrarGestorPlan(false);
+              setModoEdicionPlan(false);
+              setPlanEditandoId(null);
+            }}
           >
-            <option value="">Seleccionar</option>
-            {materiasDisponibles.map(mat => (
-              <option key={mat} value={mat} style={{ color: '#1a2e26' }}>{mat}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Docente</label>
-          <input 
-            type="text" 
-            style={inputStyle}
-            placeholder="Nombre del docente"
-            value={planActual.docente}
-            onChange={(e) => setPlanActual({...planActual, docente: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>Año</label>
-          <select 
-            style={inputStyle}
-            value={planActual.ano}
-            onChange={(e) => setPlanActual({...planActual, ano: e.target.value})}
-            required
+            <X className="mr-2 h-4 w-4" /> Cerrar Editor
+          </Button>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          <div
+            className={`grid gap-4 bg-black/30 p-5 rounded-xl border border-white/5 ${
+              nivelSeleccionado === "inicial"
+                ? "grid-cols-1 md:grid-cols-3"
+                : "grid-cols-1 md:grid-cols-4"
+            }`}
           >
-            <option value="">Seleccionar</option>
-            {gradosActuales.map(grado => (
-              <option key={grado.id} value={grado.nombre} style={{ color: '#1a2e26' }}>
-                {grado.nombre}
-              </option>
-            ))}
-          </select>
+            <div>
+              <Label className="text-emerald-400 text-xs uppercase font-bold">
+                Área de Formación
+              </Label>
+              <Select
+                value={planActual.areaFormacion ?? ''}
+                onValueChange={(v) => setPlanActual({ ...planActual, areaFormacion: v ?? '' })}
+              >
+                <SelectTrigger className="bg-black/40 border-white/10 text-white mt-2">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {materiasDisponibles.map((mat) => (
+                    <SelectItem key={mat} value={mat}>
+                      {mat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-emerald-400 text-xs uppercase font-bold">Docente</Label>
+              <Input
+                className="bg-black/40 border-white/10 text-white mt-2"
+                placeholder="Nombre del docente"
+                value={planActual.docente}
+                onChange={(e) => setPlanActual({ ...planActual, docente: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <Label className="text-emerald-400 text-xs uppercase font-bold">Año</Label>
+              <Select
+                value={planActual.ano ?? ''}
+                onValueChange={(v) => {
+                  const valor = v ?? '';
+                  setPlanActual({ ...planActual, ano: valor });
+                  setGradoSeleccionado(valor);
+                }}
+              >
+                <SelectTrigger className="bg-black/40 border-white/10 text-white mt-2">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gradosActuales.map((grado) => (
+                    <SelectItem key={grado.id} value={grado.id}>
+                      {grado.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-gray-400 text-xs mt-1">
+                {gradoActual ? `Grado seleccionado: ${gradoActual.nombre}` : "Selecciona un grado/año"}
+              </p>
+            </div>
+
+            {nivelSeleccionado !== "inicial" && (
+              <div>
+                <Label className="text-emerald-400 text-xs uppercase font-bold">Secciones</Label>
+                <Select
+                  value={planActual.secciones ?? ''}
+                  onValueChange={(v) => {
+                    const valor = v ?? '';
+                    setPlanActual({ ...planActual, secciones: valor });
+                    setSeccionSeleccionada(valor);
+                  }}
+                >
+                  <SelectTrigger className="bg-black/40 border-white/10 text-white mt-2">
+                    <SelectValue placeholder="Seleccionar sección" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECCIONES_DISPONIBLES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-white/10 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
+                  {[
+                    "FECHA",
+                    "REFERENTE",
+                    "ESTRATEGIA",
+                    "TÉCNICA",
+                    "INSTRUMENTO",
+                    "PTOS",
+                    "%",
+                    "CRITERIOS",
+                    "ACCIONES",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center"
+                    >
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {planActual.filas.map((fila) => (
+                  <TableRow key={fila.id} className="border-white/5">
+                    {(
+                      [
+                        ["fecha", "date"],
+                        ["referenteTeorico", "text"],
+                        ["estrategiaEvaluacion", "text"],
+                        ["tecnicaEvaluacion", "text"],
+                        ["instrumentoEvaluacion", "text"],
+                        ["ptos", "text"],
+                        ["porcentaje", "text"],
+                        ["criteriosEvaluacion", "text"],
+                      ] as [keyof FilaPlan, string][]
+                    ).map(([campo, tipo]) => (
+                      <TableCell key={campo} className="p-1">
+                        <Input
+                          type={tipo}
+                          value={fila[campo] as string}
+                          onChange={(e) => actualizarFila(fila.id, campo, e.target.value)}
+                          className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-20"
+                        />
+                      </TableCell>
+                    ))}
+                    <TableCell className="p-1 text-center">
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => eliminarFila(fila.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={agregarFila}
+              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Agregar Fila
+            </Button>
+            <Button
+              onClick={guardarPlan}
+              className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {modoEdicionPlan ? "ACTUALIZAR PLAN" : "GUARDAR PLAN"}
+            </Button>
+            {modoEdicionPlan && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (window.confirm('¿Está seguro de que desea cancelar la edición?')) {
+                    setMostrarGestorPlan(false);
+                    setModoEdicionPlan(false);
+                    setPlanEditandoId(null);
+                  }
+                }}
+              >
+                Cancelar
+              </Button>
+            )}
+          </div>
+
+          <Separator className="bg-white/10" />
+
+          <div className="text-gray-400 text-sm">
+            Total de filas: <strong className="text-white">{planActual.filas.length}</strong>
+            {planActual.filas.length > 0 && (
+              <span className="ml-4">
+                Puntos totales:{" "}
+                <strong className="text-white">
+                  {planActual.filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0)}
+                </strong>
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // ============ LISTA DE PLANES ============
+  const renderListaPlanes = () => (
+    <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setMostrarGestorPlan(false);
+              setModoEdicionPlan(false);
+              setPlanEditandoId(null);
+              setVistaPreviaPlan(null);
+              setTipoContenido('tarea');
+            }}
+            className="border-white/20 text-white hover:bg-emerald-500/20 hover:border-emerald-500/50 rounded-xl h-10 w-10 transition-all"
+            title="Volver al editor"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <CardTitle className="text-emerald-400 text-2xl">
+            Mis Planes de Evaluación
+          </CardTitle>
         </div>
-        <div>
-          <label style={labelStyle}>Secciones</label>
-          <input 
-            type="text" 
-            style={inputStyle}
-            placeholder="Ej: A, B, C"
-            value={planActual.secciones}
-            onChange={(e) => setPlanActual({...planActual, secciones: e.target.value})}
-            required
-          />
-        </div>
-      </div>
-
-      {/* Tabla del Plan */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thStyle}>FECHA</th>
-              <th style={thStyle}>REFERENTE TEÓRICO-PRÁCTICO</th>
-              <th style={thStyle}>ESTRATEGIA DE EVALUACIÓN</th>
-              <th style={thStyle}>TÉCNICA DE EVALUACIÓN</th>
-              <th style={thStyle}>INSTRUMENTO DE EVALUACIÓN</th>
-              <th style={thStyle}>PTOS</th>
-              <th style={thStyle}>%</th>
-              <th style={thStyle}>CRITERIOS DE EVALUACIÓN</th>
-              <th style={{ ...thStyle, width: '60px' }}>ACCIONES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {planActual.filas.map((fila) => (
-              <tr key={fila.id}>
-                <td style={tdStyle}>
-                  <input 
-                    type="date" 
-                    style={inputTablaStyle}
-                    value={fila.fecha}
-                    onChange={(e) => actualizarFila(fila.id, 'fecha', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={inputTablaStyle}
-                    placeholder="Referente teórico"
-                    value={fila.referenteTeorico}
-                    onChange={(e) => actualizarFila(fila.id, 'referenteTeorico', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={inputTablaStyle}
-                    placeholder="Estrategia"
-                    value={fila.estrategiaEvaluacion}
-                    onChange={(e) => actualizarFila(fila.id, 'estrategiaEvaluacion', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={inputTablaStyle}
-                    placeholder="Técnica"
-                    value={fila.tecnicaEvaluacion}
-                    onChange={(e) => actualizarFila(fila.id, 'tecnicaEvaluacion', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={inputTablaStyle}
-                    placeholder="Instrumento"
-                    value={fila.instrumentoEvaluacion}
-                    onChange={(e) => actualizarFila(fila.id, 'instrumentoEvaluacion', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={{ ...inputTablaStyle, width: '50px' }}
-                    placeholder="Ptos"
-                    value={fila.ptos}
-                    onChange={(e) => actualizarFila(fila.id, 'ptos', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={{ ...inputTablaStyle, width: '50px' }}
-                    placeholder="%"
-                    value={fila.porcentaje}
-                    onChange={(e) => actualizarFila(fila.id, 'porcentaje', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <input 
-                    type="text" 
-                    style={inputTablaStyle}
-                    placeholder="Criterios"
-                    value={fila.criteriosEvaluacion}
-                    onChange={(e) => actualizarFila(fila.id, 'criteriosEvaluacion', e.target.value)}
-                  />
-                </td>
-                <td style={tdStyle}>
-                  <button
-                    onClick={() => eliminarFila(fila.id)}
-                    style={{
-                      background: 'rgba(255,0,0,0.2)',
-                      border: '1px solid rgba(255,0,0,0.3)',
-                      borderRadius: '5px',
-                      color: '#ff6b6b',
-                      padding: '5px 10px',
-                      cursor: 'pointer',
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Botones de acción */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '15px', 
-        marginTop: '20px',
-        flexWrap: 'wrap'
-      }}>
-        <button
-          onClick={agregarFila}
-          style={{
-            padding: '12px 25px',
-            background: 'rgba(0,187,126,0.2)',
-            border: `1px solid ${PALETTE.principal}`,
-            borderRadius: '10px',
-            color: PALETTE.principal,
-            cursor: 'pointer',
-            fontWeight: 'bold'
-          }}
+        <Button
+          onClick={nuevoPlan}
+          className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
         >
-          + Agregar Fila
-        </button>
-        <button
-          onClick={guardarPlan}
-          style={publishButtonStyle}
-        >
-          {modoEdicionPlan ? 'ACTUALIZAR PLAN' : 'GUARDAR PLAN'}
-        </button>
-      </div>
+          <Plus className="mr-2 h-4 w-4" /> Crear Nuevo Plan
+        </Button>
+      </CardHeader>
 
-      {/* Resumen de filas */}
-      <div style={{ 
-        marginTop: '15px', 
-        color: PALETTE.textGray, 
-        fontSize: '0.85rem' 
-      }}>
-        Total de filas: {planActual.filas.length}
-        {planActual.filas.length > 0 && (
-          <span style={{ marginLeft: '15px' }}>
-            Puntos totales: {planActual.filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0)}
-          </span>
+      <CardContent className="space-y-4">
+        {cargandoPlanes ? (
+          <div className="text-center py-12 text-gray-400">
+            <p>Cargando planes...</p>
+          </div>
+        ) : planesFiltrados.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-lg">No has creado planes de evaluación aún.</p>
+            <p className="text-sm mt-2">
+              Crea tu primer plan utilizando el botón "Crear Nuevo Plan".
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {planesFiltrados.map((plan) => {
+              const filas = Array.isArray(plan.filas) ? plan.filas : [];
+              return (
+                <div
+                  key={plan.id}
+                  className="p-5 rounded-xl bg-black/30 border border-white/10 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 items-center hover:border-emerald-500/30 transition"
+                >
+                  <div>
+                    <div className="font-bold text-lg text-emerald-400">
+                      {plan.areaFormacion}
+                    </div>
+                    <div className="text-sm text-gray-400 mt-2 flex flex-wrap gap-2">
+                      <Badge variant="outline" className="border-white/20 text-gray-300">
+                        Año: {plan.ano}
+                      </Badge>
+                      <Badge variant="outline" className="border-white/20 text-gray-300">
+                        Secciones: {plan.secciones}
+                      </Badge>
+                      <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">
+                        Filas: {filas.length}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportarAPDF(plan)}
+                      className="border-white/20 text-white hover:bg-white/10"
+                    >
+                      <FileDown className="mr-2 h-4 w-4" /> PDF
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => verPlan(plan)}
+                      className="border-white/20 text-white hover:bg-white/10"
+                    >
+                      <Eye className="mr-2 h-4 w-4" /> Ver
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => editarPlan(plan)}
+                      className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" /> Editar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => eliminarPlan(plan.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
-    </div>
+
+        <div className="mt-4 p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+          <p className="text-xs text-yellow-400 leading-relaxed m-0">
+            <strong>Nota:</strong> Solo puedes ver, editar y eliminar los planes que tú has creado.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 
+  // ✅ CORREGIDO: usa window.confirm en lugar de sileo.action con cancel
+  const handleCerrarSesion = () => {
+    if (!window.confirm('¿Está seguro de que desea cerrar sesión?')) {
+      return;
+    }
+    ejecutarCerrarSesion();
+  };
+
+  const ejecutarCerrarSesion = async () => {
+    await signOut({ redirect: false });
+    router.push('/');
+  };
+
+  if (status === 'loading' || cargandoDocente) {
+    return (
+      <div className="min-h-screen bg-[#1a2e26] flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+          <p>Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return null;
+  }
+
   return (
-    <div style={{ 
-      fontFamily: "'Montserrat', sans-serif", 
-      minHeight: '100vh', 
-      color: 'white',
-      paddingBottom: '50px',
-      position: 'relative',
-      background: `url('/assets/img/pc2.jpeg') center/cover no-repeat fixed`,
-      zIndex: 0
-    }}>
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(26, 46, 38, 0.85)',
-        zIndex: -1
-      }} />
-      
-      <nav style={{ padding: '2rem 8%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-        <Link href="/" style={{ color: 'white', fontWeight: 'bold', textDecoration: 'none', fontSize: '1.1rem' }}>
-          Volver al Portal
-        </Link>
-        <div style={{ color: PALETTE.principal, fontWeight: '800', letterSpacing: '1px' }}>
-          {mostrarGestorPlan ? 'PLAN DE EVALUACIÓN' : 'EDITOR DE CONTENIDO'}
+    <div
+      className="min-h-screen relative text-white overflow-x-hidden"
+      style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
+    >
+      {/* Fondo: imagen nítida + overlay oscuro sutil */}
+      <div
+        className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
+        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+      />
+      <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
+
+      {/* NAVBAR simplificado */}
+      <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
+        <div className="text-emerald-400 font-extrabold tracking-widest text-xs">
+          {vistaPreviaPlan
+            ? 'VISTA PREVIA'
+            : mostrarGestorPlan
+            ? 'EDITOR DE PLAN'
+            : tipoContenido === 'plan_evaluacion'
+            ? 'GESTIÓN DE PLANES'
+            : 'EDITOR DE CONTENIDO'}
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3 bg-white/5 px-4 py-1.5 rounded-full">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm">
+              {docenteInfo?.nombres?.[0] || session?.user?.name?.[0] || 'D'}
+            </div>
+            <span className="text-sm font-medium hidden sm:inline">
+              {docenteInfo?.nombres || session?.user?.name || 'Docente'}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCerrarSesion}
+            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">Salir</span>
+          </Button>
         </div>
       </nav>
 
-      <main style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1 }}>
-        <header style={{ marginBottom: '40px', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '3rem', fontWeight: '900', marginBottom: '10px' }}>
-            {mostrarGestorPlan ? 'PLAN DE EVALUACIÓN' : 'GESTION DE CONTENIDO'}
+      <main className="relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">
+            {vistaPreviaPlan
+              ? 'PLAN DE EVALUACIÓN'
+              : mostrarGestorPlan
+              ? 'EDITAR PLAN DE EVALUACIÓN'
+              : tipoContenido === 'plan_evaluacion'
+              ? 'GESTIÓN DE PLANES DE EVALUACIÓN'
+              : 'GESTIÓN DE CONTENIDO'}
           </h1>
-          <p style={{ color: PALETTE.textGray, fontSize: '1.1rem' }}>
-            {mostrarGestorPlan 
-              ? (modoEdicionPlan ? 'Editando plan de evaluación' : 'Crear nuevo plan de evaluación')
-              : 'Publica tareas, avisos, materiales y planes de evaluacion para los estudiantes.'}
+          <p className="text-white/60 text-base">
+            {vistaPreviaPlan
+              ? `Visualizando plan de ${vistaPreviaPlan.areaFormacion}`
+              : mostrarGestorPlan
+              ? modoEdicionPlan
+                ? 'Editando plan de evaluación'
+                : 'Creando nuevo plan de evaluación'
+              : tipoContenido === 'plan_evaluacion'
+              ? `Bienvenido ${docenteInfo?.nombres || 'Docente'}, gestiona tus planes de evaluación`
+              : 'Publica tareas, avisos y materiales para los estudiantes.'}
           </p>
         </header>
 
-        {mostrarGestorPlan ? (
-          // Mostrar el formulario del plan
+        {vistaPreviaPlan ? (
+          renderVistaPreviaPlan()
+        ) : mostrarGestorPlan ? (
           renderPlanForm()
-        ) : (
-          // Vista normal con todas las funciones originales
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '30px' }}>
-            
-            <section style={glassCardStyle}>
-              <form onSubmit={handlePublicar} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
-                <div>
-                  <label style={labelStyle}>Tipo de contenido</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
-                    {TIPOS_CONTENIDO.map((tipo) => (
-                      <div
-                        key={tipo.id}
-                        onClick={() => {
-                          setTipoContenido(tipo.id);
-                          setContenido({
-                            ...contenido,
-                            descripcion: '',
-                            recursos: '',
-                            objetivos: '',
-                            criterios: '',
-                            ponderacion: '',
-                            enlaces: ''
-                          });
-                          // Si selecciona Plan de Evaluación, mostrar opciones
-                          if (tipo.id === 'plan_evaluacion') {
-                            // No hacer nada, el botón de gestionar aparecerá
-                          }
-                        }}
-                        style={{
-                          padding: '12px 10px',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          background: tipoContenido === tipo.id ? 'rgba(0,187,126,0.15)' : 'rgba(0,0,0,0.3)',
-                          border: tipoContenido === tipo.id ? `2px solid ${PALETTE.principal}` : '1px solid rgba(255,255,255,0.1)',
-                          transition: 'all 0.3s ease',
-                          fontWeight: tipoContenido === tipo.id ? '700' : '400',
-                          color: tipoContenido === tipo.id ? PALETTE.principal : 'white'
-                        }}
-                      >
-                        <div style={{ fontSize: '0.75rem' }}>{tipo.nombre}</div>
+        ) : tipoContenido === 'plan_evaluacion' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
+            <div>{renderListaPlanes()}</div>
+            <div>
+              <div className="flex flex-col gap-5">
+                <Card className="bg-black/20 border-white/5 backdrop-blur">
+                  <CardContent className="p-5">
+                    <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                      Filtros de Búsqueda
+                    </h3>
+                    <div className="space-y-2">
+                      {niveles.map((nivel) => (
+                        <button
+                          key={nivel.id}
+                          onClick={() => handleNivelChange(nivel.id)}
+                          className={`w-full text-left p-4 rounded-xl border transition ${
+                            nivelSeleccionado === nivel.id
+                              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                              : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="font-bold text-sm">{nivel.nombre}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {gradosActuales.length > 0 && (
+                  <Card className="bg-black/20 border-white/5 backdrop-blur">
+                    <CardContent className="p-5">
+                      <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                        Grado / Año
+                      </h3>
+                      <div className="space-y-2">
+                        {gradosActuales.map((grado) => (
+                          <button
+                            key={grado.id}
+                            onClick={() => {
+                              setGradoSeleccionado(grado.id);
+                              setSeccionSeleccionada('');
+                            }}
+                            className={`w-full text-left p-3 rounded-lg border transition ${
+                              gradoSeleccionado === grado.id
+                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                                : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <span className="font-semibold text-sm">{grado.nombre}</span>
+                          </button>
+                        ))}
                       </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {seccionesActuales.length > 0 && nivelSeleccionado !== 'inicial' && (
+                  <Card className="bg-black/20 border-white/5 backdrop-blur">
+                    <CardContent className="p-5">
+                      <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                        Sección
+                      </h3>
+                      <div className="grid grid-cols-3 gap-2">
+                        {seccionesActuales.map((seccion) => (
+                          <button
+                            key={seccion}
+                            onClick={() => setSeccionSeleccionada(seccion)}
+                            className={`p-3 rounded-lg font-bold text-center transition border ${
+                              seccionSeleccionada === seccion
+                                ? 'bg-emerald-500 text-emerald-950 border-emerald-500'
+                                : 'bg-black/30 text-white border-white/10 hover:bg-white/5'
+                            }`}
+                          >
+                            {seccion}
+                          </button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_340px] gap-6">
+            
+            {/* ============ BARRA LATERAL IZQUIERDA: TIPO DE CONTENIDO ============ */}
+            <div>
+              <Card className="bg-black/20 border-white/5 backdrop-blur">
+                <CardContent className="p-5">
+                  <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                    Tipo de Contenido
+                  </h3>
+                  <div className="space-y-2">
+                    {TIPOS_CONTENIDO.map((tipo) => {
+                      const IconComponent = tipo.icon;
+                      return (
+                        <button
+                          key={tipo.id}
+                          type="button"
+                          onClick={() => setTipoContenido(tipo.id)}
+                          className={`w-full flex items-center gap-3 text-left p-4 rounded-xl border transition ${
+                            tipoContenido === tipo.id
+                              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                              : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <IconComponent className="w-4 h-4 shrink-0" />
+                          <span className="font-bold text-sm">{tipo.nombre}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ============ FORMULARIO CENTRAL ============ */}
+            <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+              <CardContent className="p-6">
+                <form onSubmit={handlePublicar} className="flex flex-col gap-5">
+                  {tipoContenido !== 'plan_evaluacion' && (
+                    <>
+                      <div>
+                        <Label className="text-emerald-400 text-xs uppercase font-bold">
+                          Título del contenido
+                        </Label>
+                        <Input
+                          className="bg-black/40 border-white/10 text-white mt-2"
+                          placeholder="Ej: Análisis Literario"
+                          value={contenido.titulo}
+                          onChange={(e) => setContenido({ ...contenido, titulo: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-emerald-400 text-xs uppercase font-bold">
+                          Materia
+                        </Label>
+                        <Select value={materia ?? ''} onValueChange={(v) => setMateria(v ?? '')}>
+                          <SelectTrigger className="bg-black/40 border-white/10 text-white mt-2">
+                            <SelectValue placeholder="Seleccione una materia" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {materiasDisponibles.map((mat) => (
+                              <SelectItem key={mat} value={mat}>
+                                {mat}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {renderCamposEspecificos()}
+
+                      <Button
+                        type="submit"
+                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-black text-base uppercase shadow-lg shadow-emerald-500/30"
+                      >
+                        Publicar Contenido
+                      </Button>
+                    </>
+                  )}
+
+                  {tipoContenido === 'plan_evaluacion' && (
+                    <div className="text-center p-8 bg-emerald-500/5 rounded-xl border border-dashed border-emerald-500/30">
+                      <p className="text-gray-400 mb-5">
+                        Gestiona planes de evaluación en formato de cuadrícula
+                      </p>
+                      <Button
+                        onClick={nuevoPlan}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> Crear Nuevo Plan
+                      </Button>
+                    </div>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* ============ BARRA LATERAL DERECHA: NIVEL/GRADO/SECCIÓN ============ */}
+            <div className="flex flex-col gap-5">
+              <Card className="bg-black/20 border-white/5 backdrop-blur">
+                <CardContent className="p-5">
+                  <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                    Nivel de Publicación
+                  </h3>
+                  <div className="space-y-2">
+                    {niveles.map((nivel) => (
+                      <button
+                        key={nivel.id}
+                        onClick={() => handleNivelChange(nivel.id)}
+                        className={`w-full text-left p-4 rounded-xl border transition ${
+                          nivelSeleccionado === nivel.id
+                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                            : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="font-bold text-sm">{nivel.nombre}</span>
+                      </button>
                     ))}
                   </div>
-                </div>
-
-                {tipoContenido !== 'plan_evaluacion' && (
-                  <>
-                    <div>
-                      <label style={labelStyle}>Titulo del contenido</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ej: Analisis Literario - El Coronel no tiene quien le escriba" 
-                        style={inputStyle}
-                        value={contenido.titulo}
-                        onChange={(e) => setContenido({...contenido, titulo: e.target.value})}
-                        required 
-                      />
-                    </div>
-
-                    <div>
-                      <label style={labelStyle}>Materia</label>
-                      <select 
-                        style={inputStyle}
-                        value={materia}
-                        onChange={(e) => setMateria(e.target.value)}
-                        required
-                      >
-                        <option value="">Seleccione una materia</option>
-                        {materiasDisponibles.map((mat) => (
-                          <option key={mat} value={mat} style={{ color: '#1a2e26' }}>
-                            {mat}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {renderCamposEspecificos()}
-
-                    <button type="submit" style={publishButtonStyle}>
-                      PUBLICAR CONTENIDO
-                    </button>
-                  </>
-                )}
-
-                {tipoContenido === 'plan_evaluacion' && (
-                  <div style={{ 
-                    textAlign: 'center', 
-                    padding: '30px 20px',
-                    background: 'rgba(0,187,126,0.05)',
-                    borderRadius: '15px',
-                    border: '1px dashed rgba(0,187,126,0.3)'
-                  }}>
-                    <p style={{ color: PALETTE.textGray, marginBottom: '20px' }}>
-                      Gestiona planes de evaluación en formato de cuadrícula
-                    </p>
-                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                      <button
-                        onClick={nuevoPlan}
-                        style={{
-                          ...publishButtonStyle,
-                          minWidth: '200px'
-                        }}
-                      >
-                        + Crear Nuevo Plan
-                      </button>
-                      {planesFiltrados.length > 0 && (
-                        <button
-                          onClick={() => {
-                            if (planesFiltrados.length > 0) {
-                              editarPlan(planesFiltrados[0]);
-                            }
-                          }}
-                          style={{
-                            padding: '12px 25px',
-                            background: 'rgba(255,255,255,0.1)',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            borderRadius: '10px',
-                            color: 'white',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Ver Planes Existentes ({planesFiltrados.length})
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </form>
-            </section>
-
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              
-              <div style={selectorCardStyle}>
-                <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: PALETTE.principal, textTransform: 'uppercase', marginBottom: '15px' }}>
-                  Nivel de Publicacion
-                </h3>
-                {niveles.map((nivel) => (
-                  <div 
-                    key={nivel.id}
-                    onClick={() => handleNivelChange(nivel.id)}
-                    style={{
-                      ...levelCardStyle,
-                      border: nivelSeleccionado === nivel.id ? `2px solid ${PALETTE.principal}` : '1px solid rgba(255,255,255,0.1)',
-                      background: nivelSeleccionado === nivel.id ? 'rgba(0,187,126,0.15)' : 'rgba(0,0,0,0.3)',
-                    }}
-                  >
-                    <span style={{ 
-                      fontSize: '0.95rem', 
-                      fontWeight: '700', 
-                      color: nivelSeleccionado === nivel.id ? PALETTE.principal : 'white' 
-                    }}>
-                      {nivel.nombre}
-                    </span>
-                    <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>
-                      {nivel.id === 'inicial' ? 'Preescolar' : nivel.id === 'primaria' ? '1 a 6 Grado' : '1 a 5 Año'}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                </CardContent>
+              </Card>
 
               {gradosActuales.length > 0 && (
-                <div style={selectorCardStyle}>
-                  <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: PALETTE.principal, textTransform: 'uppercase', marginBottom: '15px' }}>
-                    Grado / Año
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {gradosActuales.map((grado) => (
-                      <div
-                        key={grado.id}
-                        onClick={() => {
-                          setGradoSeleccionado(grado.id);
-                          setSeccionSeleccionada('');
-                        }}
-                        style={{
-                          ...optionCardStyle,
-                          background: gradoSeleccionado === grado.id ? 'rgba(0,187,126,0.15)' : 'rgba(0,0,0,0.3)',
-                          border: gradoSeleccionado === grado.id ? `1px solid ${PALETTE.principal}` : '1px solid rgba(255,255,255,0.1)'
-                        }}
-                      >
-                        <span style={{ fontWeight: '600' }}>{grado.nombre}</span>
-                        <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{grado.secciones.length} secciones</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <Card className="bg-black/20 border-white/5 backdrop-blur">
+                  <CardContent className="p-5">
+                    <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                      Grado / Año
+                    </h3>
+                    <div className="space-y-2">
+                      {gradosActuales.map((grado) => (
+                        <button
+                          key={grado.id}
+                          onClick={() => {
+                            setGradoSeleccionado(grado.id);
+                            setSeccionSeleccionada('');
+                          }}
+                          className={`w-full text-left p-3 rounded-lg border transition ${
+                            gradoSeleccionado === grado.id
+                              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                              : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="font-semibold text-sm">{grado.nombre}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
-              {seccionesActuales.length > 0 && (
-                <div style={selectorCardStyle}>
-                  <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: PALETTE.principal, textTransform: 'uppercase', marginBottom: '15px' }}>
-                    Seccion
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: '10px' }}>
-                    {seccionesActuales.map((seccion) => (
-                      <div
-                        key={seccion}
-                        onClick={() => setSeccionSeleccionada(seccion)}
-                        style={{
-                          ...seccionButtonStyle,
-                          background: seccionSeleccionada === seccion ? PALETTE.principal : 'rgba(0,0,0,0.3)',
-                          color: seccionSeleccionada === seccion ? '#1a2e26' : 'white',
-                          border: seccionSeleccionada === seccion ? `1px solid ${PALETTE.principal}` : '1px solid rgba(255,255,255,0.1)'
-                        }}
-                      >
-                        {seccion}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {seccionesActuales.length > 0 && nivelSeleccionado !== 'inicial' && (
+                <Card className="bg-black/20 border-white/5 backdrop-blur">
+                  <CardContent className="p-5">
+                    <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                      Sección
+                    </h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      {seccionesActuales.map((seccion) => (
+                        <button
+                          key={seccion}
+                          onClick={() => setSeccionSeleccionada(seccion)}
+                          className={`p-3 rounded-lg font-bold text-center transition border ${
+                            seccionSeleccionada === seccion
+                              ? 'bg-emerald-500 text-emerald-950 border-emerald-500'
+                              : 'bg-black/30 text-white border-white/10 hover:bg-white/5'
+                          }`}
+                        >
+                          {seccion}
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
-
-              {tipoContenido === 'plan_evaluacion' && planesFiltrados.length > 0 && !mostrarGestorPlan && (
-                <div style={selectorCardStyle}>
-                  <h3 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: PALETTE.principal, textTransform: 'uppercase', marginBottom: '15px' }}>
-                    Planes Disponibles
-                  </h3>
-                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    {planesFiltrados.map(plan => (
-                      <div
-                        key={plan.id}
-                        onClick={() => editarPlan(plan)}
-                        style={{
-                          padding: '12px',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          background: 'rgba(0,0,0,0.3)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          marginBottom: '8px',
-                          transition: 'all 0.3s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = PALETTE.principal;
-                          e.currentTarget.style.background = 'rgba(0,187,126,0.1)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-                          e.currentTarget.style.background = 'rgba(0,0,0,0.3)';
-                        }}
-                      >
-                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
-                          {plan.areaFormacion}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: PALETTE.textGray }}>
-                          {plan.docente} • {plan.ano} • {plan.filas.length} filas
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {gradoSeleccionado && seccionSeleccionada && materia && tipoContenido !== 'plan_evaluacion' && (
-                <div style={{ 
-                  marginTop: '10px', 
-                  padding: '20px', 
-                  borderRadius: '15px', 
-                  background: 'rgba(0,187,126,0.1)', 
-                  border: `1px solid ${PALETTE.principal}` 
-                }}>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: PALETTE.principal, lineHeight: '1.6', textAlign: 'center' }}>
-                    <strong>Publicando en:</strong><br />
-                    {niveles.find(n => n.id === nivelSeleccionado)?.nombre}<br />
-                    {gradosActuales.find(g => g.id === gradoSeleccionado)?.nombre}<br />
-                    Seccion {seccionSeleccionada}<br />
-                    <strong>Materia:</strong> {materia}
-                  </p>
-                </div>
-              )}
-
-              <div style={{ padding: '20px', borderRadius: '15px', background: 'rgba(255,204,0,0.05)', border: '1px solid rgba(255,204,0,0.2)' }}>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#ffcc00', lineHeight: '1.4' }}>
-                  <strong>Nota:</strong> Los cambios realizados aqui se reflejaran inmediatamente en el Portal de Aprendizaje para el grupo especifico seleccionado.
-                </p>
-              </div>
-            </section>
+            </div>
 
           </div>
         )}
       </main>
     </div>
   );
-};
-
-// Estilos
-const glassCardStyle: React.CSSProperties = {
-  background: PALETTE.cardBg,
-  backdropFilter: 'blur(15px)',
-  padding: '40px',
-  borderRadius: '30px',
-  border: '1px solid rgba(255,255,255,0.05)',
-  boxShadow: '0 25px 50px rgba(0,0,0,0.3)'
-};
-
-const selectorCardStyle: React.CSSProperties = {
-  background: 'rgba(0,0,0,0.2)',
-  backdropFilter: 'blur(10px)',
-  padding: '20px',
-  borderRadius: '20px',
-  border: '1px solid rgba(255,255,255,0.05)'
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: '0.75rem',
-  fontWeight: '800',
-  color: PALETTE.principal,
-  marginBottom: '10px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px'
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '1.2rem',
-  background: 'rgba(0,0,0,0.4)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: '15px',
-  color: 'white',
-  fontSize: '1rem',
-  outline: 'none',
-  boxSizing: 'border-box',
-  transition: 'border 0.3s'
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  fontSize: '0.85rem',
-  minWidth: '1200px'
-};
-
-const thStyle: React.CSSProperties = {
-  padding: '12px 8px',
-  background: 'rgba(0,187,126,0.15)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  color: PALETTE.principal,
-  fontWeight: '800',
-  fontSize: '0.7rem',
-  textTransform: 'uppercase',
-  textAlign: 'center'
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '4px',
-  border: '1px solid rgba(255,255,255,0.05)',
-  verticalAlign: 'middle'
-};
-
-const inputTablaStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 6px',
-  background: 'rgba(0,0,0,0.3)',
-  border: '1px solid rgba(255,255,255,0.05)',
-  borderRadius: '4px',
-  color: 'white',
-  fontSize: '0.8rem',
-  outline: 'none',
-  transition: 'border 0.3s',
-  minWidth: '60px'
-};
-
-const levelCardStyle: React.CSSProperties = {
-  padding: '15px',
-  borderRadius: '12px',
-  cursor: 'pointer',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4px',
-  transition: 'all 0.3s ease',
-  marginBottom: '10px'
-};
-
-const optionCardStyle: React.CSSProperties = {
-  padding: '12px',
-  borderRadius: '10px',
-  cursor: 'pointer',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  transition: 'all 0.3s ease'
-};
-
-const seccionButtonStyle: React.CSSProperties = {
-  padding: '12px 8px',
-  borderRadius: '10px',
-  cursor: 'pointer',
-  textAlign: 'center',
-  fontWeight: 'bold',
-  fontSize: '1rem',
-  transition: 'all 0.3s ease'
-};
-
-const publishButtonStyle: React.CSSProperties = {
-  padding: '12px 25px',
-  background: PALETTE.principal,
-  border: 'none',
-  borderRadius: '10px',
-  color: '#1a2e26',
-  fontWeight: '900',
-  fontSize: '1rem',
-  cursor: 'pointer',
-  boxShadow: '0 10px 30px rgba(0, 187, 126, 0.3)',
-  transition: 'transform 0.2s, background 0.2s',
-  textTransform: 'uppercase'
 };
 
 export default EditTasksPage;

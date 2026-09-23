@@ -1,92 +1,316 @@
 // prisma/schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
 
+// ============================================
+// 1. DATASOURCE - Configuración de la base de datos
+// ============================================
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  nombre    String
-  email     String   @unique
-  password  String
-  rol       String
-  nivel     String?
-  grado     String?
-  seccion   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ============================================
+// 2. GENERATOR - Genera el cliente de Prisma
+// ============================================
+generator client {
+  provider = "prisma-client-js"
+}
 
-  estudiante Estudiante?
+// ============================================
+// 3. ENUMS
+// ============================================
+enum Role {
+  ESTUDIANTE
+  DOCENTE
+  ADMIN
+  COORDINACION
+}
+
+// ============================================
+// 4. MODELOS
+// ============================================
+
+// ----- MODELO USER -----
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  nombre        String
+  apellido      String?
+  telefono      String?
+  role          Role      @default(ESTUDIANTE)
+  imagen        String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
   docente    Docente?
+  estudiante Estudiante?
 
   @@index([email])
-  @@index([rol])
+  @@index([role])
 }
 
-model Estudiante {
-  id                    String   @id @default(cuid())
-  nombres               String
-  apellidos             String
-  cedulaIdentidad       String   @unique
-  fechaNacimiento       String
-  edad                  String
-  sexo                  String
-  nivel                 String
-  grado                 String
-  seccion               String
-  numeroTelefonoCelular String
-  correoElectronico     String
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@index([cedulaIdentidad])
-  @@index([nivel])
-  @@index([grado])
-  @@index([seccion])
-}
-
+// ----- MODELO DOCENTE -----
 model Docente {
   id                String   @id @default(cuid())
-  nombres           String
-  apellidos         String
-  cedulaIdentidad   String   @unique
-  email             String   @unique
-  telefono          String
-  especialidad      String
-  nivel             String
-  seccion           String
-  fechaContratacion String
-  activo            Boolean  @default(true)
   userId            String   @unique
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cedulaIdentidad   String?  @unique
+  especialidad      String?
+  nivel             String?
+  seccion           String?
+  activo            Boolean  @default(true)
+  fechaContratacion DateTime @default(now())
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  tareas           Tarea[]
+  planesEvaluacion PlanEvaluacion[]
+  salones          DocenteSalon[]
+  avisos           Aviso[]
+  materiales       Material[]
+
+  @@index([userId])
   @@index([cedulaIdentidad])
-  @@index([email])
-  @@index([nivel])
-  @@index([seccion])
+  @@index([nivel, seccion])
 }
 
+// ----- MODELO ESTUDIANTE -----
+model Estudiante {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cedulaIdentidad String?  @unique
+  nivel           String
+  grado           String
+  seccion         String
+  salonId         String?
+  salon           Salon?   @relation(fields: [salonId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tareas           EstudianteTarea[]
+  planesEvaluacion EstudiantePlanEvaluacion[]
+  avisos           EstudianteAviso[]
+  materiales       EstudianteMaterial[]
+
+  @@index([userId])
+  @@index([cedulaIdentidad])
+  @@index([nivel, grado, seccion])
+  @@index([salonId])
+}
+
+// ----- MODELO SALON -----
 model Salon {
   id            String   @id @default(cuid())
   nombre        String
   nivel         String
   grado         String
   seccion       String
-  docenteIds    String[]
-  estudianteIds String[]
-  anioAcademico String
+  capacidad     Int?
+  anioAcademico String   @default("2024-2025")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  estudiantes Estudiante[]
+  docentes    DocenteSalon[]
+  tareas      Tarea[]
+
+  @@unique([nivel, grado, seccion, anioAcademico])
   @@index([nivel])
   @@index([grado])
   @@index([seccion])
+  @@index([anioAcademico])
+}
+
+// ----- MODELO DOCENTE_SALON (muchos-a-muchos) -----
+model DocenteSalon {
+  id        String   @id @default(cuid())
+  docenteId String
+  docente   Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([docenteId, salonId])
+  @@index([docenteId])
+  @@index([salonId])
+}
+
+// ----- MODELO TAREA -----
+model Tarea {
+  id           String   @id @default(cuid())
+  titulo       String
+  descripcion  String?
+  fechaEntrega String
+  estado       String   @default("pendiente")
+  tipo         String   @default("tarea") // ✅ NUEVO: tarea | aviso | material
+  recursos     String?
+  objetivos    String?
+  ponderacion  String?
+  nivel        String
+  grado        String
+  seccion      String
+  materia      String
+  docenteId    String
+  docente      Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  salonId      String?
+  salon        Salon?   @relation(fields: [salonId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  estudiantes EstudianteTarea[]
+
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+  @@index([materia])
+  @@index([tipo]) // ✅ NUEVO: índice para filtrar por tipo
+  @@index([createdAt])
+  @@index([salonId])
+}
+
+// ----- MODELO ESTUDIANTE_TAREA -----
+model EstudianteTarea {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  tareaId      String
+  tarea        Tarea      @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  visto        Boolean    @default(false)
+  entregado    Boolean    @default(false)
+  fechaVisto   DateTime?
+  fechaEntrega DateTime?
+  calificacion Float?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([estudianteId, tareaId])
+  @@index([estudianteId])
+  @@index([tareaId])
+}
+
+// ============================================
+// 5. MODELOS DE AVISOS Y MATERIALES
+// ============================================
+
+// ----- MODELO AVISO -----
+model Aviso {
+  id          String   @id @default(cuid())
+  titulo      String
+  descripcion String?
+  fecha       String
+  nivel       String
+  grado       String
+  seccion     String   @default("Única")
+  materia     String
+  docenteId   String
+  docente     Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  estudiantes EstudianteAviso[]
+
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+  @@index([materia])
+  @@index([createdAt])
+}
+
+// ----- MODELO ESTUDIANTE_AVISO -----
+model EstudianteAviso {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  avisoId      String
+  aviso        Aviso      @relation(fields: [avisoId], references: [id], onDelete: Cascade)
+  visto        Boolean    @default(false)
+  fechaVisto   DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@unique([estudianteId, avisoId])
+  @@index([estudianteId])
+  @@index([avisoId])
+}
+
+// ----- MODELO MATERIAL -----
+model Material {
+  id          String   @id @default(cuid())
+  titulo      String
+  descripcion String?
+  enlace      String?
+  fecha       String
+  nivel       String
+  grado       String
+  seccion     String   @default("Única")
+  materia     String
+  docenteId   String
+  docente     Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  estudiantes EstudianteMaterial[]
+
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+  @@index([materia])
+  @@index([createdAt])
+}
+
+// ----- MODELO ESTUDIANTE_MATERIAL -----
+model EstudianteMaterial {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  materialId   String
+  material     Material   @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  visto        Boolean    @default(false)
+  fechaVisto   DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@unique([estudianteId, materialId])
+  @@index([estudianteId])
+  @@index([materialId])
+}
+
+// ============================================
+// 6. MODELOS DE PLANES DE EVALUACIÓN
+// ============================================
+
+// ----- MODELO PLAN_EVALUACION -----
+model PlanEvaluacion {
+  id          String   @id @default(cuid())
+  titulo      String
+  descripcion String?
+  nivel       String
+  grado       String
+  seccion     String
+  materia     String
+  docenteId   String
+  docente     Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  filas       Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  estudiantes EstudiantePlanEvaluacion[]
+
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+}
+
+// ----- MODELO ESTUDIANTE_PLAN_EVALUACION -----
+model EstudiantePlanEvaluacion {
+  id               String         @id @default(cuid())
+  estudianteId     String
+  estudiante       Estudiante     @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  planEvaluacionId String
+  planEvaluacion   PlanEvaluacion @relation(fields: [planEvaluacionId], references: [id], onDelete: Cascade)
+  calificacion     Float?
+  visto            Boolean        @default(false)
+  fechaVisto       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([estudianteId, planEvaluacionId])
+  @@index([estudianteId])
+  @@index([planEvaluacionId])
 }

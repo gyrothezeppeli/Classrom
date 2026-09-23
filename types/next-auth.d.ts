@@ -1,35 +1,33 @@
 // types/next-auth.d.ts
-import { DefaultSession } from "next-auth";
+
+import { DefaultSession } from "next-auth"
+import { Role } from "@prisma/client" // 👈 Importa el enum de Prisma
 
 declare module "next-auth" {
-  interface User {
-    id: string;
-    nombre: string;
-    rol: string;
-    nivel?: string | null;
-    grado?: string | null;
-    seccion?: string | null;
-  }
-
   interface Session {
     user: {
-      id: string;
-      nombre: string;
-      rol: string;
-      nivel?: string | null;
-      grado?: string | null;
-      seccion?: string | null;
-    } & DefaultSession["user"];
+      id: string
+      role: Role // 👈 Usa el enum de Prisma
+      docenteId?: string
+      estudianteId?: string
+    } & DefaultSession["user"]
+  }
+
+  interface User {
+    id: string
+    email: string
+    name: string
+    role: Role // 👈 Usa el enum de Prisma
+    docenteId?: string
+    estudianteId?: string
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
-    id: string;
-    nombre: string;
-    rol: string;
-    nivel?: string | null;
-    grado?: string | null;
-    seccion?: string | null;
+    sub?: string
+    role?: Role // 👈 Usa el enum de Prisma
+    docenteId?: string
+    estudianteId?: string
   }
 }

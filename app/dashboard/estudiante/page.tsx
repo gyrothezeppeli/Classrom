@@ -1,8 +1,45 @@
+// app/dashboard/estudiante/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
+import { sileo } from 'sileo';
+
+// ============ SHADCN UI ============
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  BookOpen,
+  Bell,
+  FileText,
+  Calendar,
+  Target,
+  User,
+  ExternalLink,
+  X,
+  Download,
+  CheckCircle2,
+  AlertCircle,
+  Mail,
+  Phone,
+  IdCard,
+  LogOut,
+  Search,
+  Clock,
+  Filter,
+  GraduationCap,
+} from "lucide-react";
 
 const PALETTE = {
   sandBorder: '#5c7564',
@@ -16,39 +53,98 @@ const PALETTE = {
   success: '#22c55e'
 };
 
+interface FilaPlan {
+  id: string;
+  fecha: string;
+  referenteTeorico: string;
+  estrategiaEvaluacion: string;
+  tecnicaEvaluacion: string;
+  instrumentoEvaluacion: string;
+  ptos: string;
+  porcentaje: string;
+  criteriosEvaluacion: string;
+}
+
+interface PlanEvaluacion {
+  id: string;
+  areaFormacion: string;
+  docente: string;
+  docenteId: string;
+  ano: string;
+  secciones: string;
+  nivel: string;
+  grado: string;
+  materia: string;
+  filas: FilaPlan[];
+  visto: boolean;
+  fechaVisto: string | null;
+  createdAt: string;
+}
+
 interface Tarea {
   id: string;
   titulo: string;
   descripcion: string;
   fechaEntrega: string;
-  estado: 'pendiente' | 'entregado' | 'vencido';
+  estado: string;
+  recursos: string;
+  objetivos: string;
+  ponderacion: string;
+  materia: string;
+  docente: string;
+  nivel: string;
+  grado: string;
+  seccion: string;
+  visto: boolean;
+  entregado: boolean;
+  calificacion: number | null;
+  createdAt: string;
 }
 
 interface Aviso {
   id: string;
   titulo: string;
-  mensaje: string;
+  descripcion: string;
   fecha: string;
-  prioridad: 'alta' | 'media' | 'baja';
+  materia: string;
+  docente: string;
+  nivel: string;
+  grado: string;
+  seccion: string;
+  visto: boolean;
+  fechaVisto: string | null;
+  createdAt: string;
 }
 
 interface Material {
   id: string;
-  nombre: string;
+  titulo: string;
   descripcion: string;
-  paraClase: boolean;
-}
-
-interface PlanEvaluacion {
-  id: string;
-  tipo: string;
-  porcentaje: number;
+  enlace: string;
   fecha: string;
-  descripcion: string;
-  nota?: number;
+  materia: string;
+  docente: string;
+  nivel: string;
+  grado: string;
+  seccion: string;
+  visto: boolean;
+  fechaVisto: string | null;
+  createdAt: string;
 }
 
-interface Materia {
+interface Estudiante {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  grado: string;
+  seccion: string;
+  cedulaIdentidad: string;
+  correoElectronico: string;
+  nivel: string;
+  telefono?: string;
+}
+
+interface MateriaConPlanes {
   id: string;
   nombre: string;
   profesor: string;
@@ -61,1818 +157,1397 @@ interface Materia {
   planEvaluacion: PlanEvaluacion[];
 }
 
-interface Estudiante {
-  id: string;
-  nombre: string;
-  apellido: string;
-  grado: string;
-  seccion: string;
-  cedula: string;
-  correo: string;
-  materias: Materia[];
-}
+type FiltroMaterias = 'todas' | 'novedades' | 'tareas' | 'planes_nuevos';
 
-const MATERIAS_EJEMPLO: Materia[] = [
-  {
-    id: 'mat-001',
-    nombre: 'Matemáticas',
-    profesor: 'María González',
-    horario: 'Lun-Mie-Vie 8:00-9:30',
-    aula: '301',
-    color: '#3b82f6',
-    tareasPendientes: [
-      {
-        id: 't1',
-        titulo: 'Ejercicios de álgebra',
-        descripcion: 'Resolver páginas 45-48 del libro de texto. Incluir todos los procedimientos.',
-        fechaEntrega: '2026-08-25',
-        estado: 'pendiente'
-      },
-      {
-        id: 't2',
-        titulo: 'Proyecto de geometría',
-        descripcion: 'Construir un modelo 3D de un poliedro regular (cubo, tetraedro o dodecaedro).',
-        fechaEntrega: '2026-08-30',
-        estado: 'pendiente'
-      }
-    ],
-    avisos: [
-      {
-        id: 'a1',
-        titulo: 'Evaluación de trigonometría',
-        mensaje: 'Evaluación escrita de trigonometría este viernes 28 de agosto. Traer calculadora científica.',
-        fecha: '2026-08-20',
-        prioridad: 'alta'
-      },
-      {
-        id: 'a2',
-        titulo: 'Clase de repaso',
-        mensaje: 'Clase de repaso el miércoles 26 de agosto a las 3:00 PM en el aula 301.',
-        fecha: '2026-08-19',
-        prioridad: 'media'
-      }
-    ],
-    materiales: [
-      {
-        id: 'm1',
-        nombre: 'Libro de texto',
-        descripcion: 'Matemáticas 8vo grado - Editorial Santillana',
-        paraClase: true
-      },
-      {
-        id: 'm2',
-        nombre: 'Calculadora científica',
-        descripcion: 'Modelo CASIO fx-991 o similar',
-        paraClase: true
-      },
-      {
-        id: 'm3',
-        nombre: 'Cuaderno de ejercicios',
-        descripcion: 'Cuaderno de 100 hojas cuadriculadas (tamaño carta)',
-        paraClase: true
-      },
-      {
-        id: 'm4',
-        nombre: 'Juego de geometría',
-        descripcion: 'Compás, regla, transportador y escuadras',
-        paraClase: false
-      }
-    ],
-    planEvaluacion: [
-      {
-        id: 'e1',
-        tipo: 'Evaluación Escrita',
-        porcentaje: 30,
-        fecha: '2026-08-28',
-        descripcion: 'Evaluación de trigonometría y álgebra (Capítulos 5-7)',
-        nota: 17
-      },
-      {
-        id: 'e2',
-        tipo: 'Proyecto',
-        porcentaje: 25,
-        fecha: '2026-09-05',
-        descripcion: 'Proyecto de geometría en 3D (modelo y exposición)',
-      },
-      {
-        id: 'e3',
-        tipo: 'Tareas',
-        porcentaje: 25,
-        fecha: '2026-09-10',
-        descripcion: 'Revisión de tareas y ejercicios del cuaderno',
-      },
-      {
-        id: 'e4',
-        tipo: 'Participación',
-        porcentaje: 20,
-        fecha: '2026-09-15',
-        descripcion: 'Participación en clase, actividades y resolución de problemas',
-      }
-    ]
-  },
-  {
-    id: 'mat-002',
-    nombre: 'Lengua y Literatura',
-    profesor: 'Carlos Méndez',
-    horario: 'Mar-Jue 10:00-11:30',
-    aula: '205',
-    color: '#8b5cf6',
-    tareasPendientes: [
-      {
-        id: 't4',
-        titulo: 'Análisis literario',
-        descripcion: 'Analizar el capítulo 5 de "Cien años de soledad". Extensión: 2 páginas.',
-        fechaEntrega: '2026-08-22',
-        estado: 'vencido'
-      },
-      {
-        id: 't5',
-        titulo: 'Ensayo de opinión',
-        descripcion: 'Escribir un ensayo sobre el realismo mágico en la literatura latinoamericana.',
-        fechaEntrega: '2026-09-01',
-        estado: 'pendiente'
-      }
-    ],
-    avisos: [
-      {
-        id: 'a3',
-        titulo: 'Lectura obligatoria',
-        mensaje: 'Traer el libro "Cien años de soledad" para la clase del jueves. Iniciaremos el análisis del capítulo 6.',
-        fecha: '2026-08-19',
-        prioridad: 'media'
-      },
-      {
-        id: 'a4',
-        titulo: 'Teatro escolar',
-        mensaje: 'Se invita a todos los estudiantes a participar en la obra de teatro escolar. Pruebas el lunes 31/08.',
-        fecha: '2026-08-18',
-        prioridad: 'baja'
-      }
-    ],
-    materiales: [
-      {
-        id: 'm5',
-        nombre: 'Libro de lectura',
-        descripcion: '"Cien años de soledad" - Gabriel García Márquez',
-        paraClase: true
-      },
-      {
-        id: 'm6',
-        nombre: 'Cuaderno de literatura',
-        descripcion: 'Cuaderno de 100 hojas rayadas',
-        paraClase: true
-      },
-      {
-        id: 'm7',
-        nombre: 'Diccionario',
-        descripcion: 'Diccionario de la lengua española (opcional)',
-        paraClase: false
-      }
-    ],
-    planEvaluacion: [
-      {
-        id: 'e5',
-        tipo: 'Ensayo',
-        porcentaje: 30,
-        fecha: '2026-09-01',
-        descripcion: 'Ensayo sobre el realismo mágico en "Cien años de soledad"',
-      },
-      {
-        id: 'e6',
-        tipo: 'Evaluación Escrita',
-        porcentaje: 30,
-        fecha: '2026-09-08',
-        descripcion: 'Evaluación de comprensión lectora y análisis literario',
-      },
-      {
-        id: 'e7',
-        tipo: 'Participación',
-        porcentaje: 20,
-        fecha: '2026-09-15',
-        descripcion: 'Participación en debates y actividades de clase',
-      },
-      {
-        id: 'e8',
-        tipo: 'Tareas',
-        porcentaje: 20,
-        fecha: '2026-09-15',
-        descripcion: 'Revisión de tareas y trabajos prácticos',
-      }
-    ]
-  },
-  {
-    id: 'mat-003',
-    nombre: 'Ciencias Naturales',
-    profesor: 'Ana Rodríguez',
-    horario: 'Lun-Mie 13:00-14:30',
-    aula: '108',
-    color: '#22c55e',
-    tareasPendientes: [],
-    avisos: [
-      {
-        id: 'a5',
-        titulo: 'Laboratorio de Química',
-        mensaje: '¡No olviden traer su bata de laboratorio! Realizaremos prácticas de reacciones químicas.',
-        fecha: '2026-08-21',
-        prioridad: 'alta'
-      },
-      {
-        id: 'a6',
-        titulo: 'Proyecto de ecosistemas',
-        mensaje: 'Formar grupos de 4 personas para el proyecto de ecosistemas. Presentación el 15/09.',
-        fecha: '2026-08-17',
-        prioridad: 'media'
-      }
-    ],
-    materiales: [
-      {
-        id: 'm8',
-        nombre: 'Bata de laboratorio',
-        descripcion: 'Bata blanca de manga larga (obligatoria para prácticas)',
-        paraClase: true
-      },
-      {
-        id: 'm9',
-        nombre: 'Guantes de látex',
-        descripcion: 'Guantes desechables para prácticas de laboratorio',
-        paraClase: true
-      },
-      {
-        id: 'm10',
-        nombre: 'Cuaderno de ciencias',
-        descripcion: 'Cuaderno de 100 hojas cuadriculadas',
-        paraClase: true
-      },
-      {
-        id: 'm11',
-        nombre: 'Lupa de aumento',
-        descripcion: 'Lupa de 10x para observación de muestras',
-        paraClase: false
-      }
-    ],
-    planEvaluacion: [
-      {
-        id: 'e9',
-        tipo: 'Práctica de Laboratorio',
-        porcentaje: 35,
-        fecha: '2026-08-27',
-        descripcion: 'Práctica sobre reacciones químicas y elaboración de informe',
-      },
-      {
-        id: 'e10',
-        tipo: 'Proyecto',
-        porcentaje: 30,
-        fecha: '2026-09-15',
-        descripcion: 'Proyecto de ecosistemas (investigación y presentación)',
-      },
-      {
-        id: 'e11',
-        tipo: 'Evaluación Escrita',
-        porcentaje: 25,
-        fecha: '2026-09-10',
-        descripcion: 'Evaluación de química y biología',
-      },
-      {
-        id: 'e12',
-        tipo: 'Tareas',
-        porcentaje: 10,
-        fecha: '2026-09-15',
-        descripcion: 'Revisión de tareas y ejercicios',
-      }
-    ]
-  },
-  {
-    id: 'mat-004',
-    nombre: 'Historia de Venezuela',
-    profesor: 'Jorge Pérez',
-    horario: 'Mar-Jue 14:30-16:00',
-    aula: '402',
-    color: '#f59e0b',
-    tareasPendientes: [
-      {
-        id: 't6',
-        titulo: 'Línea de tiempo',
-        descripcion: 'Crear una línea de tiempo de la independencia de Venezuela (1810-1830)',
-        fechaEntrega: '2026-08-28',
-        estado: 'pendiente'
-      },
-      {
-        id: 't7',
-        titulo: 'Biografía de Simón Bolívar',
-        descripcion: 'Escribir una biografía de Simón Bolívar destacando su rol en la independencia.',
-        fechaEntrega: '2026-09-04',
-        estado: 'pendiente'
-      }
-    ],
-    avisos: [
-      {
-        id: 'a7',
-        titulo: 'Visita al Museo',
-        mensaje: 'El próximo martes 25/08 realizaremos una visita al Museo de Historia. Traer autorización firmada.',
-        fecha: '2026-08-16',
-        prioridad: 'alta'
-      },
-      {
-        id: 'a8',
-        titulo: 'Película histórica',
-        mensaje: 'Veremos la película "Miranda" el jueves 27/08. Discusión en clase posterior.',
-        fecha: '2026-08-18',
-        prioridad: 'media'
-      }
-    ],
-    materiales: [
-      {
-        id: 'm12',
-        nombre: 'Libro de Historia',
-        descripcion: 'Historia de Venezuela - 8vo grado (Editorial Larense)',
-        paraClase: true
-      },
-      {
-        id: 'm13',
-        nombre: 'Atlas histórico',
-        descripcion: 'Atlas de historia de Venezuela (opcional)',
-        paraClase: false
-      },
-      {
-        id: 'm14',
-        nombre: 'Cuaderno de historia',
-        descripcion: 'Cuaderno de 100 hojas rayadas',
-        paraClase: true
-      }
-    ],
-    planEvaluacion: [
-      {
-        id: 'e13',
-        tipo: 'Evaluación Escrita',
-        porcentaje: 30,
-        fecha: '2026-08-29',
-        descripcion: 'Evaluación de la independencia y Simón Bolívar',
-      },
-      {
-        id: 'e14',
-        tipo: 'Proyecto',
-        porcentaje: 25,
-        fecha: '2026-09-08',
-        descripcion: 'Línea de tiempo histórica (presentación visual)',
-      },
-      {
-        id: 'e15',
-        tipo: 'Participación',
-        porcentaje: 20,
-        fecha: '2026-09-15',
-        descripcion: 'Participación en visitas guiadas y actividades',
-      },
-      {
-        id: 'e16',
-        tipo: 'Tareas',
-        porcentaje: 25,
-        fecha: '2026-09-15',
-        descripcion: 'Tareas y trabajos de investigación',
-      }
-    ]
-  },
-  {
-    id: 'mat-005',
-    nombre: 'Inglés',
-    profesor: 'Susan Martínez',
-    horario: 'Vie 10:00-11:30',
-    aula: '103',
-    color: '#ec4899',
-    tareasPendientes: [
-      {
-        id: 't8',
-        titulo: 'Verbos irregulares',
-        descripcion: 'Estudiar y practicar 20 verbos irregulares. Completar ejercicios del libro páginas 78-80.',
-        fechaEntrega: '2026-08-26',
-        estado: 'pendiente'
-      }
-    ],
-    avisos: [
-      {
-        id: 'a9',
-        titulo: 'Speaking Test',
-        mensaje: 'Speaking test individual la próxima semana. Preparar una presentación de 3 minutos sobre tu familia.',
-        fecha: '2026-08-21',
-        prioridad: 'alta'
-      }
-    ],
-    materiales: [
-      {
-        id: 'm15',
-        nombre: 'Libro de Inglés',
-        descripcion: 'English for Everyone - Nivel B1',
-        paraClase: true
-      },
-      {
-        id: 'm16',
-        nombre: 'Audífonos',
-        descripcion: 'Audífonos para prácticas de listening (obligatorios)',
-        paraClase: true
-      },
-      {
-        id: 'm17',
-        nombre: 'Diccionario Inglés-Español',
-        descripcion: 'Diccionario bilingüe (opcional)',
-        paraClase: false
-      }
-    ],
-    planEvaluacion: [
-      {
-        id: 'e17',
-        tipo: 'Speaking Test',
-        porcentaje: 25,
-        fecha: '2026-08-29',
-        descripcion: 'Presentación oral sobre la familia',
-      },
-      {
-        id: 'e18',
-        tipo: 'Listening Test',
-        porcentaje: 25,
-        fecha: '2026-09-05',
-        descripcion: 'Evaluación de comprensión auditiva',
-      },
-      {
-        id: 'e19',
-        tipo: 'Evaluación Escrita',
-        porcentaje: 30,
-        fecha: '2026-09-12',
-        descripcion: 'Evaluación de gramática y vocabulario',
-      },
-      {
-        id: 'e20',
-        tipo: 'Tareas',
-        porcentaje: 20,
-        fecha: '2026-09-15',
-        descripcion: 'Tareas y ejercicios del libro',
-      }
-    ]
-  }
+const MATERIAS_BASE = [
+  { id: 'mat-001', nombre: 'Lengua Española', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
+  { id: 'mat-002', nombre: 'Matemáticas', profesor: '', horario: '', aula: '', color: '#3b82f6' },
+  { id: 'mat-003', nombre: 'Historia', profesor: '', horario: '', aula: '', color: '#f59e0b' },
+  { id: 'mat-004', nombre: 'Geografía', profesor: '', horario: '', aula: '', color: '#10b981' },
+  { id: 'mat-005', nombre: 'Biología', profesor: '', horario: '', aula: '', color: '#22c55e' },
+  { id: 'mat-006', nombre: 'Química', profesor: '', horario: '', aula: '', color: '#06b6d4' },
+  { id: 'mat-007', nombre: 'Física', profesor: '', horario: '', aula: '', color: '#6366f1' },
+  { id: 'mat-008', nombre: 'Inglés', profesor: '', horario: '', aula: '', color: '#ec4899' },
+  { id: 'mat-009', nombre: 'Francés', profesor: '', horario: '', aula: '', color: '#f472b6' },
+  { id: 'mat-010', nombre: 'Filosofía', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
+  { id: 'mat-011', nombre: 'Educación Física', profesor: '', horario: '', aula: '', color: '#14b8a6' },
+  { id: 'mat-012', nombre: 'Arte', profesor: '', horario: '', aula: '', color: '#f43f5e' },
+  { id: 'mat-013', nombre: 'Informática', profesor: '', horario: '', aula: '', color: '#0ea5e9' },
 ];
 
-const useWindowSize = () => {
-  const [windowSize, setWindowSize] = useState({
-    width: 1024,
-    height: 768,
-  });
-  const [isMounted, setIsMounted] = useState(false);
+// ============================================
+// Utilidades de normalización
+// ============================================
+const normalizarTexto = (valor: string): string => {
+  if (!valor) return '';
+  return valor
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\s_]+/g, ' ');
+};
 
+const variantesNivel = (nivel: string): string[] => {
+  const n = normalizarTexto(nivel);
+  const mapa: Record<string, string[]> = {
+    inicial: ['inicial', 'preescolar', 'educacion inicial'],
+    primaria: ['primaria', 'educacion primaria'],
+    media: ['media', 'bachillerato', 'educacion media'],
+  };
+  return mapa[n] || [n];
+};
+
+const variantesGrado = (grado: string): string[] => {
+  const g = normalizarTexto(grado);
+  const mapa: Record<string, string[]> = {
+    '1er ano': ['1er ano', '1ro', '1er año', '1'],
+    '2do ano': ['2do ano', '2do', '2do año', '2'],
+    '3er ano': ['3er ano', '3ro', '3er año', '3'],
+    '4to ano': ['4to ano', '4to', '4to año', '4'],
+    '5to ano': ['5to ano', '5to', '5to año', '5'],
+    '1er grado': ['1er grado', '1ro', '1'],
+    '2do grado': ['2do grado', '2do', '2'],
+    '3er grado': ['3er grado', '3ro', '3'],
+    '4to grado': ['4to grado', '4to', '4'],
+    '5to grado': ['5to grado', '5to', '5'],
+    '6to grado': ['6to grado', '6to', '6'],
+    '1er nivel': ['1er nivel', '1er_nivel', '1ro nivel', '1ro_nivel'],
+    '2do nivel': ['2do nivel', '2do_nivel'],
+    '3er nivel': ['3er nivel', '3er_nivel', '3ro nivel', '3ro_nivel'],
+  };
+  return mapa[g] || [g];
+};
+
+const coincideNivel = (a: string, b: string) =>
+  variantesNivel(a).includes(normalizarTexto(b)) ||
+  variantesNivel(b).includes(normalizarTexto(a));
+
+const coincideGrado = (a: string, b: string) =>
+  variantesGrado(a).includes(normalizarTexto(b)) ||
+  variantesGrado(b).includes(normalizarTexto(a));
+
+const coincideSeccion = (a: string, b: string) => {
+  const na = normalizarTexto(a);
+  const nb = normalizarTexto(b);
+
+  if (
+    na === 'unica' || na === 'única' || na === '' ||
+    nb === 'unica' || nb === 'única' || nb === ''
+  ) {
+    return true;
+  }
+
+  return na === nb || na === `seccion ${nb}` || `seccion ${na}` === nb;
+};
+
+// ============================================
+// Componente principal
+// ============================================
+const EstudianteDashboard: React.FC = () => {
+  const router = useRouter();
+  const { data: session, status } = useSession();
+  const [selectedMateria, setSelectedMateria] = useState<MateriaConPlanes | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<PlanEvaluacion | null>(null);
+  const [estudiante, setEstudiante] = useState<Estudiante | null>(null);
+  const [materias, setMaterias] = useState<MateriaConPlanes[]>([]);
+  const [docentes, setDocentes] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroActivo, setFiltroActivo] = useState<FiltroMaterias>('todas');
+
+  const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
-    setIsMounted(true);
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight,
-      });
-    };
-
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  return { ...windowSize, isMounted };
-};
-
-const MateriaDetalle: React.FC<{
-  materia: Materia | null;
-  onClose: () => void;
-}> = ({ materia, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'tareas' | 'avisos' | 'materiales' | 'evaluacion'>('tareas');
-
-  if (!materia) return null;
-
-  const getEstadoColor = (estado: string) => {
-    switch (estado) {
-      case 'pendiente': return PALETTE.warning;
-      case 'entregado': return PALETTE.success;
-      case 'vencido': return PALETTE.danger;
-      default: return '#9ca3af';
-    }
-  };
-
-  const getEstadoLabel = (estado: string) => {
-    switch (estado) {
-      case 'pendiente': return 'PENDIENTE';
-      case 'entregado': return 'ENTREGADO';
-      case 'vencido': return 'VENCIDO';
-      default: return estado.toUpperCase();
-    }
-  };
-
-  const getPrioridadColor = (prioridad: string) => {
-    switch (prioridad) {
-      case 'alta': return PALETTE.danger;
-      case 'media': return PALETTE.warning;
-      case 'baja': return '#3b82f6';
-      default: return '#9ca3af';
-    }
-  };
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.85)',
-      zIndex: 1000,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      animation: 'fadeIn 0.3s ease-out',
-      backdropFilter: 'blur(8px)'
-    }} onClick={onClose}>
-      <div style={{
-        background: '#1a2e26',
-        borderRadius: '30px',
-        maxWidth: '900px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflow: 'hidden',
-        border: `2px solid ${materia.color}`,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.8)'
-      }} onClick={(e) => e.stopPropagation()}>
-        <div style={{
-          padding: '25px 30px',
-          background: `linear-gradient(135deg, #102d22, ${materia.color}33)`,
-          borderBottom: `2px solid ${materia.color}44`
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '12px',
-                  height: '12px',
-                  borderRadius: '50%',
-                  background: materia.color,
-                  boxShadow: `0 0 20px ${materia.color}66`
-                }} />
-                <h2 style={{ color: 'white', margin: 0, fontSize: '1.8rem' }}>{materia.nombre}</h2>
-              </div>
-              <p style={{ color: '#9ca3af', margin: '5px 0 0 12px' }}>
-                {materia.profesor}  {materia.horario}  Aula {materia.aula}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                color: 'white',
-                fontSize: '24px',
-                cursor: 'pointer',
-                padding: '8px 16px',
-                borderRadius: '12px',
-                transition: 'all 0.3s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,0,0,0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        <div style={{
-          display: 'flex',
-          gap: '5px',
-          padding: '15px 20px',
-          background: 'rgba(0,0,0,0.3)',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
-          flexWrap: 'wrap'
-        }}>
-          {[
-            { key: 'tareas', label: 'Tareas', count: materia.tareasPendientes.length },
-            { key: 'avisos', label: 'Avisos', count: materia.avisos.length },
-            { key: 'materiales', label: 'Materiales', count: materia.materiales.length },
-            { key: 'evaluacion', label: 'Evaluación', count: materia.planEvaluacion.length }
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
-              style={{
-                padding: '10px 20px',
-                borderRadius: '12px',
-                border: 'none',
-                background: activeTab === tab.key ? materia.color : 'rgba(255,255,255,0.05)',
-                color: activeTab === tab.key ? '#081a14' : 'white',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                transition: 'all 0.3s ease',
-                fontSize: '0.9rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              onMouseEnter={(e) => {
-                if (activeTab !== tab.key) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== tab.key) {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                }
-              }}
-            >
-              {tab.label}
-              {tab.count > 0 && (
-                <span style={{
-                  background: activeTab === tab.key ? '#081a14' : 'rgba(255,255,255,0.2)',
-                  color: activeTab === tab.key ? 'white' : '#9ca3af',
-                  borderRadius: '50%',
-                  padding: '2px 8px',
-                  fontSize: '0.7rem',
-                  fontWeight: 'bold'
-                }}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div style={{
-          padding: '25px 30px',
-          overflowY: 'auto',
-          maxHeight: 'calc(90vh - 200px)'
-        }}>
-          {activeTab === 'tareas' && (
-            <div>
-              {materia.tareasPendientes.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: '#9ca3af'
-                }}>
-                  <p style={{ fontSize: '1.1rem', margin: 0 }}>No hay tareas pendientes</p>
-                  <p style={{ fontSize: '0.9rem', margin: '5px 0 0 0', opacity: 0.7 }}>Estás al día en esta materia</p>
-                </div>
-              ) : (
-                materia.tareasPendientes.map(tarea => (
-                  <div key={tarea.id} style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    borderRadius: '15px',
-                    padding: '18px 20px',
-                    marginBottom: '12px',
-                    borderLeft: `4px solid ${getEstadoColor(tarea.estado)}`,
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <h4 style={{ color: 'white', margin: 0 }}>{tarea.titulo}</h4>
-                      <span style={{
-                        padding: '4px 12px',
-                        borderRadius: '20px',
-                        fontSize: '0.7rem',
-                        fontWeight: 'bold',
-                        background: getEstadoColor(tarea.estado),
-                        color: 'white',
-                        whiteSpace: 'nowrap',
-                        marginLeft: '10px'
-                      }}>
-                        {getEstadoLabel(tarea.estado)}
-                      </span>
-                    </div>
-                    <p style={{ color: '#d1d5db', margin: '10px 0 5px 0', lineHeight: '1.5' }}>
-                      {tarea.descripcion}
-                    </p>
-                    <p style={{ 
-                      color: tarea.estado === 'vencido' ? PALETTE.danger : '#9ca3af', 
-                      fontSize: '0.85rem', 
-                      margin: 0 
-                    }}>
-                      {new Date(tarea.fechaEntrega).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                      {tarea.estado === 'vencido' && '  Fecha vencida'}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === 'avisos' && (
-            <div>
-              {materia.avisos.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: '#9ca3af'
-                }}>
-                  <p style={{ fontSize: '1.1rem', margin: 0 }}>No hay avisos recientes</p>
-                </div>
-              ) : (
-                materia.avisos.map(aviso => (
-                  <div key={aviso.id} style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    borderRadius: '15px',
-                    padding: '18px 20px',
-                    marginBottom: '12px',
-                    borderLeft: `4px solid ${getPrioridadColor(aviso.prioridad)}`,
-                    transition: 'all 0.3s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h4 style={{ color: 'white', margin: 0 }}>{aviso.titulo}</h4>
-                      <span style={{
-                        padding: '2px 12px',
-                        borderRadius: '20px',
-                        fontSize: '0.65rem',
-                        fontWeight: 'bold',
-                        background: getPrioridadColor(aviso.prioridad),
-                        color: 'white',
-                        textTransform: 'uppercase'
-                      }}>
-                        {aviso.prioridad}
-                      </span>
-                    </div>
-                    <p style={{ color: '#d1d5db', margin: '10px 0 5px 0', lineHeight: '1.5' }}>
-                      {aviso.mensaje}
-                    </p>
-                    <p style={{ color: '#9ca3af', fontSize: '0.85rem', margin: 0 }}>
-                      {new Date(aviso.fecha).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === 'materiales' && (
-            <div>
-              {materia.materiales.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: '#9ca3af'
-                }}>
-                  <p style={{ fontSize: '1.1rem', margin: 0 }}>No hay materiales listados</p>
-                </div>
-              ) : (
-                <>
-                  <h4 style={{ 
-                    color: PALETTE.accent, 
-                    marginBottom: '15px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    Materiales para llevar a clase
-                  </h4>
-                  {materia.materiales.filter(m => m.paraClase).length === 0 ? (
-                    <p style={{ color: '#9ca3af', textAlign: 'center', padding: '10px' }}>
-                      No hay materiales requeridos para clase
-                    </p>
-                  ) : (
-                    materia.materiales.filter(m => m.paraClase).map(material => (
-                      <div key={material.id} style={{
-                        background: `linear-gradient(135deg, ${materia.color}15, rgba(255,255,255,0.03))`,
-                        borderRadius: '15px',
-                        padding: '15px 20px',
-                        marginBottom: '10px',
-                        border: `1px solid ${materia.color}44`,
-                        transition: 'all 0.3s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'translateX(5px)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'translateX(0)';
-                      }}>
-                        <h4 style={{ color: 'white', margin: 0 }}>{material.nombre}</h4>
-                        <p style={{ color: '#d1d5db', margin: '5px 0 0 0', fontSize: '0.9rem' }}>
-                          {material.descripcion}
-                        </p>
-                      </div>
-                    ))
-                  )}
-
-                  {materia.materiales.filter(m => !m.paraClase).length > 0 && (
-                    <>
-                      <h4 style={{ 
-                        color: '#9ca3af', 
-                        marginBottom: '15px', 
-                        marginTop: '30px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        Materiales adicionales (opcionales)
-                      </h4>
-                      {materia.materiales.filter(m => !m.paraClase).map(material => (
-                        <div key={material.id} style={{
-                          background: 'rgba(255,255,255,0.03)',
-                          borderRadius: '15px',
-                          padding: '15px 20px',
-                          marginBottom: '10px',
-                          border: '1px solid rgba(255,255,255,0.05)',
-                          transition: 'all 0.3s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                        }}>
-                          <h4 style={{ color: '#d1d5db', margin: 0 }}>{material.nombre}</h4>
-                          <p style={{ color: '#9ca3af', margin: '5px 0 0 0', fontSize: '0.9rem' }}>
-                            {material.descripcion}
-                          </p>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'evaluacion' && (
-            <div>
-              {materia.planEvaluacion.length === 0 ? (
-                <div style={{
-                  textAlign: 'center',
-                  padding: '40px 20px',
-                  color: '#9ca3af'
-                }}>
-                  <p style={{ fontSize: '1.1rem', margin: 0 }}>No hay plan de evaluación disponible</p>
-                </div>
-              ) : (
-                <div>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 1.5fr 0.8fr 0.8fr',
-                    gap: '10px',
-                    marginBottom: '15px',
-                    padding: '12px 15px',
-                    background: 'rgba(255,255,255,0.05)',
-                    borderRadius: '10px',
-                    fontWeight: 'bold',
-                    color: '#9ca3af',
-                    fontSize: '0.75rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px'
-                  }}>
-                    <span>Tipo de Evaluación</span>
-                    <span>Fecha</span>
-                    <span>%</span>
-                    <span>Nota</span>
-                  </div>
-                  {materia.planEvaluacion.map(item => (
-                    <div key={item.id} style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 1.5fr 0.8fr 0.8fr',
-                      gap: '10px',
-                      padding: '12px 15px',
-                      background: 'rgba(255,255,255,0.03)',
-                      borderRadius: '10px',
-                      marginBottom: '8px',
-                      alignItems: 'center',
-                      border: '1px solid rgba(255,255,255,0.03)',
-                      transition: 'all 0.3s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                    }}>
-                      <span style={{ color: 'white', fontWeight: '500' }}>{item.tipo}</span>
-                      <span style={{ color: '#d1d5db', fontSize: '0.9rem' }}>
-                        {new Date(item.fecha).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'short'
-                        })}
-                      </span>
-                      <span style={{
-                        color: PALETTE.accent,
-                        fontWeight: 'bold',
-                        fontSize: '1.1rem'
-                      }}>
-                        {item.porcentaje}%
-                      </span>
-                      <span style={{
-                        color: item.nota ? '#22c55e' : '#9ca3af',
-                        fontWeight: 'bold',
-                        fontSize: '1.1rem'
-                      }}>
-                        {item.nota || '—'}
-                      </span>
-                    </div>
-                  ))}
-                  
-                  <div style={{
-                    marginTop: '20px',
-                    padding: '18px 20px',
-                    background: `linear-gradient(135deg, ${materia.color}10, rgba(255,255,255,0.02))`,
-                    borderRadius: '12px',
-                    border: `1px solid ${materia.color}33`
-                  }}>
-                    <p style={{ 
-                      color: '#d1d5db', 
-                      margin: 0,
-                      fontSize: '0.9rem',
-                      lineHeight: '1.6'
-                    }}>
-                      <strong style={{ color: 'white' }}>Descripción general:</strong><br />
-                      {materia.planEvaluacion[0]?.descripcion || 'Plan de evaluación detallado disponible en clase.'}
-                    </p>
-                  </div>
-
-                  <div style={{
-                    marginTop: '20px',
-                    display: 'flex',
-                    gap: '15px',
-                    flexWrap: 'wrap',
-                    padding: '15px',
-                    background: 'rgba(255,255,255,0.03)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.05)'
-                  }}>
-                    <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      Total: <strong style={{ color: 'white' }}>
-                        {materia.planEvaluacion.reduce((sum, item) => sum + item.porcentaje, 0)}%
-                      </strong>
-                    </span>
-                    <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      Evaluaciones: <strong style={{ color: 'white' }}>
-                        {materia.planEvaluacion.length}
-                      </strong>
-                    </span>
-                    <span style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      Con nota: <strong style={{ color: '#22c55e' }}>
-                        {materia.planEvaluacion.filter(e => e.nota !== undefined).length}
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const StatCard: React.FC<{
-  label: string;
-  value: string | number;
-  color?: string;
-}> = ({ label, value, color = PALETTE.accent }) => (
-  <div style={{
-    background: 'rgba(255,255,255,0.04)',
-    borderRadius: '16px',
-    padding: '20px',
-    textAlign: 'center',
-    border: '1px solid rgba(255,255,255,0.05)',
-    transition: 'all 0.3s ease',
-    flex: '1',
-    minWidth: '120px'
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-    e.currentTarget.style.transform = 'translateY(-3px)';
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-    e.currentTarget.style.transform = 'translateY(0)';
-  }}>
-    <div style={{ 
-      fontSize: '1.8rem', 
-      fontWeight: 'bold', 
-      color: color 
-    }}>
-      {value}
-    </div>
-    <div style={{ 
-      color: '#9ca3af', 
-      fontSize: '0.85rem',
-      fontWeight: '500'
-    }}>
-      {label}
-    </div>
-  </div>
-);
-
-const MateriaGrid: React.FC<{
-  materias: Materia[];
-  onSelectMateria: (materia: Materia) => void;
-}> = ({ materias, onSelectMateria }) => {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-
-  const getEstadoColor = (tareas: Tarea[]) => {
-    const pendientes = tareas.filter(t => t.estado === 'pendiente');
-    const vencidas = tareas.filter(t => t.estado === 'vencido');
-    if (vencidas.length > 0) return PALETTE.danger;
-    if (pendientes.length > 0) return PALETTE.warning;
-    return PALETTE.success;
-  };
-
-  const getEstadoTexto = (tareas: Tarea[]) => {
-    const pendientes = tareas.filter(t => t.estado === 'pendiente');
-    const vencidas = tareas.filter(t => t.estado === 'vencido');
-    if (vencidas.length > 0) return `${vencidas.length} tareas vencidas`;
-    if (pendientes.length > 0) return `${pendientes.length} tareas pendientes`;
-    return 'Al día';
-  };
-
-  const getEstadoIcon = (tareas: Tarea[]) => {
-    const pendientes = tareas.filter(t => t.estado === 'pendiente');
-    const vencidas = tareas.filter(t => t.estado === 'vencido');
-    if (vencidas.length > 0) return '⚠';
-    if (pendientes.length > 0) return '⏳';
-    return '✓';
-  };
-
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-      gap: '20px',
-      width: '100%'
-    }}>
-      {materias.map(materia => (
-        <div
-          key={materia.id}
-          onClick={() => onSelectMateria(materia)}
-          onMouseEnter={() => setHoveredId(materia.id)}
-          onMouseLeave={() => setHoveredId(null)}
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            borderRadius: '20px',
-            padding: '22px',
-            border: `2px solid ${hoveredId === materia.id ? materia.color : 'rgba(255,255,255,0.06)'}`,
-            cursor: 'pointer',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            transform: hoveredId === materia.id ? 'translateY(-6px)' : 'translateY(0)',
-            boxShadow: hoveredId === materia.id ? '0 12px 40px rgba(0,0,0,0.5)' : 'none',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-        >
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '4px',
-            background: materia.color,
-            boxShadow: `0 0 20px ${materia.color}44`
-          }} />
-
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            right: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '0.8rem',
-            fontWeight: 'bold',
-            color: getEstadoColor(materia.tareasPendientes)
-          }}>
-            <span>{getEstadoIcon(materia.tareasPendientes)}</span>
-          </div>
-
-          <div style={{ marginTop: '8px' }}>
-            <h3 style={{
-              color: 'white',
-              margin: '0 0 4px 0',
-              fontSize: '1.2rem',
-              paddingRight: '40px'
-            }}>
-              {materia.nombre}
-            </h3>
-            <p style={{
-              color: '#9ca3af',
-              margin: '0 0 12px 0',
-              fontSize: '0.85rem'
-            }}>
-              {materia.profesor}
-            </p>
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            marginBottom: '14px'
-          }}>
-            <span style={{
-              padding: '3px 10px',
-              background: 'rgba(255,255,255,0.06)',
-              borderRadius: '12px',
-              fontSize: '0.7rem',
-              color: '#d1d5db'
-            }}>
-              {materia.horario}
-            </span>
-            <span style={{
-              padding: '3px 10px',
-              background: 'rgba(255,255,255,0.06)',
-              borderRadius: '12px',
-              fontSize: '0.7rem',
-              color: '#d1d5db'
-            }}>
-              Aula {materia.aula}
-            </span>
-            <span style={{
-              padding: '3px 10px',
-              background: 'rgba(255,255,255,0.06)',
-              borderRadius: '12px',
-              fontSize: '0.7rem',
-              color: '#d1d5db'
-            }}>
-              {materia.avisos.length} avisos
-            </span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingTop: '14px',
-            borderTop: '1px solid rgba(255,255,255,0.06)'
-          }}>
-            <span style={{
-              color: getEstadoColor(materia.tareasPendientes),
-              fontWeight: '600',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              {getEstadoTexto(materia.tareasPendientes)}
-            </span>
-            <span style={{
-              color: '#6b7280',
-              fontSize: '0.75rem'
-            }}>
-              {materia.planEvaluacion.length} evaluaciones
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const EstudianteDashboard: React.FC = () => {
-  const router = useRouter();
-  const { data: session, status } = useSession();
-  const { width, isMounted } = useWindowSize();
-  const [selectedMateria, setSelectedMateria] = useState<Materia | null>(null);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [estudiante, setEstudiante] = useState<Estudiante | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const isMobile = isMounted ? width < 768 : false;
-
   useEffect(() => {
-    const cargarDatosEstudiante = async () => {
+    const cargarDatosCompletos = async () => {
       if (status === 'loading') return;
-      
+
       if (!session?.user) {
         router.push('/');
         return;
       }
 
       const userId = session.user.id;
-      
+
       if (!userId) {
-        console.error('❌ No se encontró userId en la sesión');
         setError('Error: No se pudo identificar al usuario.');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('🔍 Buscando estudiante para userId:', userId);
-        
         const response = await fetch(`/api/estudiantes/usuario/${userId}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('✅ Estudiante encontrado:', data);
-          
-          const estudianteConMaterias = {
-            ...data,
-            materias: MATERIAS_EJEMPLO
-          };
-          
-          setEstudiante(estudianteConMaterias);
-          setError(null);
-        } else if (response.status === 404) {
-          console.warn('⚠️ Estudiante no encontrado');
-          setError('No tienes un perfil de estudiante registrado.');
-        } else {
-          const errorText = await response.text();
-          console.error('❌ Error al cargar estudiante:', errorText);
-          setError('Error al cargar los datos del estudiante.');
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError('No tienes un perfil de estudiante registrado.');
+          } else {
+            setError('Error al cargar los datos del estudiante.');
+          }
+          setLoading(false);
+          return;
         }
+
+        const data = await response.json();
+
+        const estudianteData: Estudiante = {
+          id: data.id || '',
+          nombres: data.nombres || data.nombre || 'Estudiante',
+          apellidos: data.apellidos || data.apellido || '',
+          grado: data.grado || '',
+          seccion: data.seccion || '',
+          cedulaIdentidad: data.cedulaIdentidad || data.cedula || '',
+          correoElectronico: data.correoElectronico || data.email || '',
+          nivel: data.nivel || '',
+          telefono: data.telefono || ''
+        };
+
+        setEstudiante(estudianteData);
+
+        const planesResponse = await fetch(`/api/estudiantes/planes?estudianteId=${data.id}`);
+
+        let planesData: PlanEvaluacion[] = [];
+
+        if (planesResponse.ok) {
+          const rawPlanes = await planesResponse.json();
+
+          planesData = (rawPlanes || []).map((plan: any) => ({
+            id: plan.id || '',
+            areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
+            docente: plan.docente || 'Docente no asignado',
+            docenteId: plan.docenteId || '',
+            ano: plan.ano || plan.grado || 'N/A',
+            secciones: plan.secciones || plan.seccion || 'A',
+            nivel: plan.nivel || '',
+            grado: plan.grado || '',
+            materia: plan.materia || '',
+            filas: Array.isArray(plan.filas) ? plan.filas : [],
+            visto: plan.visto || false,
+            fechaVisto: plan.fechaVisto || null,
+            createdAt: plan.createdAt || new Date().toISOString()
+          }));
+        }
+
+        let tareasData: Tarea[] = [];
+        try {
+          const tareasResponse = await fetch(`/api/tareas?estudianteId=${data.id}`);
+          if (tareasResponse.ok) {
+            const rawTareas = await tareasResponse.json();
+            tareasData = (rawTareas || []).map((t: any) => ({
+              id: t.id || '',
+              titulo: t.titulo || '',
+              descripcion: t.descripcion || '',
+              fechaEntrega: t.fechaEntrega || '',
+              estado: t.estado || 'pendiente',
+              recursos: t.recursos || '',
+              objetivos: t.objetivos || '',
+              ponderacion: t.ponderacion || '',
+              materia: t.materia || '',
+              docente: t.docente || 'Docente',
+              nivel: t.nivel || '',
+              grado: t.grado || '',
+              seccion: t.seccion || '',
+              visto: t.visto || false,
+              entregado: t.entregado || false,
+              calificacion: t.calificacion ?? null,
+              createdAt: t.createdAt || new Date().toISOString()
+            }));
+          }
+        } catch (error) {
+          console.error('Error al cargar tareas:', error);
+        }
+
+        let avisosData: Aviso[] = [];
+        try {
+          const avisosResponse = await fetch(`/api/avisos?estudianteId=${data.id}`);
+          if (avisosResponse.ok) {
+            const rawAvisos = await avisosResponse.json();
+            avisosData = (rawAvisos || []).map((a: any) => ({
+              id: a.id || '',
+              titulo: a.titulo || '',
+              descripcion: a.descripcion || '',
+              fecha: a.fecha || '',
+              materia: a.materia || '',
+              docente: a.docente || 'Docente',
+              nivel: a.nivel || '',
+              grado: a.grado || '',
+              seccion: a.seccion || '',
+              visto: a.visto || false,
+              fechaVisto: a.fechaVisto || null,
+              createdAt: a.createdAt || new Date().toISOString()
+            }));
+          }
+        } catch (error) {
+          console.error('Error al cargar avisos:', error);
+        }
+
+        let materialesData: Material[] = [];
+        try {
+          const materialesResponse = await fetch(`/api/materiales?estudianteId=${data.id}`);
+          if (materialesResponse.ok) {
+            const rawMateriales = await materialesResponse.json();
+            materialesData = (rawMateriales || []).map((m: any) => ({
+              id: m.id || '',
+              titulo: m.titulo || '',
+              descripcion: m.descripcion || '',
+              enlace: m.enlace || '',
+              fecha: m.fecha || '',
+              materia: m.materia || '',
+              docente: m.docente || 'Docente',
+              nivel: m.nivel || '',
+              grado: m.grado || '',
+              seccion: m.seccion || '',
+              visto: m.visto || false,
+              fechaVisto: m.fechaVisto || null,
+              createdAt: m.createdAt || new Date().toISOString()
+            }));
+          }
+        } catch (error) {
+          console.error('Error al cargar materiales:', error);
+        }
+
+        const docentesMap: Record<string, string> = {};
+        const docentesIds = [...new Set(planesData.map(p => p.docenteId).filter(Boolean))];
+
+        for (const docenteId of docentesIds) {
+          try {
+            const docenteRes = await fetch(`/api/docentes?id=${docenteId}`);
+            if (docenteRes.ok) {
+              const docenteData = await docenteRes.json();
+              const nombreCompleto = `${docenteData.nombres || ''} ${docenteData.apellidos || ''}`.trim();
+              docentesMap[docenteId] = nombreCompleto || docenteData.email || 'Docente';
+            }
+          } catch (error) {
+            console.error(`Error al obtener docente ${docenteId}:`, error);
+          }
+        }
+
+        setDocentes(docentesMap);
+
+        const materiasConstruidas: MateriaConPlanes[] = MATERIAS_BASE.map((base) => {
+          const planesMateria = planesData.filter((plan: PlanEvaluacion) => {
+            const materiaOk = plan.materia === base.nombre || plan.areaFormacion === base.nombre;
+            if (!materiaOk) return false;
+            if (!coincideNivel(plan.nivel || '', estudianteData.nivel)) return false;
+            if (!coincideGrado(plan.grado || '', estudianteData.grado)) return false;
+            if (!coincideSeccion(plan.secciones || '', estudianteData.seccion)) return false;
+            return true;
+          });
+
+          const tareasMateria = tareasData.filter((t) => {
+            if (t.materia !== base.nombre) return false;
+            if (!coincideNivel(t.nivel || '', estudianteData.nivel)) return false;
+            if (!coincideGrado(t.grado || '', estudianteData.grado)) return false;
+            if (!coincideSeccion(t.seccion || '', estudianteData.seccion)) return false;
+            return true;
+          });
+
+          const avisosMateria = avisosData.filter((a) => {
+            if (a.materia !== base.nombre) return false;
+            if (!coincideNivel(a.nivel || '', estudianteData.nivel)) return false;
+            if (!coincideGrado(a.grado || '', estudianteData.grado)) return false;
+            if (!coincideSeccion(a.seccion || '', estudianteData.seccion)) return false;
+            return true;
+          });
+
+          const materialesMateria = materialesData.filter((m) => {
+            if (m.materia !== base.nombre) return false;
+            if (!coincideNivel(m.nivel || '', estudianteData.nivel)) return false;
+            if (!coincideGrado(m.grado || '', estudianteData.grado)) return false;
+            if (!coincideSeccion(m.seccion || '', estudianteData.seccion)) return false;
+            return true;
+          });
+
+          let profesor = 'Sin profesor asignado';
+          const planConDocente = planesMateria.find(p => p.docenteId && docentesMap[p.docenteId]);
+          if (planConDocente && planConDocente.docenteId) {
+            profesor = docentesMap[planConDocente.docenteId] || 'Sin profesor asignado';
+          } else if (tareasMateria.length > 0) {
+            profesor = tareasMateria[0].docente;
+          } else if (avisosMateria.length > 0) {
+            profesor = avisosMateria[0].docente;
+          } else if (materialesMateria.length > 0) {
+            profesor = materialesMateria[0].docente;
+          }
+
+          return {
+            ...base,
+            profesor: profesor,
+            planEvaluacion: planesMateria,
+            tareasPendientes: tareasMateria,
+            avisos: avisosMateria,
+            materiales: materialesMateria
+          };
+        });
+
+        setMaterias(materiasConstruidas);
+        setError(null);
       } catch (error) {
-        console.error('❌ Error al cargar datos del estudiante:', error);
+        console.error('Error al cargar datos:', error);
         setError('Error de conexión.');
       } finally {
         setLoading(false);
       }
     };
 
-    cargarDatosEstudiante();
+    cargarDatosCompletos();
   }, [session, status, router]);
 
-  const handleLogout = () => {
+  const marcarPlanComoVisto = async (planId: string) => {
+    if (!estudiante) return;
+
+    try {
+      const response = await fetch('/api/estudiantes/planes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          estudianteId: estudiante.id,
+          planId: planId
+        }),
+      });
+
+      if (response.ok) {
+        setMaterias((prev) =>
+          prev.map((materia) => ({
+            ...materia,
+            planEvaluacion: materia.planEvaluacion.map((plan) =>
+              plan.id === planId
+                ? { ...plan, visto: true, fechaVisto: new Date().toISOString() }
+                : plan
+            )
+          }))
+        );
+
+        if (selectedPlan && selectedPlan.id === planId) {
+          setSelectedPlan({ ...selectedPlan, visto: true, fechaVisto: new Date().toISOString() });
+        }
+
+        sileo.success({
+          title: 'Plan marcado como visto',
+          description: 'Se registró tu lectura correctamente',
+        });
+      } else {
+        sileo.error({
+          title: 'Error',
+          description: 'No se pudo marcar el plan como visto',
+        });
+      }
+    } catch (error) {
+      console.error('Error al marcar plan como visto:', error);
+      sileo.error({
+        title: 'Error de conexión',
+        description: 'No se pudo marcar el plan como visto',
+      });
+    }
+  };
+
+  // ✅ CORREGIDO: sin 'cancel' (tu versión de Sileo no lo soporta)
+  const handleLogout = async () => {
+    if (!window.confirm('¿Está seguro de que desea cerrar sesión?')) {
+      return;
+    }
+    await signOut({ redirect: false });
     router.push('/');
   };
 
+  const planesNoVistos = materias.reduce((sum, m) => sum + m.planEvaluacion.filter(p => !p.visto).length, 0);
+  const materiasConPlanes = materias.filter(m => m.planEvaluacion.length > 0 || m.tareasPendientes.length > 0 || m.avisos.length > 0 || m.materiales.length > 0).length;
+  const totalTareas = materias.reduce((sum, m) => sum + m.tareasPendientes.length, 0);
+  const totalAvisos = materias.reduce((sum, m) => sum + m.avisos.length, 0);
+  const totalMateriales = materias.reduce((sum, m) => sum + m.materiales.length, 0);
+
+  const materiasFiltradas = useMemo(() => {
+    let resultado = materias;
+
+    if (busqueda.trim()) {
+      const term = normalizarTexto(busqueda);
+      resultado = resultado.filter(m =>
+        normalizarTexto(m.nombre).includes(term) ||
+        normalizarTexto(m.profesor).includes(term)
+      );
+    }
+
+    switch (filtroActivo) {
+      case 'novedades':
+        resultado = resultado.filter(m =>
+          m.planEvaluacion.length > 0 ||
+          m.tareasPendientes.length > 0 ||
+          m.avisos.length > 0 ||
+          m.materiales.length > 0
+        );
+        break;
+      case 'tareas':
+        resultado = resultado.filter(m => m.tareasPendientes.length > 0);
+        break;
+      case 'planes_nuevos':
+        resultado = resultado.filter(m => m.planEvaluacion.some(p => !p.visto));
+        break;
+      case 'todas':
+      default:
+        break;
+    }
+
+    return resultado;
+  }, [materias, busqueda, filtroActivo]);
+
+  const proximasEntregas = useMemo(() => {
+    const tareas = materias.flatMap(m =>
+      m.tareasPendientes.map(t => ({
+        ...t,
+        colorMateria: m.color,
+        nombreMateria: m.nombre
+      }))
+    );
+
+    return tareas
+      .filter(t => t.fechaEntrega)
+      .sort((a, b) => {
+        const dateA = new Date(a.fechaEntrega).getTime();
+        const dateB = new Date(b.fechaEntrega).getTime();
+        return dateA - dateB;
+      })
+      .slice(0, 5);
+  }, [materias]);
+
   if (status === 'loading' || loading) {
     return (
-      <div style={{
-        fontFamily: "'Montserrat', sans-serif",
-        background: PALETTE.deepBg,
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '50px',
-            height: '50px',
-            border: `4px solid ${PALETTE.accent}33`,
-            borderTop: `4px solid ${PALETTE.accent}`,
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            margin: '0 auto 20px'
-          }} />
+      <div className="min-h-screen bg-[#1a2e26] flex items-center justify-center text-white">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
           <p>Cargando tus datos...</p>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !estudiante) {
     return (
-      <div style={{
-        fontFamily: "'Montserrat', sans-serif",
-        background: PALETTE.deepBg,
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        padding: '20px'
-      }}>
-        <div style={{
-          background: 'rgba(255,255,255,0.05)',
-          borderRadius: '20px',
-          padding: '40px',
-          maxWidth: '500px',
-          width: '100%',
-          textAlign: 'center',
-          border: '1px solid rgba(255,255,255,0.1)'
-        }}>
-          <div style={{ fontSize: '3rem', marginBottom: '20px' }}>⚠️</div>
-          <h2 style={{ color: 'white', marginBottom: '15px' }}>No se encontró tu perfil</h2>
-          <p style={{ color: '#9ca3af', marginBottom: '20px', lineHeight: '1.6' }}>
-            {error}
-          </p>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => router.push('/')}
-              style={{
-                padding: '12px 25px',
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '12px',
-                color: 'white',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '0.9rem'
-              }}
-            >
-              Volver al Inicio
-            </button>
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: '12px 25px',
-                background: PALETTE.danger,
-                border: 'none',
-                borderRadius: '12px',
-                color: 'white',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '0.9rem'
-              }}
-            >
-              Cerrar Sesión
-            </button>
+      <div className="min-h-screen flex items-center justify-center text-white p-5 relative">
+        <div
+          className="absolute inset-0 bg-cover bg-center z-0"
+          style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+        />
+        <div className="absolute inset-0 bg-[#0a1410]/40 z-0" />
+
+        <div className="liquid-login-card rounded-[40px] p-8 max-w-md w-full relative z-10">
+          <div className="liquid-login-content text-center space-y-4">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+            <h2 className="text-xl font-bold">No se encontró tu perfil</h2>
+            <p className="text-gray-400 leading-relaxed">
+              {error || 'No se encontraron datos del estudiante'}
+            </p>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/')}
+                className="border-white/20 text-white hover:bg-white/10"
+              >
+                Volver al Inicio
+              </Button>
+              <Button variant="destructive" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" /> Cerrar Sesión
+              </Button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  if (!estudiante) {
-    return (
-      <div style={{
-        fontFamily: "'Montserrat', sans-serif",
-        background: PALETTE.deepBg,
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'white',
-        padding: '20px'
-      }}>
-        <div style={{
-          background: 'rgba(255,255,255,0.05)',
-          borderRadius: '20px',
-          padding: '40px',
-          maxWidth: '500px',
-          width: '100%',
-          textAlign: 'center'
-        }}>
-          <p style={{ color: '#9ca3af', marginBottom: '20px' }}>No se encontraron datos del estudiante</p>
-          <button
-            onClick={() => router.push('/')}
-            style={{
-              padding: '12px 30px',
-              background: PALETTE.accent,
-              border: 'none',
-              borderRadius: '12px',
-              color: '#081a14',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '1rem'
-            }}
-          >
-            Volver al inicio
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const getInitials = () => {
+    const nombreInicial = estudiante.nombres && estudiante.nombres.length > 0 ? estudiante.nombres[0] : '?';
+    const apellidoInicial = estudiante.apellidos && estudiante.apellidos.length > 0 ? estudiante.apellidos[0] : '';
+    return `${nombreInicial}${apellidoInicial}`;
+  };
 
-  const totalTareas = estudiante.materias.reduce(
-    (sum, m) => sum + m.tareasPendientes.length, 0
-  );
-  const tareasPendientes = estudiante.materias.reduce(
-    (sum, m) => sum + m.tareasPendientes.filter(t => t.estado === 'pendiente').length, 0
-  );
-  const tareasVencidas = estudiante.materias.reduce(
-    (sum, m) => sum + m.tareasPendientes.filter(t => t.estado === 'vencido').length, 0
-  );
-  const totalAvisos = estudiante.materias.reduce(
-    (sum, m) => sum + m.avisos.length, 0
-  );
+  const nombreCompleto = `${estudiante.nombres || ''} ${estudiante.apellidos || ''}`.trim() || 'Estudiante';
 
   return (
-    <div style={{
-      fontFamily: "'Montserrat', sans-serif",
-      background: PALETTE.deepBg,
-      minHeight: '100vh',
-      overflowX: 'hidden'
-    }}>
-      <nav style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        zIndex: 100,
-        boxSizing: 'border-box',
-        ...(isMobile ? {
-          position: 'relative',
-          padding: '1rem 5%',
-          background: PALETTE.deepBg,
-          borderBottom: '1px solid rgba(255,255,255,0.05)'
-        } : {
-          position: 'sticky',
-          top: 0,
-          padding: '1rem 8%',
-          background: 'rgba(26, 46, 38, 0.95)',
-          backdropFilter: 'blur(10px)',
-          borderBottom: '1px solid rgba(255,255,255,0.05)'
-        })
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '1.5rem' }}>🎓</span>
-          <span style={{
-            color: 'white',
-            fontWeight: 'bold',
-            textDecoration: 'none',
-            fontSize: isMobile ? '0.9rem' : '1.1rem'
-          }}>
-            Portal Estudiantil
-          </span>
+    <div
+      className="min-h-screen relative text-white overflow-x-hidden"
+      style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
+    >
+      {/* Fondo: imagen original sin filtro + overlay oscuro sutil */}
+      <div
+        className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
+        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+      />
+      <div className="fixed inset-0 bg-[#0a1410]/45 z-0 pointer-events-none" />
+
+      {/* NAVBAR compacto */}
+      <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm shadow-[0_0_20px_rgba(0,187,126,0.35)]">
+            {getInitials()}
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="font-semibold text-sm">{nombreCompleto}</span>
+            <span className="text-gray-400 text-[0.7rem]">
+              {estudiante.grado || '?'}° Grado • Sección {estudiante.seccion || ''}
+            </span>
+          </div>
         </div>
 
-        {!isMobile && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              background: 'rgba(255,255,255,0.05)',
-              padding: '6px 16px 6px 12px',
-              borderRadius: '30px'
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                background: `linear-gradient(135deg, ${PALETTE.accent}, #00cc88)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#081a14',
-                fontWeight: 'bold',
-                fontSize: '0.9rem'
-              }}>
-                {estudiante.nombre[0]}{estudiante.apellido[0]}
-              </div>
-              <span style={{ color: 'white', fontSize: '0.9rem', fontWeight: '500' }}>
-                {estudiante.nombre} {estudiante.apellido}
-              </span>
-              <span style={{
-                color: '#9ca3af',
-                fontSize: '0.75rem',
-                background: 'rgba(255,255,255,0.05)',
-                padding: '2px 10px',
-                borderRadius: '12px'
-              }}>
-                {estudiante.grado}° {estudiante.seccion}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {planesNoVistos > 0 && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-red-500/15 rounded-full border border-red-500/30 animate-pulse">
+              <Bell className="w-3.5 h-3.5 text-red-400" />
+              <span className="text-red-400 font-bold text-xs">
+                {planesNoVistos} {planesNoVistos === 1 ? 'nuevo' : 'nuevos'}
               </span>
             </div>
-            <button
-              onClick={handleLogout}
-              style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                color: 'white',
-                textDecoration: 'none',
-                fontWeight: '600',
-                borderRadius: '12px',
-                padding: '8px 18px',
-                fontSize: '0.8rem',
-                border: '1px solid rgba(255,255,255,0.1)',
-                transition: 'all 0.3s ease',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = PALETTE.danger;
-                e.currentTarget.style.color = 'white';
-                e.currentTarget.style.borderColor = PALETTE.danger;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                e.currentTarget.style.color = 'white';
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-              }}
-            >
-              Cerrar Sesión
-            </button>
-          </div>
-        )}
-
-        {isMobile && (
-          <button
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-            style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '8px',
-              borderRadius: '8px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-              zIndex: 1001,
-              transition: 'all 0.3s ease'
-            }}
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
           >
-            <div style={{
-              width: '22px',
-              height: '2px',
-              background: 'white',
-              transition: 'all 0.3s ease',
-              transform: showMobileMenu ? 'rotate(45deg) translate(5px, 5px)' : 'none'
-            }} />
-            <div style={{
-              width: '22px',
-              height: '2px',
-              background: 'white',
-              transition: 'all 0.3s ease',
-              opacity: showMobileMenu ? 0 : 1
-            }} />
-            <div style={{
-              width: '22px',
-              height: '2px',
-              background: 'white',
-              transition: 'all 0.3s ease',
-              transform: showMobileMenu ? 'rotate(-45deg) translate(5px, -5px)' : 'none'
-            }} />
-          </button>
-        )}
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline ml-2">Salir</span>
+          </Button>
+        </div>
       </nav>
 
-      {isMobile && showMobileMenu && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.85)',
-          zIndex: 999,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(8px)'
-        }} onClick={() => setShowMobileMenu(false)}>
-          <div style={{
-            background: PALETTE.deepBg,
-            padding: '35px',
-            borderRadius: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            minWidth: '80%',
-            border: '1px solid rgba(255,255,255,0.05)'
-          }} onClick={(e) => e.stopPropagation()}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              paddingBottom: '16px',
-              borderBottom: '1px solid rgba(255,255,255,0.05)'
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                background: `linear-gradient(135deg, ${PALETTE.accent}, #00cc88)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#081a14',
-                fontWeight: 'bold',
-                fontSize: '1rem'
-              }}>
-                {estudiante.nombre[0]}{estudiante.apellido[0]}
-              </div>
-              <div>
-                <div style={{ color: 'white', fontWeight: 'bold' }}>
-                  {estudiante.nombre} {estudiante.apellido}
-                </div>
-                <div style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
-                  {estudiante.grado}° {estudiante.seccion}
-                </div>
-              </div>
+      {/* CONTENEDOR PRINCIPAL estilo login card */}
+      <main className="relative z-10 px-4 sm:px-[8%] py-6">
+        <div className="liquid-login-card rounded-[35px] p-6 sm:p-8">
+          <div className="liquid-login-content space-y-6">
+
+            {/* Saludo */}
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white m-0 tracking-tight">
+                Hola, {estudiante.nombres}
+              </h1>
+              <p className="text-white/60 text-sm mt-1">
+                Bienvenido de nuevo a tu panel
+              </p>
             </div>
-            <button
-              onClick={handleLogout}
-              style={{
-                background: PALETTE.danger,
-                color: 'white',
-                textDecoration: 'none',
-                fontWeight: 'bold',
-                borderRadius: '12px',
-                padding: '14px',
-                textAlign: 'center',
-                transition: 'all 0.3s ease',
-                marginTop: '8px',
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
-      )}
 
-      <header style={{
-        padding: isMobile ? '25px 5% 15px' : '35px 8% 20px',
-        background: 'linear-gradient(135deg, #102d22, #1a2e26)',
-        borderBottom: `1px solid ${PALETTE.sandBorder}33`
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: isMobile ? 'flex-start' : 'center',
-          flexDirection: isMobile ? 'column' : 'row',
-          gap: isMobile ? '12px' : '0'
-        }}>
-          <div>
-            <h1 style={{
-              color: 'white',
-              margin: 0,
-              fontSize: isMobile ? '1.5rem' : '2.2rem',
-              fontWeight: '800'
-            }}>
-              Bienvenido, {estudiante.nombre}
-            </h1>
-            <p style={{
-              color: '#9ca3af',
-              margin: '5px 0 0 0',
-              fontSize: isMobile ? '0.9rem' : '1rem'
-            }}>
-              {estudiante.grado}° Grado - Sección {estudiante.seccion}  {estudiante.correo}
+            {/* Datos del estudiante */}
+            <div className={`grid gap-3 ${isMobile ? 'grid-cols-1' : 'grid-cols-4'}`}>
+              <DataCard icon={<Mail className="w-4 h-4" />} label="Correo" value={estudiante.correoElectronico || 'No registrado'} />
+              <DataCard icon={<IdCard className="w-4 h-4" />} label="Cédula" value={estudiante.cedulaIdentidad || 'No registrada'} />
+              <DataCard icon={<Phone className="w-4 h-4" />} label="Teléfono" value={estudiante.telefono || 'No registrado'} />
+              <DataCard icon={<GraduationCap className="w-4 h-4" />} label="Nivel" value={estudiante.nivel ? estudiante.nivel.charAt(0).toUpperCase() + estudiante.nivel.slice(1) : 'No asignado'} />
+            </div>
+
+            {/* STATS */}
+            <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
+              <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materias" value={materiasConPlanes} color="#00BB7E" />
+              <StatCard icon={<FileText className="w-5 h-5" />} label="Tareas" value={totalTareas} color="#00BB7E" />
+              <StatCard icon={<Bell className="w-5 h-5" />} label="Avisos" value={totalAvisos} color="#00BB7E" />
+              <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materiales" value={totalMateriales} color="#00BB7E" />
+            </div>
+
+            {/* PRÓXIMAS ENTREGAS */}
+            {proximasEntregas.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-emerald-400" />
+                  <h2 className="text-lg font-bold m-0">Próximas Entregas</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                  {proximasEntregas.map((tarea) => (
+                    <div
+                      key={tarea.id}
+                      className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-md hover:bg-white/10 transition-all"
+                      style={{ borderLeftColor: tarea.colorMateria, borderLeftWidth: '4px' }}
+                    >
+                      <div className="text-[0.7rem] font-bold uppercase tracking-wider mb-2" style={{ color: tarea.colorMateria }}>
+                        {tarea.nombreMateria}
+                      </div>
+                      <div className="text-white text-sm font-semibold mb-2 line-clamp-2">
+                        {tarea.titulo}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-emerald-400 font-semibold">
+                        <Calendar className="w-3 h-3" />
+                        {tarea.fechaEntrega}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* MATERIAS */}
+            <div>
+              <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold m-0">Mis Materias</h2>
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                    {materiasFiltradas.length}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Búsqueda y filtros */}
+              <div className="flex flex-col md:flex-row gap-3 mb-5">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar materias o profesores..."
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white pl-11 h-11 rounded-2xl backdrop-blur-md focus:border-emerald-500/60"
+                  />
+                  {busqueda && (
+                    <button
+                      onClick={() => setBusqueda('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { id: 'todas' as const, label: 'Todas' },
+                    { id: 'novedades' as const, label: 'Con novedades' },
+                    { id: 'tareas' as const, label: 'Con tareas' },
+                    { id: 'planes_nuevos' as const, label: 'Planes nuevos' },
+                  ].map((filtro) => (
+                    <Button
+                      key={filtro.id}
+                      onClick={() => setFiltroActivo(filtro.id)}
+                      variant={filtroActivo === filtro.id ? 'default' : 'outline'}
+                      size="sm"
+                      className={
+                        filtroActivo === filtro.id
+                          ? 'bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold rounded-xl'
+                          : 'border-white/15 text-gray-300 hover:bg-white/10 hover:border-emerald-500/40 rounded-xl backdrop-blur-md'
+                      }
+                    >
+                      <Filter className="w-3.5 h-3.5 mr-1.5" />
+                      {filtro.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid de materias */}
+              {materiasFiltradas.length === 0 ? (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center backdrop-blur-md">
+                  <Search className="w-12 h-12 text-emerald-500/50 mx-auto mb-4" />
+                  <p className="text-gray-400 text-lg m-0">
+                    No se encontraron materias con esos criterios
+                  </p>
+                </div>
+              ) : (
+                <MateriaGrid
+                  materias={materiasFiltradas}
+                  onSelectMateria={setSelectedMateria}
+                  onSelectPlan={setSelectedPlan}
+                />
+              )}
+            </div>
+
+            {/* Footer */}
+            <p className="text-center text-white/30 text-xs pt-6 border-t border-white/5">
+              U.E Ciudad Cuatricentenaria 2026 • Portal Estudiantil
             </p>
+
           </div>
         </div>
-      </header>
+      </main>
 
-      <section style={{
-        padding: isMobile ? '20px 5% 10px' : '25px 8% 15px',
-        display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)',
-        gap: '12px'
-      }}>
-        <StatCard
-          label="Materias"
-          value={estudiante.materias.length}
-          color="#60a5fa"
-        />
-        <StatCard
-          label="Tareas Pendientes"
-          value={tareasPendientes}
-          color={tareasVencidas > 0 ? PALETTE.danger : PALETTE.warning}
-        />
-        <StatCard
-          label="Avisos"
-          value={totalAvisos}
-          color="#a78bfa"
-        />
-        <StatCard
-          label="Evaluaciones"
-          value={estudiante.materias.reduce((sum, m) => sum + m.planEvaluacion.length, 0)}
-          color="#34d399"
-        />
-      </section>
-
-      <section style={{
-        padding: isMobile ? '20px 5% 30px' : '30px 8% 40px'
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px'
-        }}>
-          <h2 style={{
-            color: 'white',
-            margin: 0,
-            fontSize: isMobile ? '1.2rem' : '1.5rem',
-            fontWeight: '700'
-          }}>
-            Mis Materias
-          </h2>
-          <span style={{
-            color: '#9ca3af',
-            fontSize: '0.8rem',
-            background: 'rgba(255,255,255,0.05)',
-            padding: '4px 12px',
-            borderRadius: '20px'
-          }}>
-            {estudiante.materias.length} materias
-          </span>
-        </div>
-        <MateriaGrid
-          materias={estudiante.materias}
-          onSelectMateria={setSelectedMateria}
-        />
-      </section>
-
-      <footer style={{
-        textAlign: 'center',
-        color: '#6b7280',
-        padding: isMobile ? '30px 20px' : '40px',
-        fontSize: isMobile ? '0.8rem' : '0.95rem',
-        borderTop: '1px solid rgba(255,255,255,0.05)'
-      }}>
-        <p style={{ margin: 0 }}>
-          U.E Ciudad Cuatricentenaria 2026  Portal Estudiantil
-        </p>
-      </footer>
-
+      {/* MODAL MATERIA */}
       {selectedMateria && (
         <MateriaDetalle
           materia={selectedMateria}
           onClose={() => setSelectedMateria(null)}
+          onSelectPlan={setSelectedPlan}
+          onMarcarVisto={marcarPlanComoVisto}
         />
       )}
 
-      {isMobile && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            background: PALETTE.accent,
-            color: '#081a14',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '22px',
-            fontWeight: 'bold',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-            zIndex: 100,
-            transition: 'all 0.3s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#00cc88';
-            e.currentTarget.style.transform = 'translateY(-3px)';
-            e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.5)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = PALETTE.accent;
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)';
-          }}
-        >
-          ↑
-        </button>
+      {/* MODAL PLAN */}
+      {selectedPlan && (
+        <PlanEvaluacionDetalle
+          plan={selectedPlan}
+          onClose={() => setSelectedPlan(null)}
+          onMarcarVisto={() => marcarPlanComoVisto(selectedPlan.id)}
+          estudiante={estudiante}
+        />
       )}
+    </div>
+  );
+};
 
-      <style jsx global>{`
-        body { 
-          margin: 0; 
-          padding: 0; 
-          overflow-x: hidden; 
-          background: #1a2e26;
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        
-        * {
-          box-sizing: border-box;
-        }
-        
-        ::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        ::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.03);
-          borderRadius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-          background: ${PALETTE.accent}66;
-          borderRadius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: ${PALETTE.accent};
-        }
-        
-        select, button {
-          font-family: inherit;
-        }
-      `}</style>
+// ============================================
+// DataCard
+// ============================================
+const DataCard: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <div className="bg-white/5 border border-white/10 hover:bg-white/10 hover:border-emerald-500/40 rounded-2xl p-4 backdrop-blur-md transition-all">
+    <div className="flex items-center gap-2 text-emerald-400/80 text-[0.65rem] uppercase tracking-wider mb-1.5">
+      {icon}
+      <span>{label}</span>
+    </div>
+    <div className="text-white text-sm font-semibold truncate">
+      {value}
+    </div>
+  </div>
+);
+
+// ============================================
+// StatCard
+// ============================================
+const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string | number; color?: string }> = ({ icon, label, value, color = PALETTE.accent }) => (
+  <div className="bg-white/5 border border-white/10 hover:bg-white/10 hover:border-emerald-500/40 rounded-2xl p-5 text-center backdrop-blur-md transition-all">
+    <div className="flex justify-center mb-2" style={{ color }}>
+      {icon}
+    </div>
+    <div className="text-3xl font-bold mb-1" style={{ color }}>{value}</div>
+    <div className="text-emerald-400/70 text-xs font-medium uppercase tracking-wide">{label}</div>
+  </div>
+);
+
+// ============================================
+// MateriaGrid (Liquid Glass cards)
+// ============================================
+const MateriaGrid: React.FC<{
+  materias: MateriaConPlanes[];
+  onSelectMateria: (materia: MateriaConPlanes) => void;
+  onSelectPlan: (plan: PlanEvaluacion) => void;
+}> = ({ materias, onSelectMateria, onSelectPlan }) => {
+  const getPlanesNuevos = (planes: PlanEvaluacion[]) => {
+    return planes.filter((p: PlanEvaluacion) => p.visto === false).length;
+  };
+
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 w-full">
+      {materias.map((materia, index) => {
+        const planesNuevos = getPlanesNuevos(materia.planEvaluacion);
+        const tienePlanes = materia.planEvaluacion.length > 0;
+        const tieneTareas = materia.tareasPendientes.length > 0;
+        const tieneAvisos = materia.avisos.length > 0;
+        const tieneMateriales = materia.materiales.length > 0;
+        const primerPlan = tienePlanes ? materia.planEvaluacion[0] : null;
+
+        return (
+          <div
+            key={materia.id}
+            onClick={() => onSelectMateria(materia)}
+            className="liquid-materia-card border border-white/10 rounded-2xl cursor-pointer relative overflow-hidden"
+            style={{
+              borderTopColor: materia.color,
+              borderTopWidth: '4px',
+              animationDelay: `${index * 60}ms`
+            }}
+          >
+            <div className="p-5">
+              <h3 className="text-white text-lg font-bold mb-1">{materia.nombre}</h3>
+              <p className="text-white/50 text-sm mb-3">
+                {materia.profesor || 'Sin profesor asignado'}
+              </p>
+
+              <div className="flex gap-2 flex-wrap mb-3">
+                {tieneTareas && (
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                    {materia.tareasPendientes.length} {materia.tareasPendientes.length === 1 ? 'tarea' : 'tareas'}
+                  </Badge>
+                )}
+                {tieneAvisos && (
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                    {materia.avisos.length} {materia.avisos.length === 1 ? 'aviso' : 'avisos'}
+                  </Badge>
+                )}
+                {tieneMateriales && (
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                    {materia.materiales.length} {materia.materiales.length === 1 ? 'material' : 'materiales'}
+                  </Badge>
+                )}
+                {tienePlanes && (
+                  <Badge
+                    className={
+                      planesNuevos > 0
+                        ? "bg-red-500/15 text-red-400 border-red-500/30 hover:bg-red-500/20"
+                        : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                    }
+                  >
+                    {planesNuevos > 0 ? `${planesNuevos} nuevos` : `${materia.planEvaluacion.length} planes`}
+                  </Badge>
+                )}
+              </div>
+
+              {tienePlanes && primerPlan && (
+                <Button
+                  onClick={(e) => { e.stopPropagation(); onSelectPlan(primerPlan); }}
+                  className={`w-full font-semibold rounded-xl ${
+                    planesNuevos > 0
+                      ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30'
+                      : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/40'
+                  }`}
+                  variant="outline"
+                >
+                  {planesNuevos > 0 ? 'Ver plan nuevo' : 'Ver plan'}
+                </Button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ============================================
+// MateriaDetalle (Modal)
+// ============================================
+const MateriaDetalle: React.FC<{
+  materia: MateriaConPlanes | null;
+  onClose: () => void;
+  onSelectPlan: (plan: PlanEvaluacion) => void;
+  onMarcarVisto: (planId: string) => void;
+}> = ({ materia, onClose, onSelectPlan }) => {
+  const [activeTab, setActiveTab] = useState<'tareas' | 'avisos' | 'materiales' | 'evaluacion'>('tareas');
+
+  if (!materia) return null;
+
+  const hasPlanesNuevos = (): boolean => {
+    return materia.planEvaluacion.some((p: PlanEvaluacion) => p.visto === false);
+  };
+
+  const tabs = [
+    { key: 'tareas' as const, label: `Tareas${materia.tareasPendientes.length > 0 ? ` (${materia.tareasPendientes.length})` : ''}` },
+    { key: 'avisos' as const, label: `Avisos${materia.avisos.length > 0 ? ` (${materia.avisos.length})` : ''}` },
+    { key: 'materiales' as const, label: `Materiales${materia.materiales.length > 0 ? ` (${materia.materiales.length})` : ''}` },
+    { key: 'evaluacion' as const, label: 'Evaluación' }
+  ];
+
+  return (
+    <div
+      className="liquid-overlay fixed inset-0 z-1000 flex items-center justify-center p-5"
+      onClick={onClose}
+    >
+      <div
+        className="liquid-modal rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+        style={{ borderColor: `${materia.color}66` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="liquid-content h-full flex flex-col overflow-hidden">
+          <div
+            className="px-8 py-6 border-b"
+            style={{
+              background: `linear-gradient(135deg, rgba(16,45,34,0.9), ${materia.color}44)`,
+              borderColor: `${materia.color}44`
+            }}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{
+                      background: materia.color,
+                      boxShadow: `0 0 20px ${materia.color}66`
+                    }}
+                  />
+                  <h2 className="text-white text-3xl font-bold m-0">{materia.nombre}</h2>
+                  {hasPlanesNuevos() && (
+                    <Badge className="bg-red-500 text-white border-red-500">
+                      Nuevos
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-gray-400 mt-1 ml-6">
+                  {materia.profesor || 'Sin profesor'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-white hover:bg-white/10"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex gap-1.5 px-5 py-3.5 bg-black/30 border-b border-white/5 flex-wrap">
+            {tabs.map((tab) => (
+              <Button
+                key={tab.key}
+                variant={activeTab === tab.key ? "default" : "ghost"}
+                onClick={() => setActiveTab(tab.key)}
+                className={
+                  activeTab === tab.key
+                    ? "text-[#081a14] font-bold"
+                    : "text-white hover:bg-white/5"
+                }
+                style={activeTab === tab.key ? { background: materia.color } : undefined}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+
+          <div className="px-8 py-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            {/* TAREAS */}
+            {activeTab === 'tareas' && (
+              <div>
+                {materia.tareasPendientes.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <p className="text-lg">No hay tareas asignadas</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {materia.tareasPendientes.map((tarea) => (
+                      <Card
+                        key={tarea.id}
+                        className={`border ${
+                          tarea.visto
+                            ? 'bg-white/3 border-white/5'
+                            : 'bg-emerald-500/5 border-emerald-500/20'
+                        }`}
+                      >
+                        <CardContent className="p-5">
+                          <h4 className="text-white text-base font-semibold mb-2">
+                            {tarea.titulo}
+                          </h4>
+                          {tarea.descripcion && (
+                            <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                              {tarea.descripcion}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              Entrega: <strong className="text-emerald-400">{tarea.fechaEntrega}</strong>
+                            </span>
+                            {tarea.ponderacion && (
+                              <span className="flex items-center gap-1">
+                                <Target className="w-3.5 h-3.5" />
+                                Ponderación: {tarea.ponderacion}%
+                              </span>
+                            )}
+                            {tarea.recursos && (
+                              <span className="flex items-center gap-1">
+                                <BookOpen className="w-3.5 h-3.5" />
+                                {tarea.recursos}
+                              </span>
+                            )}
+                          </div>
+                          {tarea.objetivos && (
+                            <div className="mt-2 text-xs text-gray-400">
+                              <strong className="text-emerald-400">Objetivos:</strong> {tarea.objetivos}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AVISOS */}
+            {activeTab === 'avisos' && (
+              <div>
+                {materia.avisos.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <p className="text-lg">No hay avisos disponibles</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {materia.avisos.map((aviso) => (
+                      <Card key={aviso.id} className="bg-emerald-500/5 border-emerald-500/20">
+                        <CardContent className="p-5">
+                          <h4 className="text-white text-base font-semibold mb-2 flex items-center gap-2">
+                            <Bell className="w-4 h-4 text-emerald-400" />
+                            {aviso.titulo}
+                          </h4>
+                          {aviso.descripcion && (
+                            <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                              {aviso.descripcion}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {aviso.fecha}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3.5 h-3.5" />
+                              {aviso.docente}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* MATERIALES */}
+            {activeTab === 'materiales' && (
+              <div>
+                {materia.materiales.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <p className="text-lg">No hay materiales disponibles</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {materia.materiales.map((material) => (
+                      <Card key={material.id} className="bg-emerald-500/5 border-emerald-500/20">
+                        <CardContent className="p-5">
+                          <h4 className="text-white text-base font-semibold mb-2 flex items-center gap-2">
+                            <BookOpen className="w-4 h-4 text-emerald-400" />
+                            {material.titulo}
+                          </h4>
+                          {material.descripcion && (
+                            <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                              {material.descripcion}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-3 text-xs text-gray-400 items-center">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {material.fecha}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <User className="w-3.5 h-3.5" />
+                              {material.docente}
+                            </span>
+                            {material.enlace && (
+                              <a
+                                href={material.enlace}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500/15 border border-emerald-500/30 rounded-lg text-emerald-400 hover:bg-emerald-500/25 transition text-xs font-semibold"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                Abrir enlace
+                              </a>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* EVALUACIÓN */}
+            {activeTab === 'evaluacion' && (
+              <div>
+                {materia.planEvaluacion.length === 0 ? (
+                  <div className="text-center py-10 text-gray-400">
+                    <p className="text-lg">No hay plan de evaluación disponible</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {materia.planEvaluacion.map((plan) => (
+                      <Card
+                        key={plan.id}
+                        className={`flex flex-row items-center justify-between gap-4 ${
+                          plan.visto
+                            ? 'bg-white/3 border-white/5'
+                            : 'bg-emerald-500/5 border-emerald-500/20'
+                        }`}
+                      >
+                        <CardContent className="p-4 flex flex-row items-center justify-between w-full gap-4">
+                          <div className="flex-1 min-w-50">
+                            <div className="text-white font-semibold mb-1">
+                              {plan.areaFormacion}
+                            </div>
+                            <div className="text-gray-400 text-xs">
+                              {plan.docente} • {plan.ano} • Sección {plan.secciones}
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => {
+                              onClose();
+                              setTimeout(() => onSelectPlan(plan), 100);
+                            }}
+                            className={
+                              plan.visto
+                                ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/40'
+                                : 'bg-emerald-500 hover:bg-emerald-600 text-emerald-950'
+                            }
+                            variant={plan.visto ? 'outline' : 'default'}
+                            size="sm"
+                          >
+                            {plan.visto ? 'Ver plan' : 'Ver nuevo'}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// PlanEvaluacionDetalle (Modal)
+// ============================================
+const PlanEvaluacionDetalle: React.FC<{
+  plan: PlanEvaluacion;
+  onClose: () => void;
+  onMarcarVisto: () => void;
+  estudiante: Estudiante | null;
+}> = ({ plan, onClose, onMarcarVisto, estudiante }) => {
+  const [exportando, setExportando] = useState(false);
+
+  const filas: FilaPlan[] = Array.isArray(plan?.filas) ? plan.filas : [];
+
+  const exportarAPDF = async () => {
+    try {
+      setExportando(true);
+
+      const jsPDFModule = await import('jspdf');
+      const autoTableModule = await import('jspdf-autotable');
+
+      const JsPDFClass = (jsPDFModule as any).default || (jsPDFModule as any).jsPDF;
+      const autoTableFn = (autoTableModule as any).default || autoTableModule;
+
+      const doc = new JsPDFClass({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      doc.setFillColor(0, 187, 126);
+      doc.rect(0, 0, pageWidth, 25, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('PLAN DE EVALUACIÓN', pageWidth / 2, 12, { align: 'center' });
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('U.E Ciudad Cuatricentenaria', pageWidth / 2, 19, { align: 'center' });
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+
+      let yPos = 35;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Área:', 14, yPos);
+      doc.text('Docente:', 80, yPos);
+      doc.text('Año:', 160, yPos);
+      doc.text('Sección:', 220, yPos);
+
+      doc.setFont('helvetica', 'normal');
+      doc.text(plan.areaFormacion || 'N/A', 30, yPos);
+      doc.text(plan.docente || 'N/A', 100, yPos);
+      doc.text(plan.ano || 'N/A', 175, yPos);
+      doc.text(plan.secciones || 'N/A', 240, yPos);
+
+      yPos += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Estudiante:', 14, yPos);
+      doc.text('Cédula:', 100, yPos);
+      doc.text('Grado:', 180, yPos);
+
+      doc.setFont('helvetica', 'normal');
+      doc.text(estudiante ? `${estudiante.nombres} ${estudiante.apellidos}` : 'N/A', 40, yPos);
+      doc.text(estudiante?.cedulaIdentidad || 'N/A', 120, yPos);
+      doc.text(estudiante?.grado || 'N/A', 195, yPos);
+
+      yPos += 7;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Fecha:', 14, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }), 30, yPos);
+
+      const tableData = filas.map((fila, index) => [
+        (index + 1).toString(),
+        fila.fecha || '-',
+        fila.referenteTeorico || '-',
+        fila.estrategiaEvaluacion || '-',
+        fila.tecnicaEvaluacion || '-',
+        fila.instrumentoEvaluacion || '-',
+        fila.ptos || '-',
+        fila.porcentaje || '-',
+        fila.criteriosEvaluacion || '-'
+      ]);
+
+      const tableConfig = {
+        startY: yPos + 5,
+        head: [['#', 'FECHA', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS']],
+        body: tableData.length > 0 ? tableData : [['-', '-', '-', 'Sin filas registradas', '-', '-', '-', '-', '-']],
+        theme: 'grid' as const,
+        styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] as [number, number, number] },
+        headStyles: { fillColor: [0, 187, 126] as [number, number, number], textColor: [255, 255, 255] as [number, number, number], fontStyle: 'bold' as const },
+        alternateRowStyles: { fillColor: [240, 250, 245] as [number, number, number] },
+        margin: { top: 10, right: 10, bottom: 15, left: 10 }
+      };
+
+      if (typeof autoTableFn === 'function') {
+        autoTableFn(doc, tableConfig);
+      } else if ((doc as any).autoTable) {
+        (doc as any).autoTable(tableConfig);
+      }
+
+      const finalY = (doc as any).lastAutoTable?.finalY || yPos + 50;
+      const totalPuntos = filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total de filas: ${filas.length}`, 14, finalY + 8);
+      doc.text(`Puntos totales: ${totalPuntos}`, 80, finalY + 8);
+
+      const nombreArchivo = `Plan_Evaluacion_${(plan.areaFormacion || 'plan').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      doc.save(nombreArchivo);
+
+      sileo.success({
+        title: 'PDF exportado',
+        description: nombreArchivo,
+      });
+
+    } catch (error) {
+      console.error('Error al exportar PDF:', error);
+
+      sileo.error({
+        title: 'Error al exportar el PDF',
+        description: error instanceof Error ? error.message : 'Error desconocido',
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  return (
+    <div
+      className="liquid-overlay fixed inset-0 z-2000 flex items-center justify-center p-5"
+      onClick={onClose}
+    >
+      <div
+        className="liquid-modal rounded-3xl max-w-6xl w-full max-h-[90vh] flex flex-col"
+        style={{ borderColor: 'rgba(16, 185, 129, 0.5)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="liquid-content h-full flex flex-col overflow-hidden">
+          <div className="px-8 py-6 border-b border-emerald-500/30 shrink-0"
+               style={{ background: 'linear-gradient(135deg, rgba(16,45,34,0.9), rgba(16,185,129,0.2))' }}>
+            <div className="flex justify-between items-start flex-wrap gap-4">
+              <div>
+                <h2 className="text-emerald-400 text-2xl font-bold m-0">
+                  Plan de Evaluación - {plan.areaFormacion}
+                </h2>
+                <p className="text-gray-400 mt-1">
+                  {plan.docente} • {plan.ano} • Sección(es): {plan.secciones}
+                </p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {!plan.visto && (
+                  <Button
+                    onClick={onMarcarVisto}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" /> Marcar como visto
+                  </Button>
+                )}
+                <Button
+                  onClick={exportarAPDF}
+                  disabled={exportando}
+                  variant="outline"
+                  className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {exportando ? 'Exportando...' : 'Exportar PDF'}
+                </Button>
+                <Button
+                  onClick={onClose}
+                  variant="outline"
+                  className="border-white/20 text-white hover:bg-white/10"
+                >
+                  <X className="mr-2 h-4 w-4" /> Cerrar
+                </Button>
+              </div>
+            </div>
+            {plan.visto && (
+              <Badge className="mt-3 bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                Visto el {plan.fechaVisto ? new Date(plan.fechaVisto).toLocaleDateString('es-ES') : 'recientemente'}
+              </Badge>
+            )}
+          </div>
+
+          <div className="overflow-auto p-6 flex-1">
+            {filas.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <p className="text-xl text-white m-0">Este plan no tiene filas registradas</p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-xl border border-white/10 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
+                        {['#', 'FECHA', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS'].map((header) => (
+                          <TableHead
+                            key={header}
+                            className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center"
+                          >
+                            {header}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filas.map((fila, index) => (
+                        <TableRow
+                          key={fila.id}
+                          className={index % 2 === 0 ? 'bg-white/2' : ''}
+                        >
+                          <TableCell className="text-center text-emerald-400 font-bold">
+                            {index + 1}
+                          </TableCell>
+                          <TableCell className="text-center text-white">{fila.fecha || '-'}</TableCell>
+                          <TableCell className="text-white">{fila.referenteTeorico || '-'}</TableCell>
+                          <TableCell className="text-white">{fila.estrategiaEvaluacion || '-'}</TableCell>
+                          <TableCell className="text-white">{fila.tecnicaEvaluacion || '-'}</TableCell>
+                          <TableCell className="text-white">{fila.instrumentoEvaluacion || '-'}</TableCell>
+                          <TableCell className="text-center text-emerald-400 font-bold">
+                            {fila.ptos || '-'}
+                          </TableCell>
+                          <TableCell className="text-center text-emerald-400 font-bold">
+                            {fila.porcentaje || '-'}
+                          </TableCell>
+                          <TableCell className="text-white">{fila.criteriosEvaluacion || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="mt-5 px-5 py-4 bg-emerald-500/10 rounded-xl border border-emerald-500/30 flex justify-between items-center flex-wrap gap-3">
+                  <div className="text-white text-sm">
+                    <strong>Total de filas:</strong> {filas.length}
+                  </div>
+                  <div className="text-emerald-400 text-sm font-bold">
+                    <strong>Puntos totales:</strong> {filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0)}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

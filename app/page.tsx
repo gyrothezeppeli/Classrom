@@ -1,29 +1,124 @@
+// app/page.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { sileo } from 'sileo';
+import { User, Eye, EyeOff } from 'lucide-react';
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const COLORES = {
   principal: '#00BB7E',
-  oscuro: '#102d22',
   deepBg: '#1a2e26',
-  textLight: '#f3f4f6'
+  error: '#ef4444'
 };
 
 type UserRole = 'teacher' | 'student' | 'control';
 
+// ============================================
+// VALIDADORES
+// ============================================
+
+const REGEX = {
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  nombre: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]{2,50}$/,
+  cedula: /^[VEJvej]?-?\d{6,9}$/,
+  telefono: /^(\+58|0)?4\d{2}-?\d{7}$/,
+  password: /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/,
+};
+
+const MENSAJES = {
+  email: {
+    requerido: 'El correo es obligatorio',
+    formato: 'Ingresa un correo válido',
+  },
+  password: {
+    requerido: 'La contraseña es obligatoria',
+    formato: 'Mínimo 6 caracteres, con al menos 1 letra y 1 número',
+  },
+  nombre: {
+    requerido: 'El nombre es obligatorio',
+    formato: 'Mínimo 2 letras. Solo letras y espacios',
+  },
+  apellido: {
+    formato: 'Solo letras y espacios',
+  },
+  cedula: {
+    requerido: 'La cédula es obligatoria',
+    formato: 'Formato inválido',
+  },
+  telefono: {
+    formato: 'Formato inválido',
+  },
+  nivel: { requerido: 'Selecciona un nivel' },
+  grado: { requerido: 'Selecciona un grado' },
+  seccion: { requerido: 'Selecciona una sección' },
+};
+
+interface ErroresForm {
+  nombre?: string;
+  apellido?: string;
+  cedula?: string;
+  email?: string;
+  password?: string;
+  telefono?: string;
+  nivel?: string;
+  grado?: string;
+  seccion?: string;
+}
+
+function normalizarNivel(nivel: string): string {
+  const mapa: { [key: string]: string } = {
+    'preescolar': 'inicial',
+    'primaria': 'primaria',
+    'bachillerato': 'media',
+    'inicial': 'inicial',
+    'media': 'media',
+  };
+  return mapa[nivel] || nivel;
+}
+
+function normalizarGrado(grado: string): string {
+  const mapa: { [key: string]: string } = {
+    '1er_ano': '1ro', '2do_ano': '2do', '3er_ano': '3ro', '4to_ano': '4to', '5to_ano': '5to',
+    '1er Año': '1ro', '2do Año': '2do', '3er Año': '3ro', '4to Año': '4to', '5to Año': '5to',
+    '1er Grado': '1ro', '2do Grado': '2do', '3er Grado': '3ro', '4to Grado': '4to',
+    '5to Grado': '5to', '6to Grado': '6to',
+  };
+  return mapa[grado] || grado;
+}
+
+function normalizarSeccion(seccion: string, nivel?: string): string {
+  if (nivel === 'preescolar' || nivel === 'inicial') {
+    return 'Única';
+  }
+  return seccion?.toUpperCase()?.trim() || '';
+}
+
+const REMEMBER_ME_KEY = 'portal_remember_email';
+
 const AuthPage: React.FC = () => {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [userRole, setUserRole] = useState<UserRole>('teacher');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loginExitoso, setLoginExitoso] = useState(false);
+  const [errores, setErrores] = useState<ErroresForm>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [formData, setFormData] = useState({
-    nombres: '',
-    apellidos: '',
+    nombre: '',
+    apellido: '',
     cedula: '',
-    fechaNacimiento: '',
     email: '',
     password: '',
     telefono: '',
@@ -31,6 +126,119 @@ const AuthPage: React.FC = () => {
     grado: '',
     seccion: ''
   });
+
+  useEffect(() => {
+    try {
+      const emailGuardado = localStorage.getItem(REMEMBER_ME_KEY);
+      if (emailGuardado) {
+        setFormData((prev) => ({ ...prev, email: emailGuardado }));
+        setRememberMe(true);
+      }
+    } catch (error) {
+      console.error('Error al leer localStorage:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loginExitoso && session?.user) {
+      const role = (session.user as any).role;
+      if (role === 'DOCENTE') router.push('/editar');
+      else if (role === 'ADMIN' || role === 'COORDINACION') router.push('/control_estudios');
+      else router.push('/dashboard/estudiante');
+    }
+  }, [loginExitoso, session, router]);
+
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user && !loginExitoso) {
+      const role = (session.user as any).role;
+      if (role === 'DOCENTE') router.push('/editar');
+      else if (role === 'ADMIN' || role === 'COORDINACION') router.push('/control_estudios');
+      else router.push('/dashboard/estudiante');
+    }
+  }, [status, session, router, loginExitoso]);
+
+  const validarCampo = (campo: keyof ErroresForm, valor: string): string | undefined => {
+    const esRegistro = !isLogin;
+
+    switch (campo) {
+      case 'email':
+        if (!valor.trim()) return MENSAJES.email.requerido;
+        if (!REGEX.email.test(valor.trim())) return MENSAJES.email.formato;
+        return undefined;
+
+      case 'password':
+        if (!valor) return MENSAJES.password.requerido;
+        if (esRegistro && !REGEX.password.test(valor)) return MENSAJES.password.formato;
+        return undefined;
+
+      case 'nombre':
+        if (!esRegistro) return undefined;
+        if (!valor.trim()) return MENSAJES.nombre.requerido;
+        if (!REGEX.nombre.test(valor.trim())) return MENSAJES.nombre.formato;
+        return undefined;
+
+      case 'apellido':
+        if (!esRegistro) return undefined;
+        if (valor.trim() && !REGEX.nombre.test(valor.trim())) return MENSAJES.apellido.formato;
+        return undefined;
+
+      case 'cedula':
+        if (!esRegistro) return undefined;
+        if (!valor.trim()) return MENSAJES.cedula.requerido;
+        if (!REGEX.cedula.test(valor.trim())) return MENSAJES.cedula.formato;
+        return undefined;
+
+      case 'telefono':
+        if (!esRegistro) return undefined;
+        if (valor.trim() && !REGEX.telefono.test(valor.trim())) return MENSAJES.telefono.formato;
+        return undefined;
+
+      case 'nivel':
+        if (!esRegistro || userRole !== 'student') return undefined;
+        if (!valor) return MENSAJES.nivel.requerido;
+        return undefined;
+
+      case 'grado':
+        if (!esRegistro || userRole !== 'student') return undefined;
+        if (!valor) return MENSAJES.grado.requerido;
+        return undefined;
+
+      case 'seccion':
+        if (!esRegistro || userRole !== 'student') return undefined;
+        if (formData.nivel === 'preescolar') return undefined;
+        if (!valor) return MENSAJES.seccion.requerido;
+        return undefined;
+
+      default:
+        return undefined;
+    }
+  };
+
+  const validarFormulario = (): ErroresForm => {
+    const nuevosErrores: ErroresForm = {};
+    const camposAValidar: (keyof ErroresForm)[] = isLogin
+      ? ['email', 'password']
+      : ['nombre', 'apellido', 'cedula', 'email', 'password', 'telefono', 'nivel', 'grado', 'seccion'];
+
+    camposAValidar.forEach((campo) => {
+      const error = validarCampo(campo, formData[campo] || '');
+      if (error) nuevosErrores[campo] = error;
+    });
+
+    return nuevosErrores;
+  };
+
+  const handleBlur = (campo: keyof ErroresForm) => {
+    const error = validarCampo(campo, formData[campo] || '');
+    setErrores((prev) => ({ ...prev, [campo]: error }));
+  };
+
+  const handleChange = (campo: string, valor: string | null) => {
+    setFormData((prev) => ({ ...prev, [campo]: valor ?? '' }));
+    if (errores[campo as keyof ErroresForm]) {
+      setErrores((prev) => ({ ...prev, [campo]: undefined }));
+    }
+  };
 
   const niveles = [
     { value: 'preescolar', label: 'Preescolar' },
@@ -45,7 +253,7 @@ const AuthPage: React.FC = () => {
   ];
 
   const getOpcionesGrado = () => {
-    switch(formData.nivel) {
+    switch (formData.nivel) {
       case 'preescolar':
         return [
           { value: '1er_nivel', label: '1er Nivel' },
@@ -74,689 +282,480 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const construirRutaClassroom = (nivel: string, grado: string, seccion: string) => {
-    const nivelMap: { [key: string]: string } = {
-      'preescolar': 'inicial',
-      'primaria': 'primaria',
-      'bachillerato': 'media'
-    };
-
-    const gradoMap: { [key: string]: string } = {
-      '1er_nivel': '1er-nivel',
-      '2do_nivel': '2do-nivel',
-      '3er_nivel': '3er-nivel',
-      '1er_grado': '1ero',
-      '2do_grado': '2do',
-      '3er_grado': '3ero',
-      '4to_grado': '4to',
-      '5to_grado': '5to',
-      '6to_grado': '6to',
-      '1er_ano': '1er-ano',
-      '2do_ano': '2do-ano',
-      '3er_ano': '3er-ano',
-      '4to_ano': '4to-ano',
-      '5to_ano': '5to-ano'
-    };
-
-    const nivelPath = nivelMap[nivel] || nivel;
-    const gradoPath = gradoMap[grado] || grado;
-    const seccionPath = seccion.toLowerCase();
-
-    return `/Classroom/${nivelPath}/${gradoPath}/${seccionPath}`;
-  };
-
-  const handleQuickLogin = async (rol: 'teacher' | 'student' | 'control') => {
-    setLoading(true);
-    
-    try {
-      const email = rol === 'teacher' ? 'prueba@docente.com' : 
-                     rol === 'control' ? 'control@colegio.com' : 'prueba@estudiante.com';
-      const password = '123456';
-
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        alert('Error en el inicio rapido. Por favor, registrese primero.');
-        setLoading(false);
-        return;
-      }
-
-      const userResponse = await fetch('/api/auth/session');
-      const sessionData = await userResponse.json();
-      
-      if (sessionData?.user) {
-        localStorage.setItem('user', JSON.stringify(sessionData.user));
-        
-        const rol = sessionData.user.rol;
-        
-        if (rol === 'docente') {
-          router.push('/editar');
-        } else if (rol === 'control_estudios') {
-          router.push('/control_estudios');
-        } else if (rol === 'estudiante') {
-          router.push('/dashboard/estudiante');
-        } else {
-          router.push('/');
-        }
-        router.refresh();
-      }
-    } catch (error) {
-      console.error('Error en inicio rapido:', error);
-      alert('Error al iniciar sesion');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const nuevosErrores = validarFormulario();
+    if (Object.keys(nuevosErrores).length > 0) {
+      setErrores(nuevosErrores);
+      const primerCampo = Object.keys(nuevosErrores)[0];
+      sileo.error({
+        title: 'Datos incompletos',
+        description: nuevosErrores[primerCampo as keyof ErroresForm] || '',
+      });
+      return;
+    }
+
+    setErrores({});
     setLoading(true);
 
     try {
       if (!isLogin) {
         const roleMap = {
-          teacher: 'docente',
-          student: 'estudiante',
-          control: 'control_estudios'
+          teacher: 'DOCENTE',
+          student: 'ESTUDIANTE',
+          control: 'COORDINACION'
         };
 
+        const nivelNormalizado = normalizarNivel(formData.nivel);
+        const gradoNormalizado = normalizarGrado(formData.grado);
+        const seccionNormalizada = normalizarSeccion(formData.seccion, formData.nivel);
+
         const userData = {
-          nombre: `${formData.nombres} ${formData.apellidos}`,
-          email: formData.email,
+          email: formData.email.trim().toLowerCase(),
           password: formData.password,
-          rol: roleMap[userRole],
-          nivel: formData.nivel || null,
-          grado: formData.grado || null,
-          seccion: formData.seccion || null
+          nombre: formData.nombre.trim() || 'Usuario',
+          apellido: formData.apellido?.trim() || '',
+          telefono: formData.telefono || '',
+          cedulaIdentidad: formData.cedula.trim() || '',
+          role: roleMap[userRole],
+          nivel: userRole === 'student' ? nivelNormalizado : undefined,
+          grado: userRole === 'student' ? gradoNormalizado : undefined,
+          seccion: userRole === 'student' ? seccionNormalizada : undefined,
+          especialidad: userRole === 'teacher' ? 'General' : undefined,
         };
 
         const response = await fetch('/api/auth/register', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(userData),
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          alert(data.error || 'Error al registrar usuario');
+          sileo.error({
+            title: 'Error al registrar',
+            description: data.error || 'Intenta de nuevo',
+          });
           setLoading(false);
           return;
         }
 
-        // ========== CREAR ESTUDIANTE ==========
-        if (userRole === 'student') {
-          console.log('📌 Datos del formulario:', {
-            nivel: formData.nivel,
-            grado: formData.grado,
-            seccion: formData.seccion,
-            fechaNacimiento: formData.fechaNacimiento
-          });
-
-          let cedula = formData.cedula && formData.cedula.trim() !== '' 
-            ? formData.cedula 
-            : `V-${Date.now().toString().slice(-8)}`;
-
-          const estudianteData = {
-            nombres: formData.nombres,
-            apellidos: formData.apellidos,
-            cedulaIdentidad: cedula,
-            fechaNacimiento: formData.fechaNacimiento || new Date().toISOString().split('T')[0],
-            edad: '',
-            sexo: '',
-            nivel: formData.nivel || '',
-            grado: formData.grado || '',
-            seccion: formData.seccion || '',
-            numeroTelefonoCelular: formData.telefono || '',
-            correoElectronico: formData.email,
-            userId: data.id
-          };
-
-          console.log('📤 Enviando datos de estudiante:', JSON.stringify(estudianteData, null, 2));
-
-          let resEstudiante = await fetch('/api/estudiantes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(estudianteData)
-          });
-
-          // Si falla por cédula duplicada, intentar con una cédula generada
-          if (!resEstudiante.ok) {
-            const errorText = await resEstudiante.text();
-            console.error('❌ Error al crear estudiante:', errorText);
-            
-            if (errorText.includes('cedulaIdentidad') || errorText.includes('Unique constraint')) {
-              console.log('🔄 Cédula duplicada, generando una automática...');
-              
-              const nuevoEstudianteData = {
-                ...estudianteData,
-                cedulaIdentidad: `V-${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 100)}`
-              };
-              
-              resEstudiante = await fetch('/api/estudiantes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(nuevoEstudianteData)
-              });
-              
-              if (resEstudiante.ok) {
-                const estudianteCreado = await resEstudiante.json();
-                console.log('✅ Estudiante creado con cédula generada:', estudianteCreado);
-              } else {
-                const errorText2 = await resEstudiante.text();
-                console.error('❌ Error al crear estudiante con cédula generada:', errorText2);
-              }
-            }
-          }
-
-          if (resEstudiante.ok) {
-            const estudianteCreado = await resEstudiante.json();
-            console.log('✅ Estudiante creado exitosamente:', estudianteCreado);
-          }
-        }
-
-        // ========== CREAR DOCENTE ==========
-        if (userRole === 'teacher') {
-          const docenteData = {
-            nombres: formData.nombres,
-            apellidos: formData.apellidos,
-            cedulaIdentidad: formData.cedula || 'V-00000000',
-            email: formData.email,
-            telefono: formData.telefono || '',
-            especialidad: '',
-            nivel: '',
-            seccion: '',
-            fechaContratacion: new Date().toISOString().split('T')[0],
-            userId: data.id
-          };
-
-          console.log('📤 Enviando datos de docente:', JSON.stringify(docenteData, null, 2));
-
-          const resDocente = await fetch('/api/docentes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(docenteData)
-          });
-
-          if (!resDocente.ok) {
-            console.error('❌ Error al crear docente:', await resDocente.text());
-          }
-        }
-
-        alert(`Cuenta creada con exito. Bienvenido ${formData.nombres}`);
-        setIsLogin(true);
-        setFormData({ 
-          nombres: '', 
-          apellidos: '', 
-          cedula: '', 
-          fechaNacimiento: '', 
-          email: '', 
-          password: '', 
-          telefono: '', 
-          nivel: '', 
-          grado: '', 
-          seccion: '' 
+        sileo.success({
+          title: '¡Cuenta creada!',
+          description: `Bienvenido ${formData.nombre}`,
         });
+
+        setIsLogin(true);
+        setFormData({
+          nombre: '', apellido: '', cedula: '', email: '', password: '',
+          telefono: '', nivel: '', grado: '', seccion: ''
+        });
+        setErrores({});
         setLoading(false);
         return;
       }
 
-      // ========== LOGIN ==========
       const result = await signIn('credentials', {
-        email: formData.email,
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         redirect: false,
       });
 
       if (result?.error) {
-        alert('Credenciales incorrectas. Verifica tu email y contrasena.');
+        sileo.error({
+          title: 'Credenciales incorrectas',
+          description: 'Verifica tu correo y contraseña',
+        });
         setLoading(false);
         return;
       }
 
-      const userResponse = await fetch('/api/auth/session');
-      const sessionData = await userResponse.json();
-      
-      if (sessionData?.user) {
-        localStorage.setItem('user', JSON.stringify(sessionData.user));
-        
-        const rol = sessionData.user.rol;
-        
-        if (rol === 'docente') {
-          router.push('/editar');
-        } else if (rol === 'control_estudios') {
-          router.push('/control_estudios');
-        } else if (rol === 'estudiante') {
-          router.push('/dashboard/estudiante');
-        } else {
-          router.push('/');
+      if (result?.ok) {
+        try {
+          if (rememberMe) {
+            localStorage.setItem(REMEMBER_ME_KEY, formData.email.trim().toLowerCase());
+          } else {
+            localStorage.removeItem(REMEMBER_ME_KEY);
+          }
+        } catch (error) {
+          console.error('Error al guardar en localStorage:', error);
         }
-        router.refresh();
+        setLoginExitoso(true);
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error de conexion. Verifica que el servidor este funcionando.');
-    } finally {
+      console.error('Error general:', error);
+      sileo.error({
+        title: 'Error de conexión',
+        description: 'Verifica que el servidor esté funcionando',
+      });
       setLoading(false);
     }
   };
 
+  const resetFormData = () => {
+    setFormData({
+      nombre: '', apellido: '', cedula: '', email: '', password: '',
+      telefono: '', nivel: '', grado: '', seccion: ''
+    });
+    setErrores({});
+  };
+
+  const inputClass = "w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-2xl h-14 pl-5 pr-14 outline-none focus:border-white/40 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
+  const inputNoIconClass = "w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-2xl h-14 px-5 outline-none focus:border-white/40 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
+  const inputErrorClass = "w-full bg-white/10 border border-red-400/60 text-white placeholder:text-white/50 rounded-2xl h-14 pl-5 pr-14 outline-none focus:border-red-400 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
+  const inputNoIconErrorClass = "w-full bg-white/10 border border-red-400/60 text-white placeholder:text-white/50 rounded-2xl h-14 px-5 outline-none focus:border-red-400 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
+
+  // Índice del rol activo (para el indicador deslizante)
+  const roleIndex = userRole === 'teacher' ? 0 : userRole === 'student' ? 1 : 2;
+
   return (
-    <div style={{ 
-      fontFamily: "'Montserrat', sans-serif", 
-      background: COLORES.deepBg, 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'relative'
-    }}>
-      
-      <div style={{
-        position: 'absolute',
-        top: 0, left: 0, width: '100%', height: '100%',
-        backgroundImage: 'url("/assets/img/pc2.jpeg")',
-        backgroundSize: 'cover',
-        opacity: 0.1,
-        zIndex: 1
-      }} />
+    <div
+      className="min-h-screen flex flex-col items-center justify-center relative p-5"
+      style={{ fontFamily: "'Montserrat', sans-serif" }}
+    >
+      {/* Fondo: imagen nítida + overlay oscuro sutil */}
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+        />
+        <div className="absolute inset-0 bg-black/30" />
+      </div>
 
-      <main style={{ zIndex: 10, width: '100%', maxWidth: '480px', padding: '20px' }}>
-        <div style={glassCardStyle}>
-          
-          <div style={roleSelectorStyle}>
-            <button
-              onClick={() => {
-                setUserRole('teacher');
-                setIsLogin(true);
-                setFormData({ nombres: '', apellidos: '', cedula: '', fechaNacimiento: '', email: '', password: '', telefono: '', nivel: '', grado: '', seccion: '' });
-              }}
-              style={{
-                ...roleButtonStyle,
-                background: userRole === 'teacher' ? COLORES.principal : 'transparent',
-                color: userRole === 'teacher' ? '#1a2e26' : 'white'
-              }}
-              disabled={loading}
-            >
-              Docente
-            </button>
-            <button
-              onClick={() => {
-                setUserRole('student');
-                setIsLogin(true);
-                setFormData({ nombres: '', apellidos: '', cedula: '', fechaNacimiento: '', email: '', password: '', telefono: '', nivel: '', grado: '', seccion: '' });
-              }}
-              style={{
-                ...roleButtonStyle,
-                background: userRole === 'student' ? COLORES.principal : 'transparent',
-                color: userRole === 'student' ? '#1a2e26' : 'white'
-              }}
-              disabled={loading}
-            >
-              Estudiante
-            </button>
-            <button
-              onClick={() => {
-                setUserRole('control');
-                setIsLogin(true);
-                setFormData({ nombres: '', apellidos: '', cedula: '', fechaNacimiento: '', email: '', password: '', telefono: '', nivel: '', grado: '', seccion: '' });
-              }}
-              style={{
-                ...roleButtonStyle,
-                background: userRole === 'control' ? COLORES.principal : 'transparent',
-                color: userRole === 'control' ? '#1a2e26' : 'white'
-              }}
-              disabled={loading}
-            >
-              Control
-            </button>
-          </div>
+      <main className="relative z-10 w-full max-w-md">
+        <div className="liquid-login-card rounded-[40px] p-8 sm:p-10">
+          <div className="liquid-login-content">
 
-          <div style={tabContainerStyle}>
-            <button 
-              onClick={() => setIsLogin(true)}
-              style={{ ...tabButtonStyle, background: isLogin ? COLORES.principal : 'transparent', color: isLogin ? '#1a2e26' : 'white' }}
-              disabled={loading}
-            >
-              INGRESAR
-            </button>
-            <button 
-              onClick={() => setIsLogin(false)}
-              style={{ ...tabButtonStyle, background: !isLogin ? COLORES.principal : 'transparent', color: !isLogin ? '#1a2e26' : 'white' }}
-              disabled={loading}
-            >
-              REGISTRARSE
-            </button>
-          </div>
+            {/* Título */}
+            <div className="text-left mb-6">
+              <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
+                {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
+              </h1>
+              <p className="text-white/60 text-sm">
+                {isLogin
+                  ? 'Bienvenido de nuevo, ingresa a tu cuenta'
+                  : 'Completa tus datos para registrarte'}
+              </p>
+            </div>
 
-          <h1 style={titleStyle}>
-            {isLogin 
-              ? (userRole === 'teacher' ? 'DOCENTES' : 
-                 userRole === 'control' ? 'CONTROL DE ESTUDIOS' : 'ESTUDIANTES')
-              : 'NUEVO REGISTRO'
-            }
-          </h1>
+            {/* Selector de rol con indicador deslizante */}
+            <div className="relative flex gap-2 mb-6 p-1 rounded-2xl bg-black/25 backdrop-blur-md">
+              {/* Indicador deslizante verde */}
+              <div
+                className="absolute top-1 bottom-1 rounded-xl transition-all duration-500 pointer-events-none"
+                style={{
+                  width: 'calc((100% - 0.5rem - 1rem) / 3)',
+                  left: `calc(0.25rem + ${roleIndex} * ((100% - 0.5rem - 1rem) / 3) + ${roleIndex * 0.5}rem)`,
+                  background: 'linear-gradient(135deg, rgba(0, 187, 126, 0.95), rgba(0, 187, 126, 0.75))',
+                  boxShadow: '0 4px 20px rgba(0, 187, 126, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
+                  transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+                }}
+              />
 
-          <div style={quickLoginContainerStyle}>
-            <button
-              onClick={() => handleQuickLogin(userRole)}
-              style={quickLoginButtonStyle}
-              disabled={loading}
-            >
-              Inicio Rapido ({userRole === 'teacher' ? 'Docente' : 
-                            userRole === 'control' ? 'Control' : 'Estudiante'})
-            </button>
-          </div>
+              {/* Botones */}
+              {[
+                { id: 'teacher' as const, label: 'Docente' },
+                { id: 'student' as const, label: 'Estudiante' },
+                { id: 'control' as const, label: 'Control' }
+              ].map((rol) => (
+                <button
+                  key={rol.id}
+                  onClick={() => {
+                    setUserRole(rol.id);
+                    setIsLogin(true);
+                    resetFormData();
+                  }}
+                  disabled={loading}
+                  className="relative flex-1 py-2 rounded-xl text-[11px] font-semibold transition-colors duration-300 z-10 disabled:cursor-not-allowed"
+                  style={{
+                    color: userRole === rol.id ? '#0a1f15' : 'rgba(255,255,255,0.6)',
+                  }}
+                >
+                  <span
+                    className="block transition-transform duration-300"
+                    style={{
+                      transform: userRole === rol.id ? 'scale(1.08)' : 'scale(1)'
+                    }}
+                  >
+                    {rol.label}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            
-            {!isLogin && (
-              <>
-                <div style={{ textAlign: 'left' }}>
-                  <label style={labelStyle}>Nombres *</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: Maria Jose" 
-                    style={inputStyle} 
-                    value={formData.nombres}
-                    onChange={(e) => setFormData({...formData, nombres: e.target.value})}
-                    required
-                    disabled={loading}
-                  />
-                </div>
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
-                <div style={{ textAlign: 'left' }}>
-                  <label style={labelStyle}>Apellidos *</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: Perez Gonzalez" 
-                    style={inputStyle} 
-                    value={formData.apellidos}
-                    onChange={(e) => setFormData({...formData, apellidos: e.target.value})}
-                    required
-                    disabled={loading}
-                  />
-                </div>
-
-                <div style={{ textAlign: 'left' }}>
-                  <label style={labelStyle}>Cedula *</label>
-                  <input 
-                    type="text" 
-                    placeholder="V-12345678" 
-                    style={inputStyle} 
-                    value={formData.cedula}
-                    onChange={(e) => setFormData({...formData, cedula: e.target.value})}
-                    required
-                    disabled={loading}
-                  />
-                </div>
-
-                {userRole === 'student' && (
-                  <>
-                    <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Fecha de Nacimiento *</label>
-                      <input 
-                        type="date" 
-                        style={inputStyle} 
-                        value={formData.fechaNacimiento}
-                        onChange={(e) => setFormData({...formData, fechaNacimiento: e.target.value})}
-                        required
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Telefono</label>
-                      <input 
-                        type="text" 
-                        placeholder="0412-1234567" 
-                        style={inputStyle} 
-                        value={formData.telefono}
-                        onChange={(e) => setFormData({...formData, telefono: e.target.value})}
-                        disabled={loading}
-                      />
-                    </div>
-
-                    <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Nivel de Estudio *</label>
-                      <select 
-                        style={inputStyle}
-                        value={formData.nivel}
-                        onChange={(e) => {
-                          setFormData({
-                            ...formData, 
-                            nivel: e.target.value,
-                            grado: ''
-                          });
-                        }}
-                        required
-                        disabled={loading}
-                      >
-                        <option value="">Seleccionar nivel</option>
-                        {niveles.map((nivel) => (
-                          <option key={nivel.value} value={nivel.value}>
-                            {nivel.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Grado/Año *</label>
-                      <select 
-                        style={inputStyle}
-                        value={formData.grado}
-                        onChange={(e) => setFormData({...formData, grado: e.target.value})}
-                        required
-                        disabled={loading || !formData.nivel}
-                      >
-                        <option value="">
-                          {formData.nivel ? 'Seleccionar grado' : 'Primero selecciona un nivel'}
-                        </option>
-                        {getOpcionesGrado().map((grado) => (
-                          <option key={grado.value} value={grado.value}>
-                            {grado.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div style={{ textAlign: 'left' }}>
-                      <label style={labelStyle}>Seccion *</label>
-                      <select 
-                        style={inputStyle}
-                        value={formData.seccion}
-                        onChange={(e) => setFormData({...formData, seccion: e.target.value})}
-                        required
-                        disabled={loading}
-                      >
-                        <option value="">Seleccionar seccion</option>
-                        {secciones.map((seccion) => (
-                          <option key={seccion.value} value={seccion.value}>
-                            {seccion.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {userRole === 'teacher' && (
-                  <div style={{ textAlign: 'left' }}>
-                    <label style={labelStyle}>Telefono</label>
-                    <input 
-                      type="text" 
-                      placeholder="0412-1234567" 
-                      style={inputStyle} 
-                      value={formData.telefono}
-                      onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+              {!isLogin && (
+                <>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Nombres *"
+                      value={formData.nombre}
+                      onChange={(e) => handleChange('nombre', e.target.value)}
+                      onBlur={() => handleBlur('nombre')}
                       disabled={loading}
+                      className={errores.nombre ? inputNoIconErrorClass : inputNoIconClass}
                     />
+                    {errores.nombre && (
+                      <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.nombre}</p>
+                    )}
                   </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Apellidos"
+                      value={formData.apellido}
+                      onChange={(e) => handleChange('apellido', e.target.value)}
+                      onBlur={() => handleBlur('apellido')}
+                      disabled={loading}
+                      className={errores.apellido ? inputNoIconErrorClass : inputNoIconClass}
+                    />
+                    {errores.apellido && (
+                      <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.apellido}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Cédula de identidad *"
+                      value={formData.cedula}
+                      onChange={(e) => handleChange('cedula', e.target.value)}
+                      onBlur={() => handleBlur('cedula')}
+                      disabled={loading}
+                      className={errores.cedula ? inputNoIconErrorClass : inputNoIconClass}
+                    />
+                    {errores.cedula && (
+                      <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.cedula}</p>
+                    )}
+                  </div>
+
+                  {userRole === 'student' && (
+                    <>
+                      <div>
+                        <Select
+                          value={formData.nivel}
+                          onValueChange={(value) => {
+                            const nivel = value ?? '';
+                            setFormData({ ...formData, nivel, grado: '', seccion: '' });
+                            setErrores((prev) => ({ ...prev, nivel: undefined, grado: undefined, seccion: undefined }));
+                          }}
+                          disabled={loading}
+                        >
+                          <SelectTrigger className={errores.nivel ? `${inputNoIconErrorClass} flex items-center` : `${inputNoIconClass} flex items-center`}>
+                            <SelectValue placeholder="Nivel de estudio *" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {niveles.map((nivel) => (
+                              <SelectItem key={nivel.value} value={nivel.value}>
+                                {nivel.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errores.nivel && (
+                          <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.nivel}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Select
+                          value={formData.grado}
+                          onValueChange={(value) => handleChange('grado', value)}
+                          disabled={loading || !formData.nivel}
+                        >
+                          <SelectTrigger className={errores.grado ? `${inputNoIconErrorClass} flex items-center` : `${inputNoIconClass} flex items-center`}>
+                            <SelectValue placeholder={formData.nivel ? 'Grado/Año *' : 'Primero selecciona un nivel'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getOpcionesGrado().map((grado) => (
+                              <SelectItem key={grado.value} value={grado.value}>
+                                {grado.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {errores.grado && (
+                          <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.grado}</p>
+                        )}
+                      </div>
+
+                      {formData.nivel !== 'preescolar' && (
+                        <div>
+                          <Select
+                            value={formData.seccion}
+                            onValueChange={(value) => handleChange('seccion', value)}
+                            disabled={loading}
+                          >
+                            <SelectTrigger className={errores.seccion ? `${inputNoIconErrorClass} flex items-center` : `${inputNoIconClass} flex items-center`}>
+                              <SelectValue placeholder="Sección *" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {secciones.map((seccion) => (
+                                <SelectItem key={seccion.value} value={seccion.value}>
+                                  {seccion.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errores.seccion && (
+                            <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.seccion}</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Teléfono"
+                      value={formData.telefono}
+                      onChange={(e) => handleChange('telefono', e.target.value)}
+                      onBlur={() => handleBlur('telefono')}
+                      disabled={loading}
+                      className={errores.telefono ? inputNoIconErrorClass : inputNoIconClass}
+                    />
+                    {errores.telefono && (
+                      <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.telefono}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div>
+                <div className="relative">
+                  <input
+                    type="email"
+                    placeholder="Correo electrónico"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    onBlur={() => handleBlur('email')}
+                    disabled={loading}
+                    className={errores.email ? inputErrorClass : inputClass}
+                  />
+                  <User className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
+                </div>
+                {errores.email && (
+                  <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.email}</p>
                 )}
-              </>
-            )}
+              </div>
 
-            <div style={{ textAlign: 'left' }}>
-              <label style={labelStyle}>Correo Electronico *</label>
-              <input 
-                type="email" 
-                placeholder={userRole === 'teacher' ? "usuario@colegio.com" : 
-                            userRole === 'control' ? "control@colegio.com" : "estudiante@email.com"} 
-                style={inputStyle} 
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                required
+              <div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Contraseña"
+                    value={formData.password}
+                    onChange={(e) => handleChange('password', e.target.value)}
+                    onBlur={() => handleBlur('password')}
+                    disabled={loading}
+                    className={errores.password ? inputErrorClass : inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+                {errores.password && (
+                  <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.password}</p>
+                )}
+              </div>
+
+              {isLogin && (
+                <div className="flex items-center gap-2 mt-1 pl-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <span className="relative flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="peer sr-only"
+                      />
+                      <span className="w-5 h-5 rounded-md border border-white/30 bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all peer-checked:bg-white/90 peer-checked:border-white/90">
+                        {rememberMe && (
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            className="w-3.5 h-3.5 text-[#1a2e26]"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </span>
+                    </span>
+                    <span className="text-white/70 text-sm group-hover:text-white/90 transition-colors">
+                      Recordarme
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {/* Botón principal con hover verde */}
+              <button
+                type="submit"
                 disabled={loading}
-              />
-            </div>
+                className="mt-3 w-full h-14 rounded-2xl font-semibold text-base text-[#1a2e26] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                style={{
+                  background: loading
+                    ? 'rgba(255,255,255,0.5)'
+                    : 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #00BB7E, #00d68f)';
+                    e.currentTarget.style.boxShadow = '0 15px 50px rgba(0,187,126,0.5), inset 0 1px 0 rgba(255,255,255,0.6)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!loading) {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))';
+                    e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)';
+                    e.currentTarget.style.color = '#1a2e26';
+                  }
+                }}
+              >
+                {loading ? 'Procesando...' : (isLogin ? 'Iniciar sesión' : 'Crear cuenta')}
+              </button>
 
-            <div style={{ textAlign: 'left' }}>
-              <label style={labelStyle}>Contraseña *</label>
-              <input 
-                type="password" 
-                placeholder="••••••••" 
-                style={inputStyle} 
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <button 
-              type="submit" 
-              style={btnSubmitStyle}
-              disabled={loading}
-            >
-              {loading ? 'PROCESANDO...' : (isLogin ? 'ACCEDER AL PANEL' : 'FINALIZAR REGISTRO')}
-            </button>
-          </form>
-
-          <p style={{ marginTop: '20px', color: '#9ca3af', fontSize: '0.75rem', opacity: 0.5 }}>
-            Sistema de Gestion Educativa 2024
-          </p>
+              <p className="text-center text-white/60 text-sm mt-2">
+                {isLogin ? '¿No tienes una cuenta? ' : '¿Ya tienes una cuenta? '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setErrores({});
+                    resetFormData();
+                  }}
+                  className="text-white hover:text-emerald-400 font-semibold underline-offset-2 hover:underline transition-all"
+                >
+                  {isLogin ? 'Regístrate' : 'Inicia sesión'}
+                </button>
+              </p>
+            </form>
+          </div>
         </div>
       </main>
     </div>
   );
-};
-
-const glassCardStyle: React.CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.03)',
-  backdropFilter: 'blur(20px)',
-  padding: '3rem 2rem',
-  borderRadius: '35px',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-  boxShadow: '0 40px 100px rgba(0,0,0,0.5)',
-  textAlign: 'center'
-};
-
-const roleSelectorStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: '10px',
-  marginBottom: '1.5rem',
-  background: 'rgba(0,0,0,0.3)',
-  borderRadius: '15px',
-  padding: '4px'
-};
-
-const roleButtonStyle: React.CSSProperties = {
-  flex: 1,
-  padding: '10px',
-  border: 'none',
-  borderRadius: '12px',
-  fontSize: '0.85rem',
-  fontWeight: '700',
-  cursor: 'pointer',
-  transition: '0.3s'
-};
-
-const tabContainerStyle: React.CSSProperties = {
-  display: 'flex', 
-  marginBottom: '2rem', 
-  background: 'rgba(0,0,0,0.3)', 
-  borderRadius: '15px', 
-  padding: '4px'
-};
-
-const tabButtonStyle: React.CSSProperties = {
-  flex: 1,
-  padding: '10px',
-  border: 'none',
-  borderRadius: '12px',
-  fontSize: '0.85rem',
-  fontWeight: '800',
-  cursor: 'pointer',
-  transition: '0.3s'
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: '1.8rem',
-  fontWeight: '900',
-  color: 'white',
-  marginBottom: '1.5rem',
-  letterSpacing: '1px'
-};
-
-const quickLoginContainerStyle: React.CSSProperties = {
-  marginBottom: '1.5rem'
-};
-
-const quickLoginButtonStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.8rem',
-  borderRadius: '12px',
-  border: '2px solid rgba(0, 187, 126, 0.3)',
-  background: 'rgba(0, 187, 126, 0.1)',
-  color: COLORES.principal,
-  fontWeight: '700',
-  fontSize: '0.9rem',
-  cursor: 'pointer',
-  transition: '0.3s'
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  color: COLORES.principal,
-  fontSize: '0.75rem',
-  fontWeight: 'bold',
-  marginBottom: '6px',
-  marginLeft: '5px'
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '1rem',
-  borderRadius: '12px',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-  background: 'rgba(0, 0, 0, 0.3)',
-  color: 'white',
-  fontSize: '0.95rem',
-  outline: 'none',
-  boxSizing: 'border-box'
-};
-
-const btnSubmitStyle: React.CSSProperties = {
-  marginTop: '1rem',
-  padding: '1.1rem',
-  borderRadius: '12px',
-  border: 'none',
-  background: COLORES.principal,
-  color: '#1a2e26',
-  fontWeight: '900',
-  fontSize: '0.9rem',
-  cursor: 'pointer',
-  boxShadow: '0 10px 20px rgba(0, 187, 126, 0.2)',
-  textTransform: 'uppercase',
-  transition: '0.3s'
 };
 
 export default AuthPage;
