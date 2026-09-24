@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { sileo } from 'sileo';
 
+// ============ COMPONENTES PROPIOS ============
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+
 // ============ SHADCN UI ============
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -257,6 +260,14 @@ const EstudianteDashboard: React.FC = () => {
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroActivo, setFiltroActivo] = useState<FiltroMaterias>('todas');
+
+  // ✅ Estado para el modal de confirmación
+  const [confirmacion, setConfirmacion] = useState<{
+    abierto: boolean;
+    titulo: string;
+    descripcion: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -549,13 +560,18 @@ const EstudianteDashboard: React.FC = () => {
     }
   };
 
-  // ✅ CORREGIDO: sin 'cancel' (tu versión de Sileo no lo soporta)
-  const handleLogout = async () => {
-    if (!window.confirm('¿Está seguro de que desea cerrar sesión?')) {
-      return;
-    }
-    await signOut({ redirect: false });
-    router.push('/');
+  // ✅ Cierre de sesión con modal de confirmación
+  const handleLogout = () => {
+    setConfirmacion({
+      abierto: true,
+      titulo: '¿Cerrar sesión?',
+      descripcion: 'Se cerrará tu sesión actual',
+      onConfirm: async () => {
+        setConfirmacion(null);
+        await signOut({ redirect: false });
+        router.push('/');
+      },
+    });
   };
 
   const planesNoVistos = materias.reduce((sum, m) => sum + m.planEvaluacion.filter(p => !p.visto).length, 0);
@@ -878,6 +894,17 @@ const EstudianteDashboard: React.FC = () => {
           onClose={() => setSelectedPlan(null)}
           onMarcarVisto={() => marcarPlanComoVisto(selectedPlan.id)}
           estudiante={estudiante}
+        />
+      )}
+
+      {/* ✅ NUEVO: Modal de confirmación */}
+      {confirmacion?.abierto && (
+        <ConfirmDialog
+          abierto={confirmacion.abierto}
+          titulo={confirmacion.titulo}
+          descripcion={confirmacion.descripcion}
+          onConfirm={confirmacion.onConfirm}
+          onCancel={() => setConfirmacion(null)}
         />
       )}
     </div>

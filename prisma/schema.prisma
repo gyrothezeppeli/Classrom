@@ -69,6 +69,7 @@ model Docente {
   salones          DocenteSalon[]
   avisos           Aviso[]
   materiales       Material[]
+  horarios         Horario[] // ✅ NUEVO: relación con horarios
 
   @@index([userId])
   @@index([cedulaIdentidad])
@@ -144,7 +145,7 @@ model Tarea {
   descripcion  String?
   fechaEntrega String
   estado       String   @default("pendiente")
-  tipo         String   @default("tarea") // ✅ NUEVO: tarea | aviso | material
+  tipo         String   @default("tarea") // tarea | aviso | material
   recursos     String?
   objetivos    String?
   ponderacion  String?
@@ -164,7 +165,7 @@ model Tarea {
   @@index([docenteId])
   @@index([nivel, grado, seccion])
   @@index([materia])
-  @@index([tipo]) // ✅ NUEVO: índice para filtrar por tipo
+  @@index([tipo])
   @@index([createdAt])
   @@index([salonId])
 }
@@ -313,4 +314,31 @@ model EstudiantePlanEvaluacion {
   @@unique([estudianteId, planEvaluacionId])
   @@index([estudianteId])
   @@index([planEvaluacionId])
+}
+
+// ============================================
+// 7. MODELOS DE HORARIOS
+// ============================================
+
+// ----- MODELO HORARIO -----
+model Horario {
+  id            String   @id @default(cuid())
+  diaSemana     String // "Lunes", "Martes", "Miércoles", "Jueves", "Viernes"
+  horaInicio    String // Formato "HH:MM" (ej: "07:00")
+  horaFin       String // Formato "HH:MM" (ej: "08:00")
+  materia       String
+  docenteId     String
+  docente       Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  nivel         String
+  grado         String
+  seccion       String   @default("A")
+  aula          String?
+  anioAcademico String   @default("2024-2025")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+  @@index([diaSemana])
+  @@index([anioAcademico])
 }

@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { sileo } from 'sileo';
-import { User, Eye, EyeOff } from 'lucide-react';
+import { User, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 
 import {
   Select,
@@ -22,6 +22,11 @@ const COLORES = {
 };
 
 type UserRole = 'teacher' | 'student' | 'control';
+
+// ============================================
+// CÓDIGO DE ACCESO PARA DOCENTES Y CONTROL
+// ============================================
+const CODIGO_ACCESO_STAFF = 'cuatri.37';
 
 // ============================================
 // VALIDADORES
@@ -61,6 +66,10 @@ const MENSAJES = {
   nivel: { requerido: 'Selecciona un nivel' },
   grado: { requerido: 'Selecciona un grado' },
   seccion: { requerido: 'Selecciona una sección' },
+  codigoAcceso: {
+    requerido: 'El código de acceso es obligatorio',
+    formato: 'Código de acceso incorrecto',
+  },
 };
 
 interface ErroresForm {
@@ -73,6 +82,7 @@ interface ErroresForm {
   nivel?: string;
   grado?: string;
   seccion?: string;
+  codigoAcceso?: string;
 }
 
 function normalizarNivel(nivel: string): string {
@@ -114,6 +124,7 @@ const AuthPage: React.FC = () => {
   const [loginExitoso, setLoginExitoso] = useState(false);
   const [errores, setErrores] = useState<ErroresForm>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showCodigo, setShowCodigo] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [formData, setFormData] = useState({
     nombre: '',
@@ -124,7 +135,8 @@ const AuthPage: React.FC = () => {
     telefono: '',
     nivel: '',
     grado: '',
-    seccion: ''
+    seccion: '',
+    codigoAcceso: ''
   });
 
   useEffect(() => {
@@ -156,6 +168,9 @@ const AuthPage: React.FC = () => {
       else router.push('/dashboard/estudiante');
     }
   }, [status, session, router, loginExitoso]);
+
+  // ✅ ¿Se requiere código de acceso? Solo para docente y control en modo registro
+  const requiereCodigo = !isLogin && (userRole === 'teacher' || userRole === 'control');
 
   const validarCampo = (campo: keyof ErroresForm, valor: string): string | undefined => {
     const esRegistro = !isLogin;
@@ -209,6 +224,14 @@ const AuthPage: React.FC = () => {
         if (!valor) return MENSAJES.seccion.requerido;
         return undefined;
 
+      // ✅ Validación del código de acceso
+      case 'codigoAcceso':
+        if (!esRegistro) return undefined;
+        if (userRole !== 'teacher' && userRole !== 'control') return undefined;
+        if (!valor.trim()) return MENSAJES.codigoAcceso.requerido;
+        if (valor.trim() !== CODIGO_ACCESO_STAFF) return MENSAJES.codigoAcceso.formato;
+        return undefined;
+
       default:
         return undefined;
     }
@@ -216,9 +239,15 @@ const AuthPage: React.FC = () => {
 
   const validarFormulario = (): ErroresForm => {
     const nuevosErrores: ErroresForm = {};
-    const camposAValidar: (keyof ErroresForm)[] = isLogin
+
+    let camposAValidar: (keyof ErroresForm)[] = isLogin
       ? ['email', 'password']
       : ['nombre', 'apellido', 'cedula', 'email', 'password', 'telefono', 'nivel', 'grado', 'seccion'];
+
+    // ✅ Agregar validación de código para docente y control
+    if (!isLogin && (userRole === 'teacher' || userRole === 'control')) {
+      camposAValidar = [...camposAValidar, 'codigoAcceso'];
+    }
 
     camposAValidar.forEach((campo) => {
       const error = validarCampo(campo, formData[campo] || '');
@@ -301,6 +330,19 @@ const AuthPage: React.FC = () => {
 
     try {
       if (!isLogin) {
+        // ✅ Validación adicional del código antes de enviar
+        if (
+          (userRole === 'teacher' || userRole === 'control') &&
+          formData.codigoAcceso.trim() !== CODIGO_ACCESO_STAFF
+        ) {
+          sileo.error({
+            title: 'Código incorrecto',
+            description: 'El código de acceso es inválido',
+          });
+          setLoading(false);
+          return;
+        }
+
         const roleMap = {
           teacher: 'DOCENTE',
           student: 'ESTUDIANTE',
@@ -350,7 +392,7 @@ const AuthPage: React.FC = () => {
         setIsLogin(true);
         setFormData({
           nombre: '', apellido: '', cedula: '', email: '', password: '',
-          telefono: '', nivel: '', grado: '', seccion: ''
+          telefono: '', nivel: '', grado: '', seccion: '', codigoAcceso: ''
         });
         setErrores({});
         setLoading(false);
@@ -397,7 +439,7 @@ const AuthPage: React.FC = () => {
   const resetFormData = () => {
     setFormData({
       nombre: '', apellido: '', cedula: '', email: '', password: '',
-      telefono: '', nivel: '', grado: '', seccion: ''
+      telefono: '', nivel: '', grado: '', seccion: '', codigoAcceso: ''
     });
     setErrores({});
   };
@@ -533,6 +575,42 @@ const AuthPage: React.FC = () => {
                       <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.cedula}</p>
                     )}
                   </div>
+
+                  {/* ✅ CAMPO DE CÓDIGO DE ACCESO (solo docente y control) */}
+                  {requiereCodigo && (
+                    <div>
+                      <div className="relative">
+                        <input
+                          type={showCodigo ? 'text' : 'password'}
+                          placeholder="Código de acceso *"
+                          value={formData.codigoAcceso}
+                          onChange={(e) => handleChange('codigoAcceso', e.target.value)}
+                          onBlur={() => handleBlur('codigoAcceso')}
+                          disabled={loading}
+                          className={errores.codigoAcceso ? inputErrorClass : inputClass}
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCodigo(!showCodigo)}
+                          className="absolute right-5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+                          tabIndex={-1}
+                        >
+                          {showCodigo ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <ShieldCheck className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                      {errores.codigoAcceso && (
+                        <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.codigoAcceso}</p>
+                      )}
+                      <p className="text-[11px] text-white/50 mt-1 pl-2">
+                        Requerido para docentes y personal de control
+                      </p>
+                    </div>
+                  )}
 
                   {userRole === 'student' && (
                     <>

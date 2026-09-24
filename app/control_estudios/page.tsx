@@ -42,6 +42,7 @@ import {
   RefreshCw,
   ArrowLeft,
   AlertCircle,
+  CalendarDays, // ✅ NUEVO ICONO
 } from "lucide-react";
 
 const PALETTE = {
@@ -464,6 +465,15 @@ const GestionInstitutoPage: React.FC = () => {
                 {tab.label}
               </button>
             ))}
+
+            {/* ✅ NUEVO BOTÓN DE HORARIOS */}
+            <button
+              onClick={() => router.push('/dashboard/horarios')}
+              className="px-6 sm:px-8 py-4 text-sm sm:text-base font-bold transition-all whitespace-nowrap flex items-center gap-2 bg-emerald-500 text-emerald-950 hover:bg-emerald-400 rounded-lg my-2 ml-2 shadow-lg shadow-emerald-500/20"
+            >
+              <CalendarDays className="w-4 h-4" />
+              Horarios
+            </button>
           </div>
 
           {/* HEADER */}

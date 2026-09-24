@@ -1,11 +1,14 @@
 // app/editar/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { sileo } from 'sileo';
+
+// ============ COMPONENTES PROPIOS ============
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 // ============ SHADCN UI ============
 import { Button } from "@/components/ui/button";
@@ -44,6 +47,8 @@ import {
   FileText,
   ClipboardList,
   ArrowLeft,
+  Users,
+  Search,
 } from "lucide-react";
 
 const PALETTE = {
@@ -58,7 +63,8 @@ const TIPOS_CONTENIDO = [
   { id: 'tarea', nombre: 'Tarea', icon: BookOpen },
   { id: 'aviso', nombre: 'Aviso', icon: Bell },
   { id: 'material', nombre: 'Material', icon: FileText },
-  { id: 'plan_evaluacion', nombre: 'Plan de Evaluación', icon: ClipboardList }
+  { id: 'plan_evaluacion', nombre: 'Plan de Evaluación', icon: ClipboardList },
+  { id: 'lista_estudiantes', nombre: 'Lista de Estudiantes', icon: Users }
 ];
 
 const MATERIAS_POR_NIVEL = {
@@ -133,6 +139,19 @@ interface DocenteInfo {
   };
 }
 
+interface Estudiante {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  cedulaIdentidad: string;
+  fechaNacimiento?: string;
+  nivel: string;
+  grado: string;
+  seccion: string;
+  numeroTelefonoCelular?: string;
+  correoElectronico?: string;
+}
+
 const EditTasksPage: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -157,10 +176,26 @@ const EditTasksPage: React.FC = () => {
     enlaces: ''
   });
 
+  // ✅ Estados para la Lista de Estudiantes
+  const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
+  const [cargandoEstudiantes, setCargandoEstudiantes] = useState(false);
+  const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
+  const [filtroEstudianteNivel, setFiltroEstudianteNivel] = useState<string>('');
+  const [filtroEstudianteGrado, setFiltroEstudianteGrado] = useState<string>('');
+  const [filtroEstudianteSeccion, setFiltroEstudianteSeccion] = useState<string>('');
+
   const [mostrarGestorPlan, setMostrarGestorPlan] = useState(false);
   const [modoEdicionPlan, setModoEdicionPlan] = useState(false);
   const [planEditandoId, setPlanEditandoId] = useState<string | null>(null);
   const [vistaPreviaPlan, setVistaPreviaPlan] = useState<PlanEvaluacion | null>(null);
+
+  // ✅ Estado para el modal de confirmación
+  const [confirmacion, setConfirmacion] = useState<{
+    abierto: boolean;
+    titulo: string;
+    descripcion: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const [planActual, setPlanActual] = useState<PlanEvaluacion>({
     id: '',
@@ -322,6 +357,111 @@ const EditTasksPage: React.FC = () => {
       cargarPlanes();
     }
   }, [nivelSeleccionado, gradoSeleccionado, seccionSeleccionada, docenteInfo]);
+
+  // ============ CARGA DE ESTUDIANTES ============
+  useEffect(() => {
+    if (tipoContenido === 'lista_estudiantes' && estudiantes.length === 0) {
+      cargarEstudiantes();
+    }
+  }, [tipoContenido]);
+
+  const cargarEstudiantes = async () => {
+    try {
+      setCargandoEstudiantes(true);
+      const response = await fetch('/api/estudiantes');
+      if (response.ok) {
+        const data = await response.json();
+        setEstudiantes(data);
+      } else {
+        sileo.error({ title: 'Error al cargar estudiantes' });
+      }
+    } catch (error) {
+      console.error('Error al cargar estudiantes:', error);
+      sileo.error({ title: 'Error de conexión' });
+    } finally {
+      setCargandoEstudiantes(false);
+    }
+  };
+
+  // ✅ FUNCIÓN AUXILIAR: Normaliza un grado para comparación flexible
+  const normalizarGrado = (grado: string): string => {
+    if (!grado) return '';
+    return grado
+      .toLowerCase()
+      .trim()
+      .replace(/[°º]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/^1ro\b/, '1er')
+      .replace(/^2do\b/, '2do')
+      .replace(/^3ro\b/, '3er')
+      .replace(/^4to\b/, '4to')
+      .replace(/^5to\b/, '5to')
+      .replace(/^6to\b/, '6to');
+  };
+
+  // ✅ FUNCIÓN AUXILIAR: Verifica si un grado de estudiante coincide con el filtro
+  const gradoCoincide = (gradoEstudiante: string, filtroGradoId: string, filtroNivel: string): boolean => {
+    if (!gradoEstudiante || !filtroGradoId) return false;
+
+    const gradoEst = normalizarGrado(gradoEstudiante);
+    const idFiltro = normalizarGrado(filtroGradoId);
+
+    // Obtener el nombre completo del grado seleccionado en el filtro
+    const gradoObj = gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.find(
+      (g) => g.id === filtroGradoId
+    );
+    const nombreFiltro = normalizarGrado(gradoObj?.nombre || '');
+
+    // Comparaciones flexibles
+    return (
+      gradoEst === idFiltro ||
+      gradoEst === nombreFiltro ||
+      gradoEst.includes(idFiltro) ||
+      idFiltro.includes(gradoEst) ||
+      gradoEst.includes(nombreFiltro) ||
+      nombreFiltro.includes(gradoEst)
+    );
+  };
+
+  const estudiantesFiltrados = useMemo(() => {
+    let filtrados = estudiantes;
+
+    if (busquedaEstudiante.trim()) {
+      const term = busquedaEstudiante.toLowerCase().trim();
+      filtrados = filtrados.filter(
+        (e) =>
+          e.nombres.toLowerCase().includes(term) ||
+          e.apellidos.toLowerCase().includes(term) ||
+          `${e.nombres} ${e.apellidos}`.toLowerCase().includes(term) ||
+          e.cedulaIdentidad.toLowerCase().includes(term)
+      );
+    }
+
+    if (filtroEstudianteNivel) {
+      filtrados = filtrados.filter((e) => e.nivel === filtroEstudianteNivel);
+    }
+
+    if (filtroEstudianteGrado) {
+      filtrados = filtrados.filter((e) =>
+        gradoCoincide(e.grado, filtroEstudianteGrado, filtroEstudianteNivel)
+      );
+    }
+
+    if (filtroEstudianteSeccion) {
+      filtrados = filtrados.filter((e) => e.seccion === filtroEstudianteSeccion);
+    }
+
+    return filtrados;
+  }, [estudiantes, busquedaEstudiante, filtroEstudianteNivel, filtroEstudianteGrado, filtroEstudianteSeccion]);
+
+  const limpiarFiltrosEstudiantes = () => {
+    setBusquedaEstudiante('');
+    setFiltroEstudianteNivel('');
+    setFiltroEstudianteGrado('');
+    setFiltroEstudianteSeccion('');
+  };
+
+  // ============ FIN CARGA DE ESTUDIANTES ============
 
   const planesFiltrados = planesGuardados.filter(plan => {
     let coincide = true;
@@ -695,34 +835,35 @@ const EditTasksPage: React.FC = () => {
     setVistaPreviaPlan(null);
   };
 
-  // ✅ CORREGIDO: usa window.confirm en lugar de sileo.action con cancel
+  // ✅ Eliminar plan con modal de confirmación
   const eliminarPlan = (id: string) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este plan de evaluación?')) {
-      return;
-    }
-    ejecutarEliminarPlan(id);
-  };
+    setConfirmacion({
+      abierto: true,
+      titulo: '¿Eliminar plan?',
+      descripcion: 'Esta acción no se puede deshacer',
+      onConfirm: async () => {
+        setConfirmacion(null);
+        try {
+          const response = await fetch(`/api/planes-evaluacion/${id}`, {
+            method: 'DELETE',
+          });
 
-  const ejecutarEliminarPlan = async (id: string) => {
-    try {
-      const response = await fetch(`/api/planes-evaluacion/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        sileo.success({ title: 'Plan eliminado exitosamente' });
-        await cargarPlanes();
-        if (vistaPreviaPlan?.id === id) {
-          setVistaPreviaPlan(null);
+          if (response.ok) {
+            sileo.success({ title: 'Plan eliminado exitosamente' });
+            await cargarPlanes();
+            if (vistaPreviaPlan?.id === id) {
+              setVistaPreviaPlan(null);
+            }
+          } else {
+            const error = await response.text();
+            sileo.error({ title: 'Error', description: error });
+          }
+        } catch (error) {
+          console.error('Error al eliminar:', error);
+          sileo.error({ title: 'Error al eliminar el plan' });
         }
-      } else {
-        const error = await response.text();
-        sileo.error({ title: 'Error', description: error });
-      }
-    } catch (error) {
-      console.error('Error al eliminar:', error);
-      sileo.error({ title: 'Error al eliminar el plan' });
-    }
+      },
+    });
   };
 
   const exportarAPDF = async (plan: PlanEvaluacion) => {
@@ -1308,11 +1449,17 @@ const EditTasksPage: React.FC = () => {
               <Button
                 variant="destructive"
                 onClick={() => {
-                  if (window.confirm('¿Está seguro de que desea cancelar la edición?')) {
-                    setMostrarGestorPlan(false);
-                    setModoEdicionPlan(false);
-                    setPlanEditandoId(null);
-                  }
+                  setConfirmacion({
+                    abierto: true,
+                    titulo: '¿Cancelar edición?',
+                    descripcion: 'Se perderán los cambios no guardados',
+                    onConfirm: () => {
+                      setConfirmacion(null);
+                      setMostrarGestorPlan(false);
+                      setModoEdicionPlan(false);
+                      setPlanEditandoId(null);
+                    },
+                  });
                 }}
               >
                 Cancelar
@@ -1456,17 +1603,205 @@ const EditTasksPage: React.FC = () => {
     </Card>
   );
 
-  // ✅ CORREGIDO: usa window.confirm en lugar de sileo.action con cancel
-  const handleCerrarSesion = () => {
-    if (!window.confirm('¿Está seguro de que desea cerrar sesión?')) {
-      return;
-    }
-    ejecutarCerrarSesion();
+  // ============ LISTA DE ESTUDIANTES (NUEVA VISTA) ============
+  const renderListaEstudiantes = () => {
+    return (
+      <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                setTipoContenido('tarea');
+                limpiarFiltrosEstudiantes();
+              }}
+              className="border-white/20 text-white hover:bg-emerald-500/20 hover:border-emerald-500/50 rounded-xl h-10 w-10 transition-all"
+              title="Volver al editor"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <CardTitle className="text-emerald-400 text-2xl flex items-center gap-2">
+              <Users className="w-6 h-6" />
+              Lista de Estudiantes
+            </CardTitle>
+          </div>
+          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 px-3 py-1.5 text-xs font-semibold">
+            {estudiantesFiltrados.length} de {estudiantes.length} estudiantes
+          </Badge>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Buscador */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
+            <Input
+              type="text"
+              placeholder="Buscar por nombre, apellido o cédula..."
+              value={busquedaEstudiante}
+              onChange={(e) => setBusquedaEstudiante(e.target.value)}
+              className="bg-black/30 border-white/10 text-white pl-12 pr-12 h-14 text-base"
+            />
+            {busquedaEstudiante && (
+              <button
+                onClick={() => setBusquedaEstudiante('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filtros */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <Select
+              value={filtroEstudianteNivel || 'all'}
+              onValueChange={(v) => {
+                setFiltroEstudianteNivel(v === 'all' ? '' : (v ?? ''));
+                setFiltroEstudianteGrado('');
+              }}
+            >
+              <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
+                <SelectValue placeholder="Todos los niveles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los niveles</SelectItem>
+                {niveles.map((n) => (
+                  <SelectItem key={n.id} value={n.id}>
+                    {n.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filtroEstudianteGrado || 'all'}
+              onValueChange={(v) => setFiltroEstudianteGrado(v === 'all' ? '' : (v ?? ''))}
+              disabled={!filtroEstudianteNivel}
+            >
+              <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
+                <SelectValue placeholder="Todos los grados" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los grados</SelectItem>
+                {filtroEstudianteNivel &&
+                  gradosPorNivel[filtroEstudianteNivel as keyof typeof gradosPorNivel]?.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.nombre}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filtroEstudianteSeccion || 'all'}
+              onValueChange={(v) => setFiltroEstudianteSeccion(v === 'all' ? '' : (v ?? ''))}
+            >
+              <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
+                <SelectValue placeholder="Todas las secciones" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las secciones</SelectItem>
+                {SECCIONES_DISPONIBLES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    Sección {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(busquedaEstudiante || filtroEstudianteNivel || filtroEstudianteGrado || filtroEstudianteSeccion) && (
+              <Button
+                variant="outline"
+                onClick={limpiarFiltrosEstudiantes}
+                className="border-white/10 text-gray-400 hover:bg-white/5 hover:border-emerald-500/40 h-11"
+              >
+                <X className="w-4 h-4 mr-2" /> Limpiar filtros
+              </Button>
+            )}
+          </div>
+
+          <Separator className="bg-white/5" />
+
+          {/* Tabla */}
+          {cargandoEstudiantes ? (
+            <div className="text-center py-12 text-gray-400">
+              <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+              <p>Cargando estudiantes...</p>
+            </div>
+          ) : estudiantesFiltrados.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Users className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
+              <p className="text-lg">No se encontraron estudiantes</p>
+              <p className="text-sm mt-2">
+                {estudiantes.length === 0
+                  ? 'No hay estudiantes registrados en el sistema'
+                  : 'Prueba con otros filtros de búsqueda'}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/5 overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-black/20 hover:bg-black/20">
+                    {['Cédula', 'Nombres', 'Apellidos', 'Nivel', 'Grado', 'Sección', 'Teléfono', 'Correo'].map((h) => (
+                      <TableHead
+                        key={h}
+                        className="text-emerald-400 font-bold text-xs uppercase"
+                      >
+                        {h}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {estudiantesFiltrados.map((e) => (
+                    <TableRow key={e.id} className="border-white/5 hover:bg-white/5">
+                      <TableCell>
+                        <span className="font-mono font-semibold text-emerald-400">
+                          {e.cedulaIdentidad}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-white">{e.nombres}</TableCell>
+                      <TableCell className="text-white">{e.apellidos}</TableCell>
+                      <TableCell className="text-gray-400 text-sm">
+                        {niveles.find((n) => n.id === e.nivel)?.nombre || e.nivel}
+                      </TableCell>
+                      <TableCell className="text-white">{e.grado}</TableCell>
+                      <TableCell>
+                        <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                          {e.seccion}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-white">
+                        {e.numeroTelefonoCelular || '-'}
+                      </TableCell>
+                      <TableCell className="text-gray-400 text-sm">
+                        {e.correoElectronico || '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
   };
 
-  const ejecutarCerrarSesion = async () => {
-    await signOut({ redirect: false });
-    router.push('/');
+  // ✅ Cierre de sesión con modal de confirmación
+  const handleCerrarSesion = () => {
+    setConfirmacion({
+      abierto: true,
+      titulo: '¿Cerrar sesión?',
+      descripcion: 'Se cerrará tu sesión actual',
+      onConfirm: async () => {
+        setConfirmacion(null);
+        await signOut({ redirect: false });
+        router.push('/');
+      },
+    });
   };
 
   if (status === 'loading' || cargandoDocente) {
@@ -1505,12 +1840,14 @@ const EditTasksPage: React.FC = () => {
             ? 'EDITOR DE PLAN'
             : tipoContenido === 'plan_evaluacion'
             ? 'GESTIÓN DE PLANES'
+            : tipoContenido === 'lista_estudiantes'
+            ? 'LISTA DE ESTUDIANTES'
             : 'EDITOR DE CONTENIDO'}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-3 bg-white/5 px-4 py-1.5 rounded-full">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm">
+            <div className="w-8 h-8 rounded-full bg-linear-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm">
               {docenteInfo?.nombres?.[0] || session?.user?.name?.[0] || 'D'}
             </div>
             <span className="text-sm font-medium hidden sm:inline">
@@ -1538,6 +1875,8 @@ const EditTasksPage: React.FC = () => {
               ? 'EDITAR PLAN DE EVALUACIÓN'
               : tipoContenido === 'plan_evaluacion'
               ? 'GESTIÓN DE PLANES DE EVALUACIÓN'
+              : tipoContenido === 'lista_estudiantes'
+              ? 'LISTA DE ESTUDIANTES'
               : 'GESTIÓN DE CONTENIDO'}
           </h1>
           <p className="text-white/60 text-base">
@@ -1549,6 +1888,8 @@ const EditTasksPage: React.FC = () => {
                 : 'Creando nuevo plan de evaluación'
               : tipoContenido === 'plan_evaluacion'
               ? `Bienvenido ${docenteInfo?.nombres || 'Docente'}, gestiona tus planes de evaluación`
+              : tipoContenido === 'lista_estudiantes'
+              ? 'Consulta y filtra la lista completa de estudiantes'
               : 'Publica tareas, avisos y materiales para los estudiantes.'}
           </p>
         </header>
@@ -1557,6 +1898,45 @@ const EditTasksPage: React.FC = () => {
           renderVistaPreviaPlan()
         ) : mostrarGestorPlan ? (
           renderPlanForm()
+        ) : tipoContenido === 'lista_estudiantes' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+            {/* Barra lateral izquierda: Tipo de contenido */}
+            <div>
+              <Card className="bg-black/20 border-white/5 backdrop-blur">
+                <CardContent className="p-5">
+                  <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                    Tipo de Contenido
+                  </h3>
+                  <div className="space-y-2">
+                    {TIPOS_CONTENIDO.map((tipo) => {
+                      const IconComponent = tipo.icon;
+                      return (
+                        <button
+                          key={tipo.id}
+                          type="button"
+                          onClick={() => {
+                            setTipoContenido(tipo.id);
+                            limpiarFiltrosEstudiantes();
+                          }}
+                          className={`w-full flex items-center gap-3 text-left p-4 rounded-xl border transition ${
+                            tipoContenido === tipo.id
+                              ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                              : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <IconComponent className="w-4 h-4 shrink-0" />
+                          <span className="font-bold text-sm">{tipo.nombre}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Lista de estudiantes */}
+            <div>{renderListaEstudiantes()}</div>
+          </div>
         ) : tipoContenido === 'plan_evaluacion' ? (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
             <div>{renderListaPlanes()}</div>
@@ -1657,7 +2037,10 @@ const EditTasksPage: React.FC = () => {
                         <button
                           key={tipo.id}
                           type="button"
-                          onClick={() => setTipoContenido(tipo.id)}
+                          onClick={() => {
+                            setTipoContenido(tipo.id);
+                            limpiarFiltrosEstudiantes();
+                          }}
                           className={`w-full flex items-center gap-3 text-left p-4 rounded-xl border transition ${
                             tipoContenido === tipo.id
                               ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
@@ -1820,6 +2203,17 @@ const EditTasksPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* ✅ Modal de confirmación */}
+      {confirmacion?.abierto && (
+        <ConfirmDialog
+          abierto={confirmacion.abierto}
+          titulo={confirmacion.titulo}
+          descripcion={confirmacion.descripcion}
+          onConfirm={confirmacion.onConfirm}
+          onCancel={() => setConfirmacion(null)}
+        />
+      )}
     </div>
   );
 };
