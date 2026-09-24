@@ -4,8 +4,9 @@
 // 1. DATASOURCE - Configuración de la base de datos
 // ============================================
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // ============================================
@@ -69,7 +70,7 @@ model Docente {
   salones          DocenteSalon[]
   avisos           Aviso[]
   materiales       Material[]
-  horarios         Horario[] // ✅ NUEVO: relación con horarios
+  horarios         Horario[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
@@ -145,7 +146,7 @@ model Tarea {
   descripcion  String?
   fechaEntrega String
   estado       String   @default("pendiente")
-  tipo         String   @default("tarea") // tarea | aviso | material
+  tipo         String   @default("tarea")
   recursos     String?
   objetivos    String?
   ponderacion  String?
@@ -323,9 +324,9 @@ model EstudiantePlanEvaluacion {
 // ----- MODELO HORARIO -----
 model Horario {
   id            String   @id @default(cuid())
-  diaSemana     String // "Lunes", "Martes", "Miércoles", "Jueves", "Viernes"
-  horaInicio    String // Formato "HH:MM" (ej: "07:00")
-  horaFin       String // Formato "HH:MM" (ej: "08:00")
+  diaSemana     String
+  horaInicio    String
+  horaFin       String
   materia       String
   docenteId     String
   docente       Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)

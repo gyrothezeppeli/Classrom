@@ -5,22 +5,17 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// URL fija
-const DATABASE_URL = "postgresql://postgres:1234@localhost:5432/classroom";
-
-// Sobrescribir la variable de entorno
-process.env.DATABASE_URL = DATABASE_URL;
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  datasourceUrl: DATABASE_URL,
-  log: ['query', 'info', 'warn', 'error'],
-});
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+  });
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-// Función para verificar conexión
+// Función para verificar conexión (opcional)
 export async function testConnection() {
   try {
     await prisma.$connect();
