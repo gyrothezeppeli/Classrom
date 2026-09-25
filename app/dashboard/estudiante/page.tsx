@@ -42,6 +42,8 @@ import {
   Clock,
   Filter,
   GraduationCap,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const PALETTE = {
@@ -268,6 +270,9 @@ const EstudianteDashboard: React.FC = () => {
     descripcion: string;
     onConfirm: () => void;
   } | null>(null);
+
+  // ✅ Estado para el colapsable de datos del estudiante en móvil
+  const [datosAbiertos, setDatosAbiertos] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -748,13 +753,13 @@ const EstudianteDashboard: React.FC = () => {
               </p>
             </div>
 
-            {/* Datos del estudiante */}
-            <div className={`grid gap-3 ${isMobile ? 'grid-cols-1' : 'grid-cols-4'}`}>
-              <DataCard icon={<Mail className="w-4 h-4" />} label="Correo" value={estudiante.correoElectronico || 'No registrado'} />
-              <DataCard icon={<IdCard className="w-4 h-4" />} label="Cédula" value={estudiante.cedulaIdentidad || 'No registrada'} />
-              <DataCard icon={<Phone className="w-4 h-4" />} label="Teléfono" value={estudiante.telefono || 'No registrado'} />
-              <DataCard icon={<GraduationCap className="w-4 h-4" />} label="Nivel" value={estudiante.nivel ? estudiante.nivel.charAt(0).toUpperCase() + estudiante.nivel.slice(1) : 'No asignado'} />
-            </div>
+            {/* ✅ Datos del estudiante: colapsable en móvil, grid en escritorio */}
+            <DatosEstudianteColapsable
+              estudiante={estudiante}
+              isMobile={isMobile}
+              datosAbiertos={datosAbiertos}
+              setDatosAbiertos={setDatosAbiertos}
+            />
 
             {/* STATS */}
             <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
@@ -908,6 +913,111 @@ const EstudianteDashboard: React.FC = () => {
           onCancel={() => setConfirmacion(null)}
         />
       )}
+    </div>
+  );
+};
+
+// ============================================
+// DatosEstudianteColapsable
+// ============================================
+const DatosEstudianteColapsable: React.FC<{
+  estudiante: Estudiante;
+  isMobile: boolean;
+  datosAbiertos: boolean;
+  setDatosAbiertos: (v: boolean) => void;
+}> = ({ estudiante, isMobile, datosAbiertos, setDatosAbiertos }) => {
+  const datos = [
+    {
+      icon: <Mail className="w-4 h-4" />,
+      label: 'Correo',
+      value: estudiante.correoElectronico || 'No registrado',
+    },
+    {
+      icon: <IdCard className="w-4 h-4" />,
+      label: 'Cédula',
+      value: estudiante.cedulaIdentidad || 'No registrada',
+    },
+    {
+      icon: <Phone className="w-4 h-4" />,
+      label: 'Teléfono',
+      value: estudiante.telefono || 'No registrado',
+    },
+    {
+      icon: <GraduationCap className="w-4 h-4" />,
+      label: 'Nivel',
+      value: estudiante.nivel
+        ? estudiante.nivel.charAt(0).toUpperCase() + estudiante.nivel.slice(1)
+        : 'No asignado',
+    },
+  ];
+
+  // ============ ESCRITORIO: grid normal ============
+  if (!isMobile) {
+    return (
+      <div className="grid gap-3 grid-cols-4">
+        {datos.map((d) => (
+          <DataCard key={d.label} icon={d.icon} label={d.label} value={d.value} />
+        ))}
+      </div>
+    );
+  }
+
+  // ============ MÓVIL: acordeón colapsable ============
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setDatosAbiertos(!datosAbiertos)}
+        className="w-full flex items-center justify-between px-4 py-3.5 text-left transition-colors hover:bg-white/5 active:bg-white/10"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+            <User className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div className="flex flex-col leading-tight">
+            <span className="text-white font-semibold text-sm">Mis datos</span>
+            <span className="text-white/50 text-[0.7rem]">
+              {estudiante.grado || '?'}° Grado • Sección {estudiante.seccion || ''}
+            </span>
+          </div>
+        </div>
+        <div className="text-emerald-400 transition-transform duration-300">
+          {datosAbiertos ? (
+            <ChevronUp className="w-5 h-5" />
+          ) : (
+            <ChevronDown className="w-5 h-5" />
+          )}
+        </div>
+      </button>
+
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: datosAbiertos ? '500px' : '0px',
+          opacity: datosAbiertos ? 1 : 0,
+        }}
+      >
+        <div className="px-4 pb-4 pt-1 space-y-2 border-t border-white/5">
+          {datos.map((d) => (
+            <div
+              key={d.label}
+              className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-3.5 py-3"
+            >
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                {d.icon}
+              </div>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-emerald-400/80 text-[0.6rem] uppercase tracking-wider font-semibold">
+                  {d.label}
+                </span>
+                <span className="text-white text-sm font-semibold truncate">
+                  {d.value}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
