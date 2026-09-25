@@ -1154,7 +1154,7 @@ const MateriaGrid: React.FC<{
   }
 
   // ============================================
-  // VISTA ESCRITORIO: Formato original (sin cambios)
+  // VISTA ESCRITORIO: Formato original con colores de materia
   // ============================================
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 w-full">
@@ -1170,32 +1170,43 @@ const MateriaGrid: React.FC<{
           <div
             key={materia.id}
             onClick={() => onSelectMateria(materia)}
-            className="liquid-materia-card border border-white/10 rounded-2xl cursor-pointer relative overflow-hidden"
+            className="relative border border-white/10 rounded-2xl cursor-pointer overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_15px_40px_rgba(0,0,0,0.4)]"
             style={{
+              background: `linear-gradient(160deg, ${materia.color}dd 0%, ${materia.color}88 50%, ${materia.color}44 100%)`,
               borderTopColor: materia.color,
               borderTopWidth: '4px',
               animationDelay: `${index * 60}ms`
             }}
           >
-            <div className="p-5">
-              <h3 className="text-white text-lg font-bold mb-1">{materia.nombre}</h3>
-              <p className="text-white/50 text-sm mb-3">
+            {/* Imagen de fondo difuminada */}
+            <div
+              className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-overlay pointer-events-none"
+              style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+            />
+
+            {/* Overlay oscuro degradado */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 pointer-events-none" />
+
+            {/* Contenido */}
+            <div className="relative z-10 p-5">
+              <h3 className="text-white text-lg font-bold mb-1 drop-shadow-lg">{materia.nombre}</h3>
+              <p className="text-white/70 text-sm mb-3 drop-shadow">
                 {materia.profesor || 'Sin profesor asignado'}
               </p>
 
               <div className="flex gap-2 flex-wrap mb-3">
                 {tieneTareas && (
-                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                  <Badge className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30">
                     {materia.tareasPendientes.length} {materia.tareasPendientes.length === 1 ? 'tarea' : 'tareas'}
                   </Badge>
                 )}
                 {tieneAvisos && (
-                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                  <Badge className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30">
                     {materia.avisos.length} {materia.avisos.length === 1 ? 'aviso' : 'avisos'}
                   </Badge>
                 )}
                 {tieneMateriales && (
-                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                  <Badge className="bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30">
                     {materia.materiales.length} {materia.materiales.length === 1 ? 'material' : 'materiales'}
                   </Badge>
                 )}
@@ -1203,8 +1214,8 @@ const MateriaGrid: React.FC<{
                   <Badge
                     className={
                       planesNuevos > 0
-                        ? "bg-red-500/15 text-red-400 border-red-500/30 hover:bg-red-500/20"
-                        : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                        ? "bg-red-500/80 backdrop-blur-sm text-white border-red-400/50 hover:bg-red-500/90"
+                        : "bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30"
                     }
                   >
                     {planesNuevos > 0 ? `${planesNuevos} nuevos` : `${materia.planEvaluacion.length} planes`}
@@ -1215,10 +1226,10 @@ const MateriaGrid: React.FC<{
               {tienePlanes && primerPlan && (
                 <Button
                   onClick={(e) => { e.stopPropagation(); onSelectPlan(primerPlan); }}
-                  className={`w-full font-semibold rounded-xl ${
+                  className={`w-full font-semibold rounded-xl backdrop-blur-sm ${
                     planesNuevos > 0
-                      ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25 border border-red-500/30'
-                      : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/40'
+                      ? 'bg-red-500/25 text-white hover:bg-red-500/40 border border-red-400/40'
+                      : 'bg-white/20 text-white hover:bg-white/30 border border-white/30'
                   }`}
                   variant="outline"
                 >
