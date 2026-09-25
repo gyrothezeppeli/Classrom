@@ -246,6 +246,17 @@ const coincideSeccion = (a: string, b: string) => {
   return na === nb || na === `seccion ${nb}` || `seccion ${na}` === nb;
 };
 
+// ✅ NUEVA: Detecta si el nivel es "media" para usar "Año" en vez de "Grado"
+const esNivelMedia = (nivel: string): boolean => {
+  const n = normalizarTexto(nivel);
+  return ['media', 'bachillerato', 'educacion media'].includes(n);
+};
+
+// ✅ NUEVA: Devuelve la etiqueta correcta ("Grado" o "Año") según el nivel
+const etiquetaGrado = (nivel: string): string => {
+  return esNivelMedia(nivel) ? 'Año' : 'Grado';
+};
+
 // ============================================
 // Componente principal
 // ============================================
@@ -691,6 +702,9 @@ const EstudianteDashboard: React.FC = () => {
 
   const nombreCompleto = `${estudiante.nombres || ''} ${estudiante.apellidos || ''}`.trim() || 'Estudiante';
 
+  // ✅ Etiqueta dinámica: "Año" para media, "Grado" para el resto
+  const etiqueta = etiquetaGrado(estudiante.nivel);
+
   return (
     <div
       className="min-h-screen relative text-white overflow-x-hidden"
@@ -712,7 +726,7 @@ const EstudianteDashboard: React.FC = () => {
           <div className="flex flex-col leading-tight">
             <span className="font-semibold text-sm">{nombreCompleto}</span>
             <span className="text-gray-400 text-[0.7rem]">
-              {estudiante.grado || '?'}° Grado • Sección {estudiante.seccion || ''}
+              {estudiante.grado || '?'}° {etiqueta} • Sección {estudiante.seccion || ''}
             </span>
           </div>
         </div>
@@ -951,6 +965,9 @@ const DatosEstudianteColapsable: React.FC<{
     },
   ];
 
+  // ✅ Etiqueta dinámica: "Año" para media, "Grado" para el resto
+  const etiqueta = etiquetaGrado(estudiante.nivel);
+
   // ============ ESCRITORIO: grid normal ============
   if (!isMobile) {
     return (
@@ -977,7 +994,7 @@ const DatosEstudianteColapsable: React.FC<{
           <div className="flex flex-col leading-tight">
             <span className="text-white font-semibold text-sm">Mis datos</span>
             <span className="text-white/50 text-[0.7rem]">
-              {estudiante.grado || '?'}° Grado • Sección {estudiante.seccion || ''}
+              {estudiante.grado || '?'}° {etiqueta} • Sección {estudiante.seccion || ''}
             </span>
           </div>
         </div>
