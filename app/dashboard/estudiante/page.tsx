@@ -864,6 +864,7 @@ const EstudianteDashboard: React.FC = () => {
                   materias={materiasFiltradas}
                   onSelectMateria={setSelectedMateria}
                   onSelectPlan={setSelectedPlan}
+                  isMobile={isMobile}
                 />
               )}
             </div>
@@ -946,11 +947,105 @@ const MateriaGrid: React.FC<{
   materias: MateriaConPlanes[];
   onSelectMateria: (materia: MateriaConPlanes) => void;
   onSelectPlan: (plan: PlanEvaluacion) => void;
-}> = ({ materias, onSelectMateria, onSelectPlan }) => {
+  isMobile: boolean;
+}> = ({ materias, onSelectMateria, onSelectPlan, isMobile }) => {
   const getPlanesNuevos = (planes: PlanEvaluacion[]) => {
     return planes.filter((p: PlanEvaluacion) => p.visto === false).length;
   };
 
+  // ============================================
+  // VISTA MÓVIL: Formato de tarjetas estilo grid 2 columnas
+  // ============================================
+  if (isMobile) {
+    return (
+      <div className="grid grid-cols-2 gap-3 w-full">
+        {materias.map((materia, index) => {
+          const planesNuevos = getPlanesNuevos(materia.planEvaluacion);
+          const tienePlanes = materia.planEvaluacion.length > 0;
+          const tieneTareas = materia.tareasPendientes.length > 0;
+          const tieneAvisos = materia.avisos.length > 0;
+          const tieneMateriales = materia.materiales.length > 0;
+          const primerPlan = tienePlanes ? materia.planEvaluacion[0] : null;
+
+          return (
+            <div
+              key={materia.id}
+              onClick={() => onSelectMateria(materia)}
+              className="relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+              style={{
+                aspectRatio: '1 / 1.15',
+                background: `linear-gradient(160deg, ${materia.color}dd 0%, ${materia.color}88 50%, ${materia.color}44 100%)`,
+                animationDelay: `${index * 60}ms`
+              }}
+            >
+              {/* Imagen de fondo difuminada */}
+              <div
+                className="absolute inset-0 bg-cover bg-center opacity-25 mix-blend-overlay"
+                style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+              />
+
+              {/* Overlay oscuro degradado */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+              {/* Contenido */}
+              <div className="relative z-10 h-full flex flex-col justify-between p-4">
+                {/* Badges superiores */}
+                <div className="flex justify-end">
+                  {planesNuevos > 0 && (
+                    <span className="bg-red-500 text-white text-[0.65rem] font-bold px-2 py-0.5 rounded-full shadow-lg">
+                      {planesNuevos} nuevo{planesNuevos > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Información inferior */}
+                <div>
+                  <h3 className="text-white text-base font-bold leading-tight mb-1 drop-shadow-lg">
+                    {materia.nombre}
+                  </h3>
+                  <p className="text-white/70 text-[0.7rem] leading-tight mb-2 line-clamp-2 drop-shadow">
+                    {materia.profesor || 'Sin profesor asignado'}
+                  </p>
+
+                  {/* Mini badges de contenido */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {tieneTareas && (
+                      <span className="bg-white/20 backdrop-blur-sm text-white text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md">
+                        {materia.tareasPendientes.length} tarea{materia.tareasPendientes.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {tieneAvisos && (
+                      <span className="bg-white/20 backdrop-blur-sm text-white text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md">
+                        {materia.avisos.length} aviso{materia.avisos.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {tieneMateriales && (
+                      <span className="bg-white/20 backdrop-blur-sm text-white text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md">
+                        {materia.materiales.length} mat.
+                      </span>
+                    )}
+                    {tienePlanes && (
+                      <span className={`text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md ${
+                        planesNuevos > 0
+                          ? 'bg-red-500/80 text-white'
+                          : 'bg-white/20 backdrop-blur-sm text-white'
+                      }`}>
+                        {planesNuevos > 0 ? `${planesNuevos} nuevo${planesNuevos > 1 ? 's' : ''}` : `${materia.planEvaluacion.length} plan${materia.planEvaluacion.length > 1 ? 'es' : ''}`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ============================================
+  // VISTA ESCRITORIO: Formato original (sin cambios)
+  // ============================================
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 w-full">
       {materias.map((materia, index) => {
