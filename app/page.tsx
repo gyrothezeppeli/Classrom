@@ -269,6 +269,43 @@ const AuthPage: React.FC = () => {
     }
   };
 
+  // ✅ NUEVO: Manejador para campos que solo aceptan números (con caracteres permitidos)
+  const handleNumericChange = (
+    campo: string,
+    valor: string,
+    permitirLetras: boolean = false,
+    permitirGuion: boolean = false,
+    permitirMas: boolean = false
+  ) => {
+    let filtrado = valor;
+
+    if (permitirLetras) {
+      // Permitir letras V, E, J (mayúsculas y minúsculas), números, guiones y +
+      if (permitirGuion && permitirMas) {
+        filtrado = valor.replace(/[^VEJvej0-9\-+]/g, '');
+      } else if (permitirGuion) {
+        filtrado = valor.replace(/[^VEJvej0-9\-]/g, '');
+      } else if (permitirMas) {
+        filtrado = valor.replace(/[^VEJvej0-9+]/g, '');
+      } else {
+        filtrado = valor.replace(/[^VEJvej0-9]/g, '');
+      }
+    } else {
+      // Solo números (y opcionalmente + y -)
+      if (permitirGuion && permitirMas) {
+        filtrado = valor.replace(/[^0-9\-+]/g, '');
+      } else if (permitirGuion) {
+        filtrado = valor.replace(/[^0-9\-]/g, '');
+      } else if (permitirMas) {
+        filtrado = valor.replace(/[^0-9+]/g, '');
+      } else {
+        filtrado = valor.replace(/[^0-9]/g, '');
+      }
+    }
+
+    handleChange(campo, filtrado);
+  };
+
   const niveles = [
     { value: 'preescolar', label: 'Preescolar' },
     { value: 'primaria', label: 'Primaria' },
@@ -561,12 +598,16 @@ const AuthPage: React.FC = () => {
                     )}
                   </div>
 
+                  {/* ✅ CÉDULA: solo números + V, E, J y guion */}
                   <div>
                     <input
                       type="text"
+                      inputMode="numeric"
                       placeholder="Cédula de identidad *"
                       value={formData.cedula}
-                      onChange={(e) => handleChange('cedula', e.target.value)}
+                      onChange={(e) =>
+                        handleNumericChange('cedula', e.target.value, true, true, false)
+                      }
                       onBlur={() => handleBlur('cedula')}
                       disabled={loading}
                       className={errores.cedula ? inputNoIconErrorClass : inputNoIconClass}
@@ -688,12 +729,16 @@ const AuthPage: React.FC = () => {
                     </>
                   )}
 
+                  {/* ✅ TELÉFONO: solo números, + y guion */}
                   <div>
                     <input
                       type="text"
+                      inputMode="tel"
                       placeholder="Teléfono"
                       value={formData.telefono}
-                      onChange={(e) => handleChange('telefono', e.target.value)}
+                      onChange={(e) =>
+                        handleNumericChange('telefono', e.target.value, false, true, true)
+                      }
                       onBlur={() => handleBlur('telefono')}
                       disabled={loading}
                       className={errores.telefono ? inputNoIconErrorClass : inputNoIconClass}
