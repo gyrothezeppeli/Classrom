@@ -197,6 +197,15 @@ const EditTasksPage: React.FC = () => {
     onConfirm: () => void;
   } | null>(null);
 
+  // ✅ Estado para detectar móvil
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [planActual, setPlanActual] = useState<PlanEvaluacion>({
     id: '',
     areaFormacion: '',
@@ -2021,16 +2030,34 @@ const EditTasksPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_340px] gap-6">
+          <div className={`grid grid-cols-1 ${isMobile ? '' : 'lg:grid-cols-[280px_1fr_340px]'} gap-6`}>
             
+            {/* ✅ VISTA MÓVIL: Filtros compactos arriba */}
+            {isMobile && (
+              <FiltrosPublicacionMovil
+                niveles={niveles}
+                nivelSeleccionado={nivelSeleccionado}
+                onNivelChange={handleNivelChange}
+                gradosActuales={gradosActuales}
+                gradoSeleccionado={gradoSeleccionado}
+                onGradoChange={(v) => {
+                  setGradoSeleccionado(v);
+                  setSeccionSeleccionada('');
+                }}
+                seccionesActuales={seccionesActuales}
+                seccionSeleccionada={seccionSeleccionada}
+                onSeccionChange={setSeccionSeleccionada}
+              />
+            )}
+
             {/* ============ BARRA LATERAL IZQUIERDA: TIPO DE CONTENIDO ============ */}
-            <div>
+            <div className={isMobile ? 'order-2' : ''}>
               <Card className="bg-black/20 border-white/5 backdrop-blur">
                 <CardContent className="p-5">
                   <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
                     Tipo de Contenido
                   </h3>
-                  <div className="space-y-2">
+                  <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'space-y-2'}`}>
                     {TIPOS_CONTENIDO.map((tipo) => {
                       const IconComponent = tipo.icon;
                       return (
@@ -2058,7 +2085,7 @@ const EditTasksPage: React.FC = () => {
             </div>
 
             {/* ============ FORMULARIO CENTRAL ============ */}
-            <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+            <Card className={`bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl ${isMobile ? 'order-3' : ''}`}>
               <CardContent className="p-6">
                 <form onSubmit={handlePublicar} className="flex flex-col gap-5">
                   {tipoContenido !== 'plan_evaluacion' && (
@@ -2121,84 +2148,86 @@ const EditTasksPage: React.FC = () => {
               </CardContent>
             </Card>
 
-            {/* ============ BARRA LATERAL DERECHA: NIVEL/GRADO/SECCIÓN ============ */}
-            <div className="flex flex-col gap-5">
-              <Card className="bg-black/20 border-white/5 backdrop-blur">
-                <CardContent className="p-5">
-                  <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
-                    Nivel de Publicación
-                  </h3>
-                  <div className="space-y-2">
-                    {niveles.map((nivel) => (
-                      <button
-                        key={nivel.id}
-                        onClick={() => handleNivelChange(nivel.id)}
-                        className={`w-full text-left p-4 rounded-xl border transition ${
-                          nivelSeleccionado === nivel.id
-                            ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
-                            : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <span className="font-bold text-sm">{nivel.nombre}</span>
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {gradosActuales.length > 0 && (
+            {/* ============ BARRA LATERAL DERECHA: NIVEL/GRADO/SECCIÓN (solo escritorio) ============ */}
+            {!isMobile && (
+              <div className="flex flex-col gap-5">
                 <Card className="bg-black/20 border-white/5 backdrop-blur">
                   <CardContent className="p-5">
                     <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
-                      Grado / Año
+                      Nivel de Publicación
                     </h3>
                     <div className="space-y-2">
-                      {gradosActuales.map((grado) => (
+                      {niveles.map((nivel) => (
                         <button
-                          key={grado.id}
-                          onClick={() => {
-                            setGradoSeleccionado(grado.id);
-                            setSeccionSeleccionada('');
-                          }}
-                          className={`w-full text-left p-3 rounded-lg border transition ${
-                            gradoSeleccionado === grado.id
+                          key={nivel.id}
+                          onClick={() => handleNivelChange(nivel.id)}
+                          className={`w-full text-left p-4 rounded-xl border transition ${
+                            nivelSeleccionado === nivel.id
                               ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
                               : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
                           }`}
                         >
-                          <span className="font-semibold text-sm">{grado.nombre}</span>
+                          <span className="font-bold text-sm">{nivel.nombre}</span>
                         </button>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
-              )}
 
-              {seccionesActuales.length > 0 && nivelSeleccionado !== 'inicial' && (
-                <Card className="bg-black/20 border-white/5 backdrop-blur">
-                  <CardContent className="p-5">
-                    <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
-                      Sección
-                    </h3>
-                    <div className="grid grid-cols-3 gap-2">
-                      {seccionesActuales.map((seccion) => (
-                        <button
-                          key={seccion}
-                          onClick={() => setSeccionSeleccionada(seccion)}
-                          className={`p-3 rounded-lg font-bold text-center transition border ${
-                            seccionSeleccionada === seccion
-                              ? 'bg-emerald-500 text-emerald-950 border-emerald-500'
-                              : 'bg-black/30 text-white border-white/10 hover:bg-white/5'
-                          }`}
-                        >
-                          {seccion}
-                        </button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+                {gradosActuales.length > 0 && (
+                  <Card className="bg-black/20 border-white/5 backdrop-blur">
+                    <CardContent className="p-5">
+                      <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                        Grado / Año
+                      </h3>
+                      <div className="space-y-2">
+                        {gradosActuales.map((grado) => (
+                          <button
+                            key={grado.id}
+                            onClick={() => {
+                              setGradoSeleccionado(grado.id);
+                              setSeccionSeleccionada('');
+                            }}
+                            className={`w-full text-left p-3 rounded-lg border transition ${
+                              gradoSeleccionado === grado.id
+                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-400'
+                                : 'border-white/10 bg-black/30 text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <span className="font-semibold text-sm">{grado.nombre}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {seccionesActuales.length > 0 && nivelSeleccionado !== 'inicial' && (
+                  <Card className="bg-black/20 border-white/5 backdrop-blur">
+                    <CardContent className="p-5">
+                      <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
+                        Sección
+                      </h3>
+                      <div className="grid grid-cols-3 gap-2">
+                        {seccionesActuales.map((seccion) => (
+                          <button
+                            key={seccion}
+                            onClick={() => setSeccionSeleccionada(seccion)}
+                            className={`p-3 rounded-lg font-bold text-center transition border ${
+                              seccionSeleccionada === seccion
+                                ? 'bg-emerald-500 text-emerald-950 border-emerald-500'
+                                : 'bg-black/30 text-white border-white/10 hover:bg-white/5'
+                            }`}
+                          >
+                            {seccion}
+                          </button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
 
           </div>
         )}
@@ -2215,6 +2244,141 @@ const EditTasksPage: React.FC = () => {
         />
       )}
     </div>
+  );
+};
+
+// ============================================
+// ✅ Componente de filtros compactos para móvil
+// ============================================
+const FiltrosPublicacionMovil: React.FC<{
+  niveles: { id: string; nombre: string }[];
+  nivelSeleccionado: string;
+  onNivelChange: (id: string) => void;
+  gradosActuales: { id: string; nombre: string }[];
+  gradoSeleccionado: string;
+  onGradoChange: (v: string) => void;
+  seccionesActuales: string[];
+  seccionSeleccionada: string;
+  onSeccionChange: (v: string) => void;
+}> = ({
+  niveles,
+  nivelSeleccionado,
+  onNivelChange,
+  gradosActuales,
+  gradoSeleccionado,
+  onGradoChange,
+  seccionesActuales,
+  seccionSeleccionada,
+  onSeccionChange,
+}) => {
+  const esInicial = nivelSeleccionado === 'inicial';
+
+  return (
+    <Card className="bg-black/30 border-white/10 backdrop-blur order-1">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[0.7rem] font-bold text-emerald-400 uppercase tracking-wider">
+            Publicar en
+          </span>
+        </div>
+
+        <div className={`grid gap-2 ${esInicial ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {/* Nivel */}
+          <div>
+            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">
+              Nivel
+            </Label>
+            <Select value={nivelSeleccionado} onValueChange={(v) => v && onNivelChange(v)}>
+              <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-xs">
+                <SelectValue placeholder="Nivel" />
+              </SelectTrigger>
+              <SelectContent>
+                {niveles.map((n) => (
+                  <SelectItem key={n.id} value={n.id}>
+                    {n.nombre.replace('Educación ', '')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Grado/Año */}
+          <div>
+            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">
+              {esInicial ? 'Nivel' : 'Grado/Año'}
+            </Label>
+            <Select
+              value={gradoSeleccionado || 'none'}
+              onValueChange={(v) => v && v !== 'none' && onGradoChange(v)}
+            >
+              <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-xs">
+                <SelectValue placeholder="Seleccionar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none" disabled>
+                  Seleccionar
+                </SelectItem>
+                {gradosActuales.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    {g.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sección (solo si no es inicial) */}
+          {!esInicial && (
+            <div>
+              <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">
+                Sección
+              </Label>
+              <Select
+                value={seccionSeleccionada || 'none'}
+                onValueChange={(v) => v && v !== 'none' && onSeccionChange(v)}
+                disabled={!gradoSeleccionado}
+              >
+                <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-xs">
+                  <SelectValue placeholder="Sección" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" disabled>
+                    Seleccionar
+                  </SelectItem>
+                  {seccionesActuales.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      Sección {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Indicador de selección actual */}
+        {(gradoSeleccionado || seccionSeleccionada) && (
+          <div className="mt-3 pt-3 border-t border-white/5 flex flex-wrap gap-1.5">
+            {gradoSeleccionado && (
+              <span className="text-[0.65rem] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold">
+                {niveles.find((n) => n.id === nivelSeleccionado)?.nombre.replace('Educación ', '')}
+              </span>
+            )}
+            {gradoSeleccionado && (
+              <span className="text-[0.65rem] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold">
+                {gradosActuales.find((g) => g.id === gradoSeleccionado)?.nombre}
+              </span>
+            )}
+            {seccionSeleccionada && (
+              <span className="text-[0.65rem] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold">
+                Sección {seccionSeleccionada}
+              </span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
