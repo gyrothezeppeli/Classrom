@@ -6,6 +6,7 @@ import { Providers } from './providers';
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from 'sileo';
+import { RegistrarSW } from '@/components/RegistrarSW';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -25,12 +26,10 @@ export default function RootLayout({
   return (
     <html lang="es" className={cn("dark font-sans", geist.variable)}>
       <head>
-        {/* Font Awesome */}
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0/css/all.min.css"
         />
-        {/* Google Fonts */}
         <link
           href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Montserrat:wght@400;700&display=swap"
           rel="stylesheet"
@@ -38,6 +37,7 @@ export default function RootLayout({
       </head>
       <body>
         <Providers>
+          <RegistrarSW />   {/* ✅ NUEVO: registra el Service Worker */}
           {children}
           <Toaster position="top-right" />
         </Providers>

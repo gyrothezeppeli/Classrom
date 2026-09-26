@@ -8,6 +8,7 @@ import { sileo } from 'sileo';
 
 // ============ COMPONENTES PROPIOS ============
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { BotonNotificaciones } from '@/components/BotonNotificaciones';
 
 // ============ SHADCN UI ============
 import { Button } from "@/components/ui/button";
@@ -740,6 +741,10 @@ const EstudianteDashboard: React.FC = () => {
               </span>
             </div>
           )}
+
+          {/* ✅ NUEVO: Botón de notificaciones push */}
+          <BotonNotificaciones />
+
           <Button
             variant="ghost"
             size="sm"
@@ -917,7 +922,7 @@ const EstudianteDashboard: React.FC = () => {
         />
       )}
 
-      {/* ✅ NUEVO: Modal de confirmación */}
+      {/* ✅ Modal de confirmación */}
       {confirmacion?.abierto && (
         <ConfirmDialog
           abierto={confirmacion.abierto}
@@ -965,10 +970,8 @@ const DatosEstudianteColapsable: React.FC<{
     },
   ];
 
-  // ✅ Etiqueta dinámica: "Año" para media, "Grado" para el resto
   const etiqueta = etiquetaGrado(estudiante.nivel);
 
-  // ============ ESCRITORIO: grid normal ============
   if (!isMobile) {
     return (
       <div className="grid gap-3 grid-cols-4">
@@ -979,7 +982,6 @@ const DatosEstudianteColapsable: React.FC<{
     );
   }
 
-  // ============ MÓVIL: acordeón colapsable ============
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden">
       <button
@@ -1080,9 +1082,6 @@ const MateriaGrid: React.FC<{
     return planes.filter((p: PlanEvaluacion) => p.visto === false).length;
   };
 
-  // ============================================
-  // VISTA MÓVIL: Formato de tarjetas estilo grid 2 columnas
-  // ============================================
   if (isMobile) {
     return (
       <div className="grid grid-cols-2 gap-3 w-full">
@@ -1092,7 +1091,6 @@ const MateriaGrid: React.FC<{
           const tieneTareas = materia.tareasPendientes.length > 0;
           const tieneAvisos = materia.avisos.length > 0;
           const tieneMateriales = materia.materiales.length > 0;
-          const primerPlan = tienePlanes ? materia.planEvaluacion[0] : null;
 
           return (
             <div
@@ -1105,18 +1103,13 @@ const MateriaGrid: React.FC<{
                 animationDelay: `${index * 60}ms`
               }}
             >
-              {/* Imagen de fondo difuminada */}
               <div
                 className="absolute inset-0 bg-cover bg-center opacity-25 mix-blend-overlay"
                 style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
               />
-
-              {/* Overlay oscuro degradado */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-              {/* Contenido */}
               <div className="relative z-10 h-full flex flex-col justify-between p-4">
-                {/* Badges superiores */}
                 <div className="flex justify-end">
                   {planesNuevos > 0 && (
                     <span className="bg-red-500 text-white text-[0.65rem] font-bold px-2 py-0.5 rounded-full shadow-lg">
@@ -1125,7 +1118,6 @@ const MateriaGrid: React.FC<{
                   )}
                 </div>
 
-                {/* Información inferior */}
                 <div>
                   <h3 className="text-white text-base font-bold leading-tight mb-1 drop-shadow-lg">
                     {materia.nombre}
@@ -1134,7 +1126,6 @@ const MateriaGrid: React.FC<{
                     {materia.profesor || 'Sin profesor asignado'}
                   </p>
 
-                  {/* Mini badges de contenido */}
                   <div className="flex gap-1.5 flex-wrap">
                     {tieneTareas && (
                       <span className="bg-white/20 backdrop-blur-sm text-white text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md">
@@ -1170,9 +1161,6 @@ const MateriaGrid: React.FC<{
     );
   }
 
-  // ============================================
-  // VISTA ESCRITORIO: Formato original con colores de materia
-  // ============================================
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 w-full">
       {materias.map((materia, index) => {
@@ -1195,16 +1183,12 @@ const MateriaGrid: React.FC<{
               animationDelay: `${index * 60}ms`
             }}
           >
-            {/* Imagen de fondo difuminada */}
             <div
               className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-overlay pointer-events-none"
               style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
             />
-
-            {/* Overlay oscuro degradado */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 pointer-events-none" />
 
-            {/* Contenido */}
             <div className="relative z-10 p-5">
               <h3 className="text-white text-lg font-bold mb-1 drop-shadow-lg">{materia.nombre}</h3>
               <p className="text-white/70 text-sm mb-3 drop-shadow">

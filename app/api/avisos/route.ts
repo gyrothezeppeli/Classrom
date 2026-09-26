@@ -3,6 +3,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { asignarAEstudiantes } from '@/lib/asignar';
+import { enviarNotificacionAEstudiantes } from '@/lib/push';
+
+// ✅ Forzar runtime Node.js
+export const runtime = 'nodejs';
 
 // ============================================
 // GET - Obtener avisos
@@ -143,6 +147,33 @@ export async function POST(request: NextRequest) {
     );
 
     console.log(`✅ Aviso "${nuevoAviso.titulo}" creado y asignado a ${estudiantesAsignados} estudiantes`);
+
+    // ✅ 3. Obtener IDs de estudiantes para notificar
+    const estudiantesAsignadosIds = await prisma.estudianteAviso.findMany({
+      where: { avisoId: nuevoAviso.id },
+      select: { estudianteId: true },
+    });
+
+    // ✅ 4. Enviar notificaciones push en segundo plano
+    if (estudiantesAsignadosIds.length > 0) {
+      enviarNotificacionAEstudiantes(
+        estudiantesAsignadosIds.map((e) => e.estudianteId),
+        {
+          title: `📢 Nuevo Aviso: ${nuevoAviso.materia}`,
+          body: nuevoAviso.titulo,
+          icon: '/assets/img/pc2.jpeg',
+          badge: '/assets/img/pc2.jpeg',
+          url: '/dashboard/estudiante',
+          tag: `aviso-${nuevoAviso.id}`,
+        }
+      )
+        .then((resultado) => {
+          console.log(
+            `📬 Push aviso enviado: ${resultado.exitosas}/${resultado.total} exitosas`
+          );
+        })
+        .catch((err) => console.error('Error enviando push aviso:', err));
+    }
 
     return NextResponse.json({
       id: nuevoAviso.id,

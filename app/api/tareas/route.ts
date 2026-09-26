@@ -4,9 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { enviarNotificacionAEstudiantes } from '@/lib/push';
+
+// ✅ Forzar runtime Node.js (necesario en Vercel para web-push)
+export const runtime = 'nodejs';
 
 // ============================================
-// ✅ NUEVO: Utilidades de normalización
+// Utilidades de normalización
 // ============================================
 const normalizar = (valor: string): string => {
   if (!valor) return '';
@@ -15,7 +19,7 @@ const normalizar = (valor: string): string => {
     .trim()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
+    .replace(/[\s_]+/g, ' ');
 };
 
 const variantesNivel = (nivel: string): string[] => {
@@ -42,6 +46,9 @@ const variantesGrado = (grado: string): string[] => {
     '4to grado': ['4to grado', '4to', '4'],
     '5to grado': ['5to grado', '5to', '5'],
     '6to grado': ['6to grado', '6to', '6'],
+    '1er nivel': ['1er nivel', '1er_nivel', '1ro nivel', '1ro_nivel'],
+    '2do nivel': ['2do nivel', '2do_nivel'],
+    '3er nivel': ['3er nivel', '3er_nivel', '3ro nivel', '3ro_nivel'],
     prekinder: ['prekinder', 'pre-kinder'],
     kinder: ['kinder'],
     preparatorio: ['preparatorio'],
@@ -60,10 +67,20 @@ const coincideGrado = (a: string, b: string) =>
 const coincideSeccion = (a: string, b: string) => {
   const na = normalizar(a);
   const nb = normalizar(b);
+
+  if (
+    na === 'unica' || na === 'única' || na === '' ||
+    nb === 'unica' || nb === 'única' || nb === ''
+  ) {
+    return true;
+  }
+
   return na === nb || na === `seccion ${nb}` || `seccion ${na}` === nb;
 };
 
+// ============================================
 // GET - Obtener tareas
+// ============================================
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -72,6 +89,7 @@ export async function GET(request: NextRequest) {
     const seccion = searchParams.get('seccion');
     const docenteId = searchParams.get('docenteId');
     const estudianteId = searchParams.get('estudianteId');
+    const tipo = searchParams.get('tipo');
 
     const where: any = {};
 
@@ -79,6 +97,7 @@ export async function GET(request: NextRequest) {
     if (grado) where.grado = grado;
     if (seccion) where.seccion = seccion;
     if (docenteId) where.docenteId = docenteId;
+    if (tipo) where.tipo = tipo;
 
     const tareas = await prisma.tarea.findMany({
       where,
@@ -119,6 +138,7 @@ export async function GET(request: NextRequest) {
       descripcion: tarea.descripcion,
       fechaEntrega: tarea.fechaEntrega,
       estado: tarea.estado,
+      tipo: tarea.tipo || 'tarea',
       recursos: tarea.recursos,
       objetivos: tarea.objetivos,
       ponderacion: tarea.ponderacion,
@@ -155,7 +175,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Crear una nueva tarea
+// ============================================
+// POST - Crear una nueva tarea / aviso / material
+// ============================================
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -171,12 +193,13 @@ export async function POST(request: NextRequest) {
       seccion,
       materia,
       docenteId,
-      salonId
+      salonId,
+      tipo
     } = body;
 
-    if (!titulo || !fechaEntrega || !nivel || !grado || !seccion || !materia || !docenteId) {
+    if (!titulo || !fechaEntrega || !nivel || !grado || !materia || !docenteId) {
       return NextResponse.json(
-        { error: 'Faltan campos requeridos: titulo, fechaEntrega, nivel, grado, seccion, materia, docenteId' },
+        { error: 'Faltan campos requeridos: titulo, fechaEntrega, nivel, grado, materia, docenteId' },
         { status: 400 }
       );
     }
@@ -213,19 +236,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ✅ 1. Crear la tarea
+    // ✅ 1. Crear la tarea/aviso/material
     const nuevaTarea = await prisma.tarea.create({
       data: {
         titulo,
         descripcion: descripcion || '',
         fechaEntrega,
         estado: 'pendiente',
+        tipo: tipo || 'tarea',
         recursos: recursos || '',
         objetivos: objetivos || '',
         ponderacion: ponderacion || '',
         nivel,
         grado,
-        seccion,
+        seccion: seccion || 'Única',
         materia,
         docenteId,
         salonId: salonId || null
@@ -246,7 +270,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // ✅ 2. NUEVO: Buscar estudiantes que coincidan con nivel + grado + sección
+    // ✅ 2. Buscar estudiantes que coincidan con nivel + grado + sección
     const todosLosEstudiantes = await prisma.estudiante.findMany();
 
     const estudiantesCoincidentes = todosLosEstudiantes.filter((est) =>
@@ -255,7 +279,7 @@ export async function POST(request: NextRequest) {
       coincideSeccion(nuevaTarea.seccion, est.seccion)
     );
 
-    // ✅ 3. NUEVO: Crear un EstudianteTarea por cada estudiante que coincide
+    // ✅ 3. Crear un EstudianteTarea por cada estudiante que coincide
     if (estudiantesCoincidentes.length > 0) {
       await prisma.estudianteTarea.createMany({
         data: estudiantesCoincidentes.map((est) => ({
@@ -268,15 +292,49 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log(`✅ Tarea "${nuevaTarea.titulo}" creada y asignada a ${estudiantesCoincidentes.length} estudiantes`);
+    console.log(`✅ [${nuevaTarea.tipo}] "${nuevaTarea.titulo}" creado y asignado a ${estudiantesCoincidentes.length} estudiantes`);
+    console.log(`   Nivel: ${nuevaTarea.nivel}, Grado: ${nuevaTarea.grado}, Sección: ${nuevaTarea.seccion}`);
 
-    // ✅ 4. NUEVO: Devolver el número de estudiantes asignados
+    // ✅ 4. Enviar notificaciones push en segundo plano
+    if (estudiantesCoincidentes.length > 0) {
+      const estudianteIds = estudiantesCoincidentes.map((e) => e.id);
+
+      const tipoNombre =
+        nuevaTarea.tipo === 'aviso'
+          ? 'Aviso'
+          : nuevaTarea.tipo === 'material'
+          ? 'Material'
+          : 'Tarea';
+
+      const icono =
+        nuevaTarea.tipo === 'aviso' ? '📢' : nuevaTarea.tipo === 'material' ? '📚' : '📝';
+
+      enviarNotificacionAEstudiantes(estudianteIds, {
+        title: `${icono} Nueva ${tipoNombre}: ${nuevaTarea.materia}`,
+        body:
+          nuevaTarea.tipo === 'tarea'
+            ? `${nuevaTarea.titulo} — Entrega: ${nuevaTarea.fechaEntrega}`
+            : nuevaTarea.titulo,
+        icon: '/assets/img/pc2.jpeg',
+        badge: '/assets/img/pc2.jpeg',
+        url: '/dashboard/estudiante',
+        tag: `tarea-${nuevaTarea.id}`,
+      })
+        .then((resultado) => {
+          console.log(
+            `📬 Push enviado: ${resultado.exitosas}/${resultado.total} exitosas`
+          );
+        })
+        .catch((err) => console.error('Error enviando push:', err));
+    }
+
     const respuesta = {
       id: nuevaTarea.id,
       titulo: nuevaTarea.titulo,
       descripcion: nuevaTarea.descripcion,
       fechaEntrega: nuevaTarea.fechaEntrega,
       estado: nuevaTarea.estado,
+      tipo: nuevaTarea.tipo || 'tarea',
       recursos: nuevaTarea.recursos,
       objetivos: nuevaTarea.objetivos,
       ponderacion: nuevaTarea.ponderacion,

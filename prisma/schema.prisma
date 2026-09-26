@@ -96,6 +96,9 @@ model Estudiante {
   avisos           EstudianteAviso[]
   materiales       EstudianteMaterial[]
 
+  // ✅ NUEVO: Suscripciones push del estudiante
+  pushSubscriptions PushSubscription[]
+
   @@index([userId])
   @@index([cedulaIdentidad])
   @@index([nivel, grado, seccion])
@@ -342,4 +345,23 @@ model Horario {
   @@index([nivel, grado, seccion])
   @@index([diaSemana])
   @@index([anioAcademico])
+}
+
+// ============================================
+// 8. MODELOS DE NOTIFICACIONES PUSH
+// ============================================
+
+// ----- MODELO PUSH_SUBSCRIPTION -----
+model PushSubscription {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  endpoint     String     @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([estudianteId])
 }
