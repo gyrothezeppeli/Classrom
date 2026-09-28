@@ -106,14 +106,15 @@ const SECCIONES_DISPONIBLES = ['A', 'B', 'C', 'D', 'E'];
 
 interface FilaPlan {
   id: string;
-  fecha: string;
+  fechaInicio: string;
+  fechaFin: string;
   referenteTeorico: string;
   estrategiaEvaluacion: string;
   tecnicaEvaluacion: string;
   instrumentoEvaluacion: string;
   ptos: string;
   porcentaje: string;
-  criteriosEvaluacion: string;
+  criteriosEvaluacion: string[];
 }
 
 interface PlanEvaluacion {
@@ -176,7 +177,6 @@ const EditTasksPage: React.FC = () => {
 
   const [nivelSeleccionado, setNivelSeleccionado] = useState<string>('media');
   const [gradoSeleccionado, setGradoSeleccionado] = useState<string>('');
-  // ✅ CAMBIO 1: Ahora es un array de secciones seleccionadas
   const [seccionesSeleccionadas, setSeccionesSeleccionadas] = useState<string[]>([]);
   const [tipoContenido, setTipoContenido] = useState<string>('tarea');
   const [materia, setMateria] = useState<string>('');
@@ -233,7 +233,6 @@ const EditTasksPage: React.FC = () => {
     materia: ''
   });
 
-  // ✅ Secciones del plan actual (array)
   const [planSeccionesSeleccionadas, setPlanSeccionesSeleccionadas] = useState<string[]>([]);
 
   const [planesGuardados, setPlanesGuardados] = useState<PlanEvaluacion[]>([]);
@@ -358,7 +357,22 @@ const EditTasksPage: React.FC = () => {
           areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
           docente: plan.docente || 'Docente',
           ano: plan.ano || plan.grado || '1ro',
-          filas: Array.isArray(plan.filas) ? plan.filas : []
+          filas: Array.isArray(plan.filas)
+            ? plan.filas.map((f: any) => ({
+                id: f.id || `fila-${Date.now()}-${Math.random()}`,
+                fechaInicio: f.fechaInicio || f.fecha || '',
+                fechaFin: f.fechaFin || '',
+                referenteTeorico: f.referenteTeorico || '',
+                estrategiaEvaluacion: f.estrategiaEvaluacion || '',
+                tecnicaEvaluacion: f.tecnicaEvaluacion || '',
+                instrumentoEvaluacion: f.instrumentoEvaluacion || '',
+                ptos: f.ptos || '',
+                porcentaje: f.porcentaje || '',
+                criteriosEvaluacion: Array.isArray(f.criteriosEvaluacion)
+                  ? f.criteriosEvaluacion.filter(Boolean)
+                  : (f.criteriosEvaluacion ? [f.criteriosEvaluacion] : [''])
+              }))
+            : []
         }));
 
         setPlanesGuardados(planesNormalizados);
@@ -494,7 +508,6 @@ const EditTasksPage: React.FC = () => {
     if (nivelSeleccionado && plan.nivel !== nivelSeleccionado) coincide = false;
     if (gradoSeleccionado && plan.grado !== gradoSeleccionado) coincide = false;
 
-    // ✅ CAMBIO: si hay secciones seleccionadas, verificar que alguna coincida
     if (seccionesSeleccionadas.length > 0) {
       const seccionesPlan = parsearSecciones(plan.secciones || (plan as any).seccion || '');
       const hayCoincidencia = seccionesSeleccionadas.some(s => seccionesPlan.includes(s));
@@ -512,7 +525,6 @@ const EditTasksPage: React.FC = () => {
     setVistaPreviaPlan(null);
   };
 
-  // ✅ NUEVO: Toggle de sección (selección múltiple)
   const toggleSeccion = (seccion: string) => {
     setSeccionesSeleccionadas(prev => {
       if (prev.includes(seccion)) {
@@ -575,7 +587,7 @@ const EditTasksPage: React.FC = () => {
         endpoint = '/api/avisos';
         payload = {
           titulo: contenido.titulo.trim(),
-          descripcion: contenido.descripcion || '',   // ✅ Ya es opcional por defecto
+          descripcion: contenido.descripcion || '',
           fecha: fechaFinal,
           nivel: nivelSeleccionado,
           grado: gradoSeleccionado,
@@ -665,14 +677,15 @@ const EditTasksPage: React.FC = () => {
   const agregarFila = () => {
     const nuevaFila: FilaPlan = {
       id: `fila-${Date.now()}`,
-      fecha: '',
+      fechaInicio: '',
+      fechaFin: '',
       referenteTeorico: '',
       estrategiaEvaluacion: '',
       tecnicaEvaluacion: '',
       instrumentoEvaluacion: '',
       ptos: '',
       porcentaje: '',
-      criteriosEvaluacion: ''
+      criteriosEvaluacion: ['']
     };
     setPlanActual({
       ...planActual,
@@ -692,6 +705,50 @@ const EditTasksPage: React.FC = () => {
       ...planActual,
       filas: planActual.filas.map(fila =>
         fila.id === id ? { ...fila, [campo]: valor } : fila
+      )
+    });
+  };
+
+  // ✅ Agregar un criterio vacío a una fila
+  const agregarCriterio = (filaId: string) => {
+    setPlanActual({
+      ...planActual,
+      filas: planActual.filas.map(fila =>
+        fila.id === filaId
+          ? { ...fila, criteriosEvaluacion: [...fila.criteriosEvaluacion, ''] }
+          : fila
+      )
+    });
+  };
+
+  // ✅ Actualizar un criterio específico
+  const actualizarCriterio = (filaId: string, index: number, valor: string) => {
+    setPlanActual({
+      ...planActual,
+      filas: planActual.filas.map(fila =>
+        fila.id === filaId
+          ? {
+              ...fila,
+              criteriosEvaluacion: fila.criteriosEvaluacion.map((c, i) =>
+                i === index ? valor : c
+              )
+            }
+          : fila
+      )
+    });
+  };
+
+  // ✅ Eliminar un criterio
+  const eliminarCriterio = (filaId: string, index: number) => {
+    setPlanActual({
+      ...planActual,
+      filas: planActual.filas.map(fila =>
+        fila.id === filaId
+          ? {
+              ...fila,
+              criteriosEvaluacion: fila.criteriosEvaluacion.filter((_, i) => i !== index)
+            }
+          : fila
       )
     });
   };
@@ -841,7 +898,6 @@ const EditTasksPage: React.FC = () => {
       ...plan,
       filas: Array.isArray(plan.filas) ? plan.filas : []
     });
-    // ✅ Cargar las secciones del plan en el array
     setPlanSeccionesSeleccionadas(parsearSecciones(plan.secciones));
     setModoEdicionPlan(true);
     setPlanEditandoId(plan.id);
@@ -990,20 +1046,23 @@ const EditTasksPage: React.FC = () => {
 
       const tableData = filas.map((fila, index) => [
         (index + 1).toString(),
-        fila.fecha || '-',
+        fila.fechaInicio || '-',
+        fila.fechaFin || '-',
         fila.referenteTeorico || '-',
         fila.estrategiaEvaluacion || '-',
         fila.tecnicaEvaluacion || '-',
         fila.instrumentoEvaluacion || '-',
         fila.ptos || '-',
         fila.porcentaje || '-',
-        fila.criteriosEvaluacion || '-'
+        Array.isArray(fila.criteriosEvaluacion)
+          ? fila.criteriosEvaluacion.filter(Boolean).join('\n')
+          : (fila.criteriosEvaluacion || '-')
       ]);
 
       const tableConfig = {
         startY: yPos + 5,
-        head: [['#', 'FECHA', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS']],
-        body: tableData.length > 0 ? tableData : [['-', '-', '-', 'Sin filas registradas', '-', '-', '-', '-', '-']],
+        head: [['#', 'INICIO', 'FIN', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS']],
+        body: tableData.length > 0 ? tableData : [['-', '-', '-', '-', 'Sin filas registradas', '-', '-', '-', '-', '-']],
         theme: 'grid' as const,
         styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] as [number, number, number] },
         headStyles: {
@@ -1315,7 +1374,8 @@ const EditTasksPage: React.FC = () => {
                 <TableHeader>
                   <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
                     {[
-                      "FECHA",
+                      "FECHA INICIO",
+                      "FECHA FIN",
                       "REFERENTE TEÓRICO-PRÁCTICO",
                       "ESTRATEGIA",
                       "TÉCNICA",
@@ -1336,14 +1396,27 @@ const EditTasksPage: React.FC = () => {
                 <TableBody>
                   {filas.map((fila) => (
                     <TableRow key={fila.id} className="border-white/5 hover:bg-white/5">
-                      <TableCell className="text-center text-white">{fila.fecha || "-"}</TableCell>
-                      <TableCell className="text-white">{fila.referenteTeorico || "-"}</TableCell>
-                      <TableCell className="text-white">{fila.estrategiaEvaluacion || "-"}</TableCell>
-                      <TableCell className="text-white">{fila.tecnicaEvaluacion || "-"}</TableCell>
-                      <TableCell className="text-white">{fila.instrumentoEvaluacion || "-"}</TableCell>
-                      <TableCell className="text-center text-white">{fila.ptos || "-"}</TableCell>
-                      <TableCell className="text-center text-white">{fila.porcentaje || "-"}</TableCell>
-                      <TableCell className="text-white">{fila.criteriosEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-center text-white text-xs">
+                        {fila.fechaInicio || "-"}
+                      </TableCell>
+                      <TableCell className="text-center text-white text-xs">
+                        {fila.fechaFin || "-"}
+                      </TableCell>
+                      <TableCell className="text-white text-xs">{fila.referenteTeorico || "-"}</TableCell>
+                      <TableCell className="text-white text-xs">{fila.estrategiaEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-white text-xs">{fila.tecnicaEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-white text-xs">{fila.instrumentoEvaluacion || "-"}</TableCell>
+                      <TableCell className="text-center text-white text-xs">{fila.ptos || "-"}</TableCell>
+                      <TableCell className="text-center text-white text-xs">{fila.porcentaje || "-"}</TableCell>
+                      <TableCell className="text-white text-xs">
+                        {Array.isArray(fila.criteriosEvaluacion) && fila.criteriosEvaluacion.filter(Boolean).length > 0 ? (
+                          <ul className="list-disc list-inside m-0 p-0">
+                            {fila.criteriosEvaluacion.filter(Boolean).map((c, i) => (
+                              <li key={i}>{c}</li>
+                            ))}
+                          </ul>
+                        ) : "-"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1457,7 +1530,6 @@ const EditTasksPage: React.FC = () => {
             </div>
           </div>
 
-          {/* ✅ Selector de secciones múltiple */}
           {nivelSeleccionado !== "inicial" && (
             <div className="bg-black/30 p-5 rounded-xl border border-white/5">
               {renderSelectorSecciones(
@@ -1478,7 +1550,8 @@ const EditTasksPage: React.FC = () => {
               <TableHeader>
                 <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
                   {[
-                    "FECHA",
+                    "FECHA INICIO",
+                    "FECHA FIN",
                     "REFERENTE",
                     "ESTRATEGIA",
                     "TÉCNICA",
@@ -1500,27 +1573,117 @@ const EditTasksPage: React.FC = () => {
               <TableBody>
                 {planActual.filas.map((fila) => (
                   <TableRow key={fila.id} className="border-white/5">
-                    {(
-                      [
-                        ["fecha", "date"],
-                        ["referenteTeorico", "text"],
-                        ["estrategiaEvaluacion", "text"],
-                        ["tecnicaEvaluacion", "text"],
-                        ["instrumentoEvaluacion", "text"],
-                        ["ptos", "text"],
-                        ["porcentaje", "text"],
-                        ["criteriosEvaluacion", "text"],
-                      ] as [keyof FilaPlan, string][]
-                    ).map(([campo, tipo]) => (
-                      <TableCell key={campo} className="p-1">
-                        <Input
-                          type={tipo}
-                          value={fila[campo] as string}
-                          onChange={(e) => actualizarFila(fila.id, campo, e.target.value)}
-                          className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-20"
-                        />
-                      </TableCell>
-                    ))}
+                    <TableCell className="p-1">
+                      <Input
+                        type="date"
+                        value={fila.fechaInicio}
+                        onChange={(e) => actualizarFila(fila.id, 'fechaInicio', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-32"
+                        placeholder="Inicio"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="date"
+                        value={fila.fechaFin}
+                        onChange={(e) => actualizarFila(fila.id, 'fechaFin', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-32"
+                        placeholder="Fin"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="text"
+                        value={fila.referenteTeorico}
+                        onChange={(e) => actualizarFila(fila.id, 'referenteTeorico', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-20"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="text"
+                        value={fila.estrategiaEvaluacion}
+                        onChange={(e) => actualizarFila(fila.id, 'estrategiaEvaluacion', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-20"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="text"
+                        value={fila.tecnicaEvaluacion}
+                        onChange={(e) => actualizarFila(fila.id, 'tecnicaEvaluacion', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-20"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="text"
+                        value={fila.instrumentoEvaluacion}
+                        onChange={(e) => actualizarFila(fila.id, 'instrumentoEvaluacion', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-20"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="text"
+                        value={fila.ptos}
+                        onChange={(e) => actualizarFila(fila.id, 'ptos', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-16"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1">
+                      <Input
+                        type="text"
+                        value={fila.porcentaje}
+                        onChange={(e) => actualizarFila(fila.id, 'porcentaje', e.target.value)}
+                        className="bg-black/30 border-white/5 text-white text-xs h-8 min-w-16"
+                      />
+                    </TableCell>
+
+                    <TableCell className="p-1 min-w-64">
+                      <div className="flex flex-col gap-1.5">
+                        {fila.criteriosEvaluacion.map((criterio, index) => (
+                          <div key={index} className="flex gap-1 items-center">
+                            <Input
+                              type="text"
+                              value={criterio}
+                              onChange={(e) => actualizarCriterio(fila.id, index, e.target.value)}
+                              placeholder={`Criterio ${index + 1}`}
+                              className="bg-black/30 border-white/5 text-white text-xs h-8 flex-1"
+                            />
+                            {fila.criteriosEvaluacion.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                onClick={() => eliminarCriterio(fila.id, index)}
+                                title="Eliminar criterio"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => agregarCriterio(fila.id)}
+                          className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 h-7 text-[0.65rem] mt-1"
+                        >
+                          <Plus className="mr-1 h-3 w-3" /> Agregar criterio
+                        </Button>
+                      </div>
+                    </TableCell>
+
                     <TableCell className="p-1 text-center">
                       <Button
                         variant="destructive"
@@ -2497,7 +2660,6 @@ const FiltrosPublicacionMovil: React.FC<{
           </div>
         </div>
 
-        {/* ✅ Secciones con selección múltiple */}
         {!esInicial && seccionesActuales.length > 0 && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1.5">
