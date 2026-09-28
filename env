@@ -1,0 +1,11 @@
+DATABASE_URL=postgresql://neondb_owner:npg_rUs2yOzZECd9@ep-round-dream-awyaj35l-pooler.c-12.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+
+DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_rUs2yOzZECd9@ep-round-dream-awyaj35l.c-12.us-east-1.aws.neon.tech/neondb?sslmode=require
+
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=JembwOoclfLtl4Pm8W7z9Gdedf+bHjkkft2Doa+jp2c=
+
+VAPID_PUBLIC_KEY=BNAdthaiX5DoYcW9hJLHk-FhLiHPuCaHMpUsc5ZcHhIYuKaIxSb4iGzi79wilj6BwJ_pdJlBA6nhbw6KNoabaXE
+VAPID_PRIVATE_KEY=JCIIyjclOigYR2TMcvVxHszPTFyF9_ugoqtkX57i1NY
+VAPID_SUBJECT=mailto:dieantuness@gmail.com
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=BNAdthaiX5DoYcW9hJLHk-FhLiHPuCaHMpUsc5ZcHhIYuKaIxSb4iGzi79wilj6BwJ_pdJlBA6nhbw6KNoabaXE
