@@ -61,14 +61,15 @@ const PALETTE = {
 
 interface FilaPlan {
   id: string;
-  fecha: string;
+  fechaInicio: string;
+  fechaFin: string;
   referenteTeorico: string;
   estrategiaEvaluacion: string;
   tecnicaEvaluacion: string;
   instrumentoEvaluacion: string;
   ptos: string;
   porcentaje: string;
-  criteriosEvaluacion: string;
+  criteriosEvaluacion: string[];
 }
 
 interface PlanEvaluacion {
@@ -165,9 +166,6 @@ interface MateriaConPlanes {
 
 type FiltroMaterias = 'todas' | 'novedades' | 'tareas' | 'planes_nuevos';
 
-// ✅ MATERIAS ACTUALIZADAS
-// Eliminadas: Lengua Española, Francés, Filosofía, Arte
-// Agregadas: Castellano, G.H.C, Ciencias de la Tierra, Arte y Patrimonio
 const MATERIAS_BASE = [
   { id: 'mat-001', nombre: 'Castellano', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
   { id: 'mat-002', nombre: 'Matemáticas', profesor: '', horario: '', aula: '', color: '#3b82f6' },
@@ -177,11 +175,16 @@ const MATERIAS_BASE = [
   { id: 'mat-006', nombre: 'Química', profesor: '', horario: '', aula: '', color: '#06b6d4' },
   { id: 'mat-007', nombre: 'Física', profesor: '', horario: '', aula: '', color: '#6366f1' },
   { id: 'mat-008', nombre: 'Inglés', profesor: '', horario: '', aula: '', color: '#ec4899' },
-  { id: 'mat-009', nombre: 'G.H.C', profesor: '', horario: '', aula: '', color: '#a855f7' },
-  { id: 'mat-010', nombre: 'Ciencias de la Tierra', profesor: '', horario: '', aula: '', color: '#84cc16' },
+  { id: 'mat-009', nombre: 'G.H.C', profesor: '', horario: '', aula: '', color: '#f472b6' },
+  { id: 'mat-010', nombre: 'Ciencias de la Tierra', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
   { id: 'mat-011', nombre: 'Educación Física', profesor: '', horario: '', aula: '', color: '#14b8a6' },
   { id: 'mat-012', nombre: 'Arte y Patrimonio', profesor: '', horario: '', aula: '', color: '#f43f5e' },
   { id: 'mat-013', nombre: 'Informática', profesor: '', horario: '', aula: '', color: '#0ea5e9' },
+  { id: 'mat-014', nombre: 'Ciencias Sociales', profesor: '', horario: '', aula: '', color: '#10b981' },
+  { id: 'mat-015', nombre: 'Ciencias Naturales', profesor: '', horario: '', aula: '', color: '#22c55e' },
+  { id: 'mat-016', nombre: 'Educación Artística', profesor: '', horario: '', aula: '', color: '#f43f5e' },
+  { id: 'mat-017', nombre: 'Lenguaje y Comunicación', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
+  { id: 'mat-018', nombre: 'Expresión Artística', profesor: '', horario: '', aula: '', color: '#f472b6' },
 ];
 
 // ============================================
@@ -236,23 +239,10 @@ const coincideGrado = (a: string, b: string) =>
   variantesGrado(a).includes(normalizarTexto(b)) ||
   variantesGrado(b).includes(normalizarTexto(a));
 
-// ✅ ACTUALIZADO: coincideSeccion soporta múltiples secciones "A,B,C"
-const parsearSecciones = (valor: string | string[] | null | undefined): string[] => {
-  if (!valor) return [];
-  if (Array.isArray(valor)) {
-    return valor.map(v => normalizarTexto(v)).filter(Boolean);
-  }
-  return valor
-    .split(',')
-    .map(s => normalizarTexto(s))
-    .filter(Boolean);
-};
-
-const coincideSeccion = (a: string, b: string): boolean => {
+const coincideSeccion = (a: string, b: string) => {
   const na = normalizarTexto(a);
   const nb = normalizarTexto(b);
 
-  // "Única" o vacío → coincide con todo
   if (
     na === 'unica' || na === 'única' || na === '' ||
     nb === 'unica' || nb === 'única' || nb === ''
@@ -260,39 +250,45 @@ const coincideSeccion = (a: string, b: string): boolean => {
     return true;
   }
 
-  // Parsear a arrays (soporta "A,B,C" y "A")
-  const seccionesA = parsearSecciones(a);
-  const seccionesB = parsearSecciones(b);
+  // ✅ Soporte para secciones múltiples: "A,B" se separa en ["a", "b"]
+  const seccionesA = na.split(',').map(s => s.trim());
+  const seccionesB = nb.split(',').map(s => s.trim());
 
-  // Si hay intersección entre ambas listas, coincide
-  const hayInterseccion = seccionesA.some(sa => seccionesB.includes(sa));
-  if (hayInterseccion) return true;
-
-  // Prefijos "seccion a" ↔ "a"
-  for (const sa of seccionesA) {
-    for (const sb of seccionesB) {
-      if (
-        sa === sb ||
-        sa === `seccion ${sb}` ||
-        `seccion ${sa}` === sb
-      ) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return seccionesA.some(sa =>
+    seccionesB.some(sb =>
+      sa === sb || sa === `seccion ${sb}` || `seccion ${sa}` === sb
+    )
+  );
 };
 
-// ✅ Detecta si el nivel es "media" para usar "Año" en vez de "Grado"
+// ✅ NUEVA: Detecta si el nivel es "media" para usar "Año" en vez de "Grado"
 const esNivelMedia = (nivel: string): boolean => {
   const n = normalizarTexto(nivel);
   return ['media', 'bachillerato', 'educacion media'].includes(n);
 };
 
-// ✅ Devuelve la etiqueta correcta ("Grado" o "Año") según el nivel
+// ✅ NUEVA: Devuelve la etiqueta correcta ("Grado" o "Año") según el nivel
 const etiquetaGrado = (nivel: string): string => {
   return esNivelMedia(nivel) ? 'Año' : 'Grado';
+};
+
+// ✅ NUEVA: Normaliza las filas de un plan para compatibilidad con formato viejo
+const normalizarFilas = (filas: any): FilaPlan[] => {
+  if (!Array.isArray(filas)) return [];
+  return filas.map((f: any, i: number) => ({
+    id: f.id || `fila-${Date.now()}-${i}`,
+    fechaInicio: f.fechaInicio || f.fecha || '',
+    fechaFin: f.fechaFin || '',
+    referenteTeorico: f.referenteTeorico || '',
+    estrategiaEvaluacion: f.estrategiaEvaluacion || '',
+    tecnicaEvaluacion: f.tecnicaEvaluacion || '',
+    instrumentoEvaluacion: f.instrumentoEvaluacion || '',
+    ptos: f.ptos || '',
+    porcentaje: f.porcentaje || '',
+    criteriosEvaluacion: Array.isArray(f.criteriosEvaluacion)
+      ? f.criteriosEvaluacion.filter(Boolean)
+      : (f.criteriosEvaluacion ? [f.criteriosEvaluacion] : [''])
+  }));
 };
 
 // ============================================
@@ -312,7 +308,6 @@ const EstudianteDashboard: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [filtroActivo, setFiltroActivo] = useState<FiltroMaterias>('todas');
 
-  // ✅ Estado para el modal de confirmación
   const [confirmacion, setConfirmacion] = useState<{
     abierto: boolean;
     titulo: string;
@@ -320,7 +315,6 @@ const EstudianteDashboard: React.FC = () => {
     onConfirm: () => void;
   } | null>(null);
 
-  // ✅ Estado para el colapsable de datos del estudiante en móvil
   const [datosAbiertos, setDatosAbiertos] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
@@ -394,7 +388,7 @@ const EstudianteDashboard: React.FC = () => {
             nivel: plan.nivel || '',
             grado: plan.grado || '',
             materia: plan.materia || '',
-            filas: Array.isArray(plan.filas) ? plan.filas : [],
+            filas: normalizarFilas(plan.filas),
             visto: plan.visto || false,
             fechaVisto: plan.fechaVisto || null,
             createdAt: plan.createdAt || new Date().toISOString()
@@ -614,7 +608,6 @@ const EstudianteDashboard: React.FC = () => {
     }
   };
 
-  // ✅ Cierre de sesión con modal de confirmación
   const handleLogout = () => {
     setConfirmacion({
       abierto: true,
@@ -740,7 +733,6 @@ const EstudianteDashboard: React.FC = () => {
 
   const nombreCompleto = `${estudiante.nombres || ''} ${estudiante.apellidos || ''}`.trim() || 'Estudiante';
 
-  // ✅ Etiqueta dinámica: "Año" para media, "Grado" para el resto
   const etiqueta = etiquetaGrado(estudiante.nivel);
 
   return (
@@ -748,14 +740,12 @@ const EstudianteDashboard: React.FC = () => {
       className="min-h-screen relative text-white overflow-x-hidden"
       style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
     >
-      {/* Fondo: imagen original sin filtro + overlay oscuro sutil */}
       <div
         className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
         style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
       />
       <div className="fixed inset-0 bg-[#0a1410]/45 z-0 pointer-events-none" />
 
-      {/* NAVBAR compacto */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm shadow-[0_0_20px_rgba(0,187,126,0.35)]">
@@ -779,7 +769,6 @@ const EstudianteDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* ✅ Botón de notificaciones push */}
           <BotonNotificaciones />
 
           <Button
@@ -794,12 +783,10 @@ const EstudianteDashboard: React.FC = () => {
         </div>
       </nav>
 
-      {/* CONTENEDOR PRINCIPAL estilo login card */}
       <main className="relative z-10 px-4 sm:px-[8%] py-6">
         <div className="liquid-login-card rounded-[35px] p-6 sm:p-8">
           <div className="liquid-login-content space-y-6">
 
-            {/* Saludo */}
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white m-0 tracking-tight">
                 Hola, {estudiante.nombres}
@@ -809,7 +796,6 @@ const EstudianteDashboard: React.FC = () => {
               </p>
             </div>
 
-            {/* ✅ Datos del estudiante: colapsable en móvil, grid en escritorio */}
             <DatosEstudianteColapsable
               estudiante={estudiante}
               isMobile={isMobile}
@@ -817,7 +803,6 @@ const EstudianteDashboard: React.FC = () => {
               setDatosAbiertos={setDatosAbiertos}
             />
 
-            {/* STATS */}
             <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
               <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materias" value={materiasConPlanes} color="#00BB7E" />
               <StatCard icon={<FileText className="w-5 h-5" />} label="Tareas" value={totalTareas} color="#00BB7E" />
@@ -825,7 +810,6 @@ const EstudianteDashboard: React.FC = () => {
               <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materiales" value={totalMateriales} color="#00BB7E" />
             </div>
 
-            {/* PRÓXIMAS ENTREGAS */}
             {proximasEntregas.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -855,7 +839,6 @@ const EstudianteDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* MATERIAS */}
             <div>
               <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
                 <div className="flex items-center gap-3">
@@ -866,7 +849,6 @@ const EstudianteDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Búsqueda y filtros */}
               <div className="flex flex-col md:flex-row gap-3 mb-5">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
@@ -912,7 +894,6 @@ const EstudianteDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Grid de materias */}
               {materiasFiltradas.length === 0 ? (
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center backdrop-blur-md">
                   <Search className="w-12 h-12 text-emerald-500/50 mx-auto mb-4" />
@@ -930,7 +911,6 @@ const EstudianteDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Footer */}
             <p className="text-center text-white/30 text-xs pt-6 border-t border-white/5">
               U.E Ciudad Cuatricentenaria 2026 • Portal Estudiantil
             </p>
@@ -939,7 +919,6 @@ const EstudianteDashboard: React.FC = () => {
         </div>
       </main>
 
-      {/* MODAL MATERIA */}
       {selectedMateria && (
         <MateriaDetalle
           materia={selectedMateria}
@@ -949,7 +928,6 @@ const EstudianteDashboard: React.FC = () => {
         />
       )}
 
-      {/* MODAL PLAN */}
       {selectedPlan && (
         <PlanEvaluacionDetalle
           plan={selectedPlan}
@@ -959,7 +937,6 @@ const EstudianteDashboard: React.FC = () => {
         />
       )}
 
-      {/* ✅ Modal de confirmación */}
       {confirmacion?.abierto && (
         <ConfirmDialog
           abierto={confirmacion.abierto}
@@ -1009,7 +986,6 @@ const DatosEstudianteColapsable: React.FC<{
 
   const etiqueta = etiquetaGrado(estudiante.nivel);
 
-  // ============ ESCRITORIO: grid normal ============
   if (!isMobile) {
     return (
       <div className="grid gap-3 grid-cols-4">
@@ -1020,7 +996,6 @@ const DatosEstudianteColapsable: React.FC<{
     );
   }
 
-  // ============ MÓVIL: acordeón colapsable ============
   return (
     <div className="bg-white/5 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden">
       <button
@@ -1121,9 +1096,6 @@ const MateriaGrid: React.FC<{
     return planes.filter((p: PlanEvaluacion) => p.visto === false).length;
   };
 
-  // ============================================
-  // VISTA MÓVIL: Formato de tarjetas estilo grid 2 columnas
-  // ============================================
   if (isMobile) {
     return (
       <div className="grid grid-cols-2 gap-3 w-full">
@@ -1203,9 +1175,6 @@ const MateriaGrid: React.FC<{
     );
   }
 
-  // ============================================
-  // VISTA ESCRITORIO: Formato original con colores de materia
-  // ============================================
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 w-full">
       {materias.map((materia, index) => {
@@ -1383,7 +1352,6 @@ const MateriaDetalle: React.FC<{
           </div>
 
           <div className="px-8 py-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-            {/* TAREAS */}
             {activeTab === 'tareas' && (
               <div>
                 {materia.tareasPendientes.length === 0 ? (
@@ -1441,7 +1409,6 @@ const MateriaDetalle: React.FC<{
               </div>
             )}
 
-            {/* AVISOS */}
             {activeTab === 'avisos' && (
               <div>
                 {materia.avisos.length === 0 ? (
@@ -1480,7 +1447,6 @@ const MateriaDetalle: React.FC<{
               </div>
             )}
 
-            {/* MATERIALES */}
             {activeTab === 'materiales' && (
               <div>
                 {materia.materiales.length === 0 ? (
@@ -1530,7 +1496,6 @@ const MateriaDetalle: React.FC<{
               </div>
             )}
 
-            {/* EVALUACIÓN */}
             {activeTab === 'evaluacion' && (
               <div>
                 {materia.planEvaluacion.length === 0 ? (
@@ -1664,20 +1629,23 @@ const PlanEvaluacionDetalle: React.FC<{
 
       const tableData = filas.map((fila, index) => [
         (index + 1).toString(),
-        fila.fecha || '-',
+        fila.fechaInicio || '-',
+        fila.fechaFin || '-',
         fila.referenteTeorico || '-',
         fila.estrategiaEvaluacion || '-',
         fila.tecnicaEvaluacion || '-',
         fila.instrumentoEvaluacion || '-',
         fila.ptos || '-',
         fila.porcentaje || '-',
-        fila.criteriosEvaluacion || '-'
+        Array.isArray(fila.criteriosEvaluacion)
+          ? fila.criteriosEvaluacion.filter(Boolean).join('\n')
+          : (fila.criteriosEvaluacion || '-')
       ]);
 
       const tableConfig = {
         startY: yPos + 5,
-        head: [['#', 'FECHA', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS']],
-        body: tableData.length > 0 ? tableData : [['-', '-', '-', 'Sin filas registradas', '-', '-', '-', '-', '-']],
+        head: [['#', 'INICIO', 'FIN', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS']],
+        body: tableData.length > 0 ? tableData : [['-', '-', '-', '-', 'Sin filas registradas', '-', '-', '-', '-', '-']],
         theme: 'grid' as const,
         styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] as [number, number, number] },
         headStyles: { fillColor: [0, 187, 126] as [number, number, number], textColor: [255, 255, 255] as [number, number, number], fontStyle: 'bold' as const },
@@ -1787,7 +1755,7 @@ const PlanEvaluacionDetalle: React.FC<{
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
-                        {['#', 'FECHA', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS'].map((header) => (
+                        {['#', 'INICIO', 'FIN', 'REFERENTE', 'ESTRATEGIA', 'TÉCNICA', 'INSTRUMENTO', 'PTOS', '%', 'CRITERIOS'].map((header) => (
                           <TableHead
                             key={header}
                             className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center"
@@ -1806,7 +1774,8 @@ const PlanEvaluacionDetalle: React.FC<{
                           <TableCell className="text-center text-emerald-400 font-bold">
                             {index + 1}
                           </TableCell>
-                          <TableCell className="text-center text-white">{fila.fecha || '-'}</TableCell>
+                          <TableCell className="text-center text-white">{fila.fechaInicio || '-'}</TableCell>
+                          <TableCell className="text-center text-white">{fila.fechaFin || '-'}</TableCell>
                           <TableCell className="text-white">{fila.referenteTeorico || '-'}</TableCell>
                           <TableCell className="text-white">{fila.estrategiaEvaluacion || '-'}</TableCell>
                           <TableCell className="text-white">{fila.tecnicaEvaluacion || '-'}</TableCell>
@@ -1817,7 +1786,15 @@ const PlanEvaluacionDetalle: React.FC<{
                           <TableCell className="text-center text-emerald-400 font-bold">
                             {fila.porcentaje || '-'}
                           </TableCell>
-                          <TableCell className="text-white">{fila.criteriosEvaluacion || '-'}</TableCell>
+                          <TableCell className="text-white">
+                            {Array.isArray(fila.criteriosEvaluacion) && fila.criteriosEvaluacion.filter(Boolean).length > 0 ? (
+                              <ul className="list-disc list-inside m-0 p-0">
+                                {fila.criteriosEvaluacion.filter(Boolean).map((c, i) => (
+                                  <li key={i}>{c}</li>
+                                ))}
+                              </ul>
+                            ) : '-'}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
