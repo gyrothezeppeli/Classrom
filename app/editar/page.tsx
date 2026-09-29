@@ -2379,7 +2379,7 @@ const EditTasksPage: React.FC = () => {
                           type="button"
                           onClick={() => {
                             if (tipo.id === 'asistencia') {
-                              router.push('/asistencia');
+                              router.push('/asistencias');
                               return;
                             }
                             setTipoContenido(tipo.id);
