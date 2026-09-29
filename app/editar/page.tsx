@@ -50,6 +50,7 @@ import {
   Users,
   Search,
   Check,
+  CalendarCheck,
 } from "lucide-react";
 
 const PALETTE = {
@@ -65,7 +66,8 @@ const TIPOS_CONTENIDO = [
   { id: 'aviso', nombre: 'Aviso', icon: Bell },
   { id: 'material', nombre: 'Material', icon: FileText },
   { id: 'plan_evaluacion', nombre: 'Plan de Evaluación', icon: ClipboardList },
-  { id: 'lista_estudiantes', nombre: 'Lista de Estudiantes', icon: Users }
+  { id: 'lista_estudiantes', nombre: 'Lista de Estudiantes', icon: Users },
+  { id: 'asistencia', nombre: 'Lista de Asistencia', icon: CalendarCheck }, // ✅ NUEVO
 ];
 
 // ✅ MATERIAS ACTUALIZADAS
@@ -709,7 +711,6 @@ const EditTasksPage: React.FC = () => {
     });
   };
 
-  // ✅ Agregar un criterio vacío a una fila
   const agregarCriterio = (filaId: string) => {
     setPlanActual({
       ...planActual,
@@ -721,7 +722,6 @@ const EditTasksPage: React.FC = () => {
     });
   };
 
-  // ✅ Actualizar un criterio específico
   const actualizarCriterio = (filaId: string, index: number, valor: string) => {
     setPlanActual({
       ...planActual,
@@ -738,7 +738,6 @@ const EditTasksPage: React.FC = () => {
     });
   };
 
-  // ✅ Eliminar un criterio
   const eliminarCriterio = (filaId: string, index: number) => {
     setPlanActual({
       ...planActual,
@@ -2107,6 +2106,8 @@ const EditTasksPage: React.FC = () => {
             ? 'GESTIÓN DE PLANES'
             : tipoContenido === 'lista_estudiantes'
             ? 'LISTA DE ESTUDIANTES'
+            : tipoContenido === 'asistencia'
+            ? 'ASISTENCIA'
             : 'EDITOR DE CONTENIDO'}
         </div>
 
@@ -2142,6 +2143,8 @@ const EditTasksPage: React.FC = () => {
               ? 'GESTIÓN DE PLANES DE EVALUACIÓN'
               : tipoContenido === 'lista_estudiantes'
               ? 'LISTA DE ESTUDIANTES'
+              : tipoContenido === 'asistencia'
+              ? 'CONTROL DE ASISTENCIA'
               : 'GESTIÓN DE CONTENIDO'}
           </h1>
           <p className="text-white/60 text-base">
@@ -2155,6 +2158,8 @@ const EditTasksPage: React.FC = () => {
               ? `Bienvenido ${docenteInfo?.nombres || 'Docente'}, gestiona tus planes de evaluación`
               : tipoContenido === 'lista_estudiantes'
               ? 'Consulta y filtra la lista completa de estudiantes'
+              : tipoContenido === 'asistencia'
+              ? 'Accede al módulo de control de asistencia'
               : 'Publica tareas, avisos y materiales para los estudiantes.'}
           </p>
         </header>
@@ -2179,6 +2184,10 @@ const EditTasksPage: React.FC = () => {
                           key={tipo.id}
                           type="button"
                           onClick={() => {
+                            if (tipo.id === 'asistencia') {
+                              router.push('/asistencias');
+                              return;
+                            }
                             setTipoContenido(tipo.id);
                             limpiarFiltrosEstudiantes();
                           }}
@@ -2369,6 +2378,10 @@ const EditTasksPage: React.FC = () => {
                           key={tipo.id}
                           type="button"
                           onClick={() => {
+                            if (tipo.id === 'asistencia') {
+                              router.push('/asistencia');
+                              return;
+                            }
                             setTipoContenido(tipo.id);
                             limpiarFiltrosEstudiantes();
                           }}
