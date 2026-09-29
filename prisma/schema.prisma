@@ -72,6 +72,9 @@ model Docente {
   materiales       Material[]
   horarios         Horario[]
 
+  // ✅ NUEVO: Asistencias registradas por este docente
+  asistencias      Asistencia[]
+
   @@index([userId])
   @@index([cedulaIdentidad])
   @@index([nivel, seccion])
@@ -96,8 +99,11 @@ model Estudiante {
   avisos           EstudianteAviso[]
   materiales       EstudianteMaterial[]
 
-  // ✅ NUEVO: Suscripciones push del estudiante
+  // ✅ Notificaciones push
   pushSubscriptions PushSubscription[]
+
+  // ✅ NUEVO: Registros de asistencia del estudiante
+  asistencias       AsistenciaEstudiante[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
@@ -363,5 +369,47 @@ model PushSubscription {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  @@index([estudianteId])
+}
+
+// ============================================
+// 9. MODELOS DE ASISTENCIA
+// ============================================
+
+// ----- MODELO ASISTENCIA (sesión de clase) -----
+model Asistencia {
+  id            String   @id @default(cuid())
+  fecha         DateTime @default(now())
+  nivel         String
+  grado         String
+  seccion       String
+  materia       String
+  docenteId     String
+  docente       Docente  @relation(fields: [docenteId], references: [id], onDelete: Cascade)
+  hora          String?
+  observaciones String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  estudiantes   AsistenciaEstudiante[]
+
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+  @@index([fecha])
+  @@index([materia])
+}
+
+// ----- MODELO ASISTENCIA_ESTUDIANTE (por estudiante) -----
+model AsistenciaEstudiante {
+  id            String     @id @default(cuid())
+  asistenciaId  String
+  asistencia    Asistencia @relation(fields: [asistenciaId], references: [id], onDelete: Cascade)
+  estudianteId  String
+  estudiante    Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  asistio       Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+
+  @@unique([asistenciaId, estudianteId])
+  @@index([asistenciaId])
   @@index([estudianteId])
 }
