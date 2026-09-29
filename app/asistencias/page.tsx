@@ -40,6 +40,7 @@ import {
   History,
   Download,
   CalendarCheck,
+  RefreshCw,
 } from 'lucide-react';
 
 const PALETTE = { deepBg: '#1a2e26' };
@@ -137,6 +138,7 @@ export default function AsistenciaPage() {
   const [busqueda, setBusqueda] = useState('');
   const [cargandoEstudiantes, setCargandoEstudiantes] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [asistenciaExistente, setAsistenciaExistente] = useState(false);
 
   // Reporte
   const [mes, setMes] = useState(new Date().toISOString().slice(0, 7));
@@ -183,21 +185,55 @@ export default function AsistenciaPage() {
   const seccionesActuales = grado ? gradosActuales.find(g => g.id === grado)?.secciones || [] : [];
   const materiasDisponibles = MATERIAS_POR_NIVEL[nivel as keyof typeof MATERIAS_POR_NIVEL] || [];
 
-  // ============ Cargar estudiantes ============
+  // ============ Cargar estudiantes + asistencia existente del día ============
   const cargarEstudiantes = async () => {
     if (!nivel || !grado || !seccion) return;
     try {
       setCargandoEstudiantes(true);
-      const res = await fetch(`/api/asistencia/estudiantes?nivel=${nivel}&grado=${grado}&seccion=${seccion}`);
-      if (res.ok) {
-        const data: Estudiante[] = await res.json();
-        setEstudiantes(data);
 
-        // ✅ Inicializar todos como "asistió" (true)
-        const iniciales: Record<string, boolean> = {};
-        data.forEach((e) => { iniciales[e.id] = true; });
-        setAsistencia(iniciales);
+      // 1. Cargar estudiantes del curso
+      const res = await fetch(`/api/asistencia/estudiantes?nivel=${nivel}&grado=${grado}&seccion=${seccion}`);
+      if (!res.ok) return;
+      const data: Estudiante[] = await res.json();
+      setEstudiantes(data);
+
+      // 2. Buscar si ya hay asistencia guardada para ese día
+      let asistenciasExistentes: Record<string, boolean> = {};
+      let existeRegistro = false;
+
+      if (materia && fecha) {
+        const params = new URLSearchParams({
+          nivel, grado, seccion, materia,
+          fechaDesde: fecha,
+          fechaHasta: fecha,
+        });
+        const asistenciaRes = await fetch(`/api/asistencia?${params}`);
+
+        if (asistenciaRes.ok) {
+          const asistenciasGuardadas = await asistenciaRes.json();
+          if (asistenciasGuardadas.length > 0) {
+            existeRegistro = true;
+            const asistenciaDelDia = asistenciasGuardadas[0];
+            const detalleRes = await fetch(`/api/asistencia/${asistenciaDelDia.id}`);
+
+            if (detalleRes.ok) {
+              const detalle = await detalleRes.json();
+              detalle.estudiantes?.forEach((ae: any) => {
+                asistenciasExistentes[ae.estudianteId] = ae.asistio;
+              });
+            }
+          }
+        }
       }
+
+      setAsistenciaExistente(existeRegistro);
+
+      // 3. Inicializar estado: si había registro previo, usarlo; si no, todos presentes
+      const iniciales: Record<string, boolean> = {};
+      data.forEach((e) => {
+        iniciales[e.id] = asistenciasExistentes[e.id] ?? true;
+      });
+      setAsistencia(iniciales);
     } catch (error) {
       console.error(error);
       sileo.error({ title: 'Error al cargar estudiantes' });
@@ -208,7 +244,7 @@ export default function AsistenciaPage() {
 
   useEffect(() => {
     if (vista === 'pasar-lista' && nivel && grado && seccion) cargarEstudiantes();
-  }, [vista, nivel, grado, seccion]);
+  }, [vista, nivel, grado, seccion, materia, fecha]);
 
   // ============ Cargar historial ============
   const cargarHistorial = async () => {
@@ -295,10 +331,13 @@ export default function AsistenciaPage() {
       }
 
       const data = await res.json();
+
+      // ✅ Mensaje diferenciado según si fue creada o actualizada
       sileo.success({
-        title: 'Asistencia guardada',
+        title: data.actualizada ? 'Asistencia actualizada' : 'Asistencia guardada',
         description: `${data.presentes} presentes, ${data.ausentes} ausentes`,
       });
+
       cargarEstudiantes();
     } catch (error) {
       sileo.error({ title: 'Error de conexión' });
@@ -563,6 +602,21 @@ export default function AsistenciaPage() {
               </Card>
             ) : (
               <>
+                {/* Aviso: asistencia ya guardada */}
+                {asistenciaExistente && (
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4 flex items-center gap-3">
+                    <RefreshCw className="w-5 h-5 text-amber-400 shrink-0" />
+                    <div>
+                      <p className="text-amber-400 font-bold text-sm">
+                        Ya existe un registro para esta fecha
+                      </p>
+                      <p className="text-amber-400/70 text-xs mt-0.5">
+                        Al guardar se actualizará el registro existente. No se duplicará.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Datos de la sesión */}
                 <Card className="bg-black/30 border-white/10 backdrop-blur mb-4">
                   <CardContent className="p-5">
@@ -729,7 +783,11 @@ export default function AsistenciaPage() {
                     className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-black text-base uppercase shadow-lg shadow-emerald-500/30 h-14"
                   >
                     <Save className="mr-2 h-5 w-5" />
-                    {guardando ? 'Guardando...' : 'Guardar lista de asistencia'}
+                    {guardando
+                      ? 'Guardando...'
+                      : asistenciaExistente
+                      ? 'Actualizar lista de asistencia'
+                      : 'Guardar lista de asistencia'}
                   </Button>
                 )}
               </>

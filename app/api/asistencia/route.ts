@@ -27,8 +27,16 @@ export async function GET(request: NextRequest) {
 
     if (fechaDesde || fechaHasta) {
       where.fecha = {};
-      if (fechaDesde) where.fecha.gte = new Date(fechaDesde);
-      if (fechaHasta) where.fecha.lte = new Date(fechaHasta);
+      if (fechaDesde) {
+        const desde = new Date(fechaDesde);
+        desde.setHours(0, 0, 0, 0);
+        where.fecha.gte = desde;
+      }
+      if (fechaHasta) {
+        const hasta = new Date(fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        where.fecha.lte = hasta;
+      }
     }
 
     // @ts-ignore - Prisma Client aún no regenerado con el modelo Asistencia
@@ -66,7 +74,8 @@ export async function GET(request: NextRequest) {
 }
 
 // ============================================
-// POST - Crear una sesión de asistencia
+// POST - Crear o actualizar una sesión de asistencia
+// (Opción B: un solo registro por día/curso/materia)
 // ============================================
 export async function POST(request: NextRequest) {
   try {
@@ -86,36 +95,91 @@ export async function POST(request: NextRequest) {
 
     const fechaFinal = fecha ? new Date(fecha) : new Date();
 
+    // ✅ Normalizar la fecha a medianoche local
+    const fechaNormalizada = new Date(
+      fechaFinal.getFullYear(),
+      fechaFinal.getMonth(),
+      fechaFinal.getDate()
+    );
+
+    // ✅ Buscar si ya existe una asistencia para ese día/curso/materia
     // @ts-ignore - Prisma Client aún no regenerado con el modelo Asistencia
-    const nuevaAsistencia = await prisma.asistencia.create({
-      data: {
-        fecha: fechaFinal,
-        nivel, grado, seccion, materia, docenteId,
-        hora: hora || null,
-        observaciones: observaciones || null,
-        estudiantes: {
-          create: asistencias.map((a: any) => ({
-            estudianteId: a.estudianteId,
-            asistio: Boolean(a.asistio),
-          }))
+    const existente = await prisma.asistencia.findFirst({
+      where: {
+        nivel, grado, seccion, materia,
+        fecha: {
+          gte: fechaNormalizada,
+          lt: new Date(fechaNormalizada.getTime() + 24 * 60 * 60 * 1000)
         }
       },
       include: { estudiantes: true }
     });
 
-    const presentes = nuevaAsistencia.estudiantes.filter((e: any) => e.asistio).length;
-    const ausentes = nuevaAsistencia.estudiantes.filter((e: any) => !e.asistio).length;
+    let resultadoAsistencia: any;
+    let actualizada = false;
 
-    console.log(`✅ Asistencia registrada: ${presentes} presentes, ${ausentes} ausentes`);
+    if (existente) {
+      // ✅ Ya existe: actualizar en lugar de crear
+      // 1. Borrar registros de estudiantes anteriores
+      // @ts-ignore - Prisma Client aún no regenerado con el modelo AsistenciaEstudiante
+      await prisma.asistenciaEstudiante.deleteMany({
+        where: { asistenciaId: existente.id }
+      });
+
+      // 2. Actualizar la asistencia con los nuevos datos
+      // @ts-ignore - Prisma Client aún no regenerado con el modelo Asistencia
+      resultadoAsistencia = await prisma.asistencia.update({
+        where: { id: existente.id },
+        data: {
+          docenteId,
+          hora: hora || null,
+          observaciones: observaciones || null,
+          estudiantes: {
+            create: asistencias.map((a: any) => ({
+              estudianteId: a.estudianteId,
+              asistio: Boolean(a.asistio),
+            }))
+          }
+        },
+        include: { estudiantes: true }
+      });
+
+      actualizada = true;
+      console.log(`♻️ Asistencia actualizada: ${materia} - ${grado} ${seccion} - ${fechaNormalizada.toLocaleDateString()}`);
+    } else {
+      // ✅ No existe: crear nueva
+      // @ts-ignore - Prisma Client aún no regenerado con el modelo Asistencia
+      resultadoAsistencia = await prisma.asistencia.create({
+        data: {
+          fecha: fechaNormalizada,
+          nivel, grado, seccion, materia, docenteId,
+          hora: hora || null,
+          observaciones: observaciones || null,
+          estudiantes: {
+            create: asistencias.map((a: any) => ({
+              estudianteId: a.estudianteId,
+              asistio: Boolean(a.asistio),
+            }))
+          }
+        },
+        include: { estudiantes: true }
+      });
+
+      console.log(`✅ Asistencia registrada: ${materia} - ${grado} ${seccion} - ${fechaNormalizada.toLocaleDateString()}`);
+    }
+
+    const presentes = resultadoAsistencia.estudiantes.filter((e: any) => e.asistio).length;
+    const ausentes = resultadoAsistencia.estudiantes.filter((e: any) => !e.asistio).length;
 
     return NextResponse.json({
-      id: nuevaAsistencia.id,
-      totalEstudiantes: nuevaAsistencia.estudiantes.length,
+      id: resultadoAsistencia.id,
+      actualizada,
+      totalEstudiantes: resultadoAsistencia.estudiantes.length,
       presentes,
       ausentes,
-    }, { status: 201 });
+    }, { status: actualizada ? 200 : 201 });
   } catch (error) {
-    console.error('Error al crear asistencia:', error);
-    return NextResponse.json({ error: 'Error al crear la asistencia' }, { status: 500 });
+    console.error('Error al guardar asistencia:', error);
+    return NextResponse.json({ error: 'Error al guardar la asistencia' }, { status: 500 });
   }
 }

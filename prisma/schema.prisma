@@ -72,7 +72,7 @@ model Docente {
   materiales       Material[]
   horarios         Horario[]
 
-  // ✅ NUEVO: Asistencias registradas por este docente
+  // ✅ Asistencias registradas por este docente
   asistencias      Asistencia[]
 
   @@index([userId])
@@ -102,7 +102,7 @@ model Estudiante {
   // ✅ Notificaciones push
   pushSubscriptions PushSubscription[]
 
-  // ✅ NUEVO: Registros de asistencia del estudiante
+  // ✅ Registros de asistencia del estudiante
   asistencias       AsistenciaEstudiante[]
 
   @@index([userId])
@@ -393,6 +393,8 @@ model Asistencia {
 
   estudiantes   AsistenciaEstudiante[]
 
+  // ✅ NUEVO: evita duplicados por día/curso/materia
+  @@unique([nivel, grado, seccion, materia, fecha])
   @@index([docenteId])
   @@index([nivel, grado, seccion])
   @@index([fecha])
