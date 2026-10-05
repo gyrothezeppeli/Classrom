@@ -33,7 +33,6 @@ import {
   ExternalLink,
   X,
   Download,
-  CheckCircle2,
   AlertCircle,
   Mail,
   Phone,
@@ -58,6 +57,10 @@ const PALETTE = {
   danger: '#ef4444',
   success: '#22c55e'
 };
+
+// ✅ Color único para todas las materias activas
+const COLOR_MATERIA_ACTIVA = '#00BB7E';
+const COLOR_MATERIA_VACIA = '#6b7280';
 
 interface FilaPlan {
   id: string;
@@ -279,7 +282,6 @@ const EstudianteDashboard: React.FC = () => {
   const [busqueda, setBusqueda] = useState('');
   const [filtroActivo, setFiltroActivo] = useState<FiltroMaterias>('todas');
 
-  // ✅ Estado para el modal de confirmación
   const [confirmacion, setConfirmacion] = useState<{
     abierto: boolean;
     titulo: string;
@@ -287,10 +289,8 @@ const EstudianteDashboard: React.FC = () => {
     onConfirm: () => void;
   } | null>(null);
 
-  // ✅ Estado para el colapsable de datos del estudiante en móvil
   const [datosAbiertos, setDatosAbiertos] = useState(false);
 
-  // ✅ Estados para "Ver más / Ver menos"
   const [mostrarTodasEntregas, setMostrarTodasEntregas] = useState(false);
   const [mostrarTodasMaterias, setMostrarTodasMaterias] = useState(false);
 
@@ -302,7 +302,6 @@ const EstudianteDashboard: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ✅ Resetear "Ver más" cuando cambian filtros o búsqueda
   useEffect(() => {
     setMostrarTodasMaterias(false);
   }, [busqueda, filtroActivo]);
@@ -542,55 +541,6 @@ const EstudianteDashboard: React.FC = () => {
     cargarDatosCompletos();
   }, [session, status, router]);
 
-  const marcarPlanComoVisto = async (planId: string) => {
-    if (!estudiante) return;
-
-    try {
-      const response = await fetch('/api/estudiantes/planes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          estudianteId: estudiante.id,
-          planId: planId
-        }),
-      });
-
-      if (response.ok) {
-        setMaterias((prev) =>
-          prev.map((materia) => ({
-            ...materia,
-            planEvaluacion: materia.planEvaluacion.map((plan) =>
-              plan.id === planId
-                ? { ...plan, visto: true, fechaVisto: new Date().toISOString() }
-                : plan
-            )
-          }))
-        );
-
-        if (selectedPlan && selectedPlan.id === planId) {
-          setSelectedPlan({ ...selectedPlan, visto: true, fechaVisto: new Date().toISOString() });
-        }
-
-        sileo.success({
-          title: 'Plan marcado como visto',
-          description: 'Se registró tu lectura correctamente',
-        });
-      } else {
-        sileo.error({
-          title: 'Error',
-          description: 'No se pudo marcar el plan como visto',
-        });
-      }
-    } catch (error) {
-      console.error('Error al marcar plan como visto:', error);
-      sileo.error({
-        title: 'Error de conexión',
-        description: 'No se pudo marcar el plan como visto',
-      });
-    }
-  };
-
-  // ✅ Cierre de sesión con modal de confirmación
   const handleLogout = () => {
     setConfirmacion({
       abierto: true,
@@ -644,7 +594,6 @@ const EstudianteDashboard: React.FC = () => {
     return resultado;
   }, [materias, busqueda, filtroActivo]);
 
-  // ✅ Próximas entregas: solo tareas cuya fecha sea hoy o futura
   const proximasEntregas = useMemo(() => {
     const ahora = new Date();
     ahora.setHours(0, 0, 0, 0);
@@ -652,7 +601,7 @@ const EstudianteDashboard: React.FC = () => {
     const tareas = materias.flatMap(m =>
       m.tareasPendientes.map(t => ({
         ...t,
-        colorMateria: m.color,
+        colorMateria: COLOR_MATERIA_ACTIVA,
         nombreMateria: m.nombre
       }))
     );
@@ -732,14 +681,13 @@ const EstudianteDashboard: React.FC = () => {
       className="min-h-screen relative text-white overflow-x-hidden"
       style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
     >
-      {/* Fondo */}
       <div
         className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
         style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
       />
       <div className="fixed inset-0 bg-[#0a1410]/45 z-0 pointer-events-none" />
 
-      {/* NAVBAR compacto */}
+      {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm shadow-[0_0_20px_rgba(0,187,126,0.35)]">
@@ -782,7 +730,6 @@ const EstudianteDashboard: React.FC = () => {
         <div className="liquid-login-card rounded-[35px] p-6 sm:p-8">
           <div className="liquid-login-content space-y-6">
 
-            {/* Saludo */}
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white m-0 tracking-tight">
                 Hola, {estudiante.nombres}
@@ -792,7 +739,6 @@ const EstudianteDashboard: React.FC = () => {
               </p>
             </div>
 
-            {/* Datos del estudiante */}
             <DatosEstudianteColapsable
               estudiante={estudiante}
               isMobile={isMobile}
@@ -802,10 +748,10 @@ const EstudianteDashboard: React.FC = () => {
 
             {/* STATS */}
             <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-4'}`}>
-              <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materias" value={materiasConPlanes} color="#00BB7E" />
-              <StatCard icon={<FileText className="w-5 h-5" />} label="Tareas" value={totalTareas} color="#00BB7E" />
-              <StatCard icon={<Bell className="w-5 h-5" />} label="Avisos" value={totalAvisos} color="#00BB7E" />
-              <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materiales" value={totalMateriales} color="#00BB7E" />
+              <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materias" value={materiasConPlanes} color={COLOR_MATERIA_ACTIVA} />
+              <StatCard icon={<FileText className="w-5 h-5" />} label="Tareas" value={totalTareas} color={COLOR_MATERIA_ACTIVA} />
+              <StatCard icon={<Bell className="w-5 h-5" />} label="Avisos" value={totalAvisos} color={COLOR_MATERIA_ACTIVA} />
+              <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materiales" value={totalMateriales} color={COLOR_MATERIA_ACTIVA} />
             </div>
 
             {/* PRÓXIMAS ENTREGAS */}
@@ -878,7 +824,6 @@ const EstudianteDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Búsqueda y filtros */}
               <div className="flex flex-col md:flex-row gap-3 mb-5">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
@@ -924,7 +869,6 @@ const EstudianteDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Grid de materias */}
               {materiasFiltradas.length === 0 ? (
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center backdrop-blur-md">
                   <Search className="w-12 h-12 text-emerald-500/50 mx-auto mb-4" />
@@ -971,7 +915,6 @@ const EstudianteDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Footer */}
             <p className="text-center text-white/30 text-xs pt-6 border-t border-white/5">
               U.E Ciudad Cuatricentenaria 2026 • Portal Estudiantil
             </p>
@@ -986,7 +929,6 @@ const EstudianteDashboard: React.FC = () => {
           materia={selectedMateria}
           onClose={() => setSelectedMateria(null)}
           onSelectPlan={setSelectedPlan}
-          onMarcarVisto={marcarPlanComoVisto}
         />
       )}
 
@@ -995,7 +937,6 @@ const EstudianteDashboard: React.FC = () => {
         <PlanEvaluacionDetalle
           plan={selectedPlan}
           onClose={() => setSelectedPlan(null)}
-          onMarcarVisto={() => marcarPlanComoVisto(selectedPlan.id)}
           estudiante={estudiante}
         />
       )}
@@ -1148,7 +1089,7 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string |
 );
 
 // ============================================
-// MateriaGrid (Liquid Glass cards)
+// MateriaGrid
 // ============================================
 const MateriaGrid: React.FC<{
   materias: MateriaConPlanes[];
@@ -1159,8 +1100,6 @@ const MateriaGrid: React.FC<{
   const getPlanesNuevos = (planes: PlanEvaluacion[]) => {
     return planes.filter((p: PlanEvaluacion) => p.visto === false).length;
   };
-
-  const COLOR_GRIS = '#6b7280';
 
   const tieneContenido = (m: MateriaConPlanes) =>
     m.planEvaluacion.length > 0 ||
@@ -1178,7 +1117,7 @@ const MateriaGrid: React.FC<{
           const tieneAvisos = materia.avisos.length > 0;
           const tieneMateriales = materia.materiales.length > 0;
           const conContenido = tieneContenido(materia);
-          const colorBase = conContenido ? materia.color : COLOR_GRIS;
+          const colorBase = conContenido ? COLOR_MATERIA_ACTIVA : COLOR_MATERIA_VACIA;
 
           return (
             <div
@@ -1266,7 +1205,7 @@ const MateriaGrid: React.FC<{
         const tieneMateriales = materia.materiales.length > 0;
         const primerPlan = tienePlanes ? materia.planEvaluacion[0] : null;
         const conContenido = tieneContenido(materia);
-        const colorBase = conContenido ? materia.color : COLOR_GRIS;
+        const colorBase = conContenido ? COLOR_MATERIA_ACTIVA : COLOR_MATERIA_VACIA;
 
         return (
           <div
@@ -1356,7 +1295,6 @@ const MateriaDetalle: React.FC<{
   materia: MateriaConPlanes | null;
   onClose: () => void;
   onSelectPlan: (plan: PlanEvaluacion) => void;
-  onMarcarVisto: (planId: string) => void;
 }> = ({ materia, onClose, onSelectPlan }) => {
   const [activeTab, setActiveTab] = useState<'tareas' | 'avisos' | 'materiales' | 'evaluacion'>('tareas');
 
@@ -1365,6 +1303,14 @@ const MateriaDetalle: React.FC<{
   const hasPlanesNuevos = (): boolean => {
     return materia.planEvaluacion.some((p: PlanEvaluacion) => p.visto === false);
   };
+
+  const tieneContenido =
+    materia.planEvaluacion.length > 0 ||
+    materia.tareasPendientes.length > 0 ||
+    materia.avisos.length > 0 ||
+    materia.materiales.length > 0;
+
+  const colorMateria = tieneContenido ? COLOR_MATERIA_ACTIVA : COLOR_MATERIA_VACIA;
 
   const tabs = [
     { key: 'tareas' as const, label: `Tareas${materia.tareasPendientes.length > 0 ? ` (${materia.tareasPendientes.length})` : ''}` },
@@ -1380,15 +1326,15 @@ const MateriaDetalle: React.FC<{
     >
       <div
         className="liquid-modal rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col"
-        style={{ borderColor: `${materia.color}66` }}
+        style={{ borderColor: `${colorMateria}66` }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="liquid-content h-full flex flex-col overflow-hidden">
           <div
             className="px-8 py-6 border-b"
             style={{
-              background: `linear-gradient(135deg, rgba(16,45,34,0.9), ${materia.color}44)`,
-              borderColor: `${materia.color}44`
+              background: `linear-gradient(135deg, rgba(16,45,34,0.9), ${colorMateria}44)`,
+              borderColor: `${colorMateria}44`
             }}
           >
             <div className="flex justify-between items-start">
@@ -1397,8 +1343,8 @@ const MateriaDetalle: React.FC<{
                   <div
                     className="w-3 h-3 rounded-full"
                     style={{
-                      background: materia.color,
-                      boxShadow: `0 0 20px ${materia.color}66`
+                      background: colorMateria,
+                      boxShadow: `0 0 20px ${colorMateria}66`
                     }}
                   />
                   <h2 className="text-white text-3xl font-bold m-0">{materia.nombre}</h2>
@@ -1434,7 +1380,7 @@ const MateriaDetalle: React.FC<{
                     ? "text-[#081a14] font-bold"
                     : "text-white hover:bg-white/5"
                 }
-                style={activeTab === tab.key ? { background: materia.color } : undefined}
+                style={activeTab === tab.key ? { background: colorMateria } : undefined}
               >
                 {tab.label}
               </Button>
@@ -1651,9 +1597,8 @@ const MateriaDetalle: React.FC<{
 const PlanEvaluacionDetalle: React.FC<{
   plan: PlanEvaluacion;
   onClose: () => void;
-  onMarcarVisto: () => void;
   estudiante: Estudiante | null;
-}> = ({ plan, onClose, onMarcarVisto, estudiante }) => {
+}> = ({ plan, onClose, estudiante }) => {
   const [exportando, setExportando] = useState(false);
 
   const filas: FilaPlan[] = Array.isArray(plan?.filas) ? plan.filas : [];
@@ -1802,14 +1747,6 @@ const PlanEvaluacionDetalle: React.FC<{
                 </p>
               </div>
               <div className="flex gap-2 flex-wrap">
-                {!plan.visto && (
-                  <Button
-                    onClick={onMarcarVisto}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
-                  >
-                    <CheckCircle2 className="mr-2 h-4 w-4" /> Marcar como visto
-                  </Button>
-                )}
                 <Button
                   onClick={exportarAPDF}
                   disabled={exportando}
