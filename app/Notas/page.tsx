@@ -53,36 +53,9 @@ const PALETTE = {
 };
 
 const MATERIAS_POR_NIVEL = {
-  inicial: [
-    'Lenguaje y Comunicación',
-    'Matemáticas',
-    'Expresión Artística',
-    'Educación Física'
-  ],
-  primaria: [
-    'Castellano',
-    'Matemáticas',
-    'Ciencias Sociales',
-    'Ciencias Naturales',
-    'Inglés',
-    'Educación Artística',
-    'Educación Física'
-  ],
-  media: [
-    'Castellano',
-    'Matemáticas',
-    'Historia',
-    'Geografía',
-    'Biología',
-    'Química',
-    'Física',
-    'Inglés',
-    'G.H.C',
-    'Ciencias de la Tierra',
-    'Educación Física',
-    'Arte y Patrimonio',
-    'Informática'
-  ]
+  inicial: ['Lenguaje y Comunicación', 'Matemáticas', 'Expresión Artística', 'Educación Física'],
+  primaria: ['Castellano', 'Matemáticas', 'Ciencias Sociales', 'Ciencias Naturales', 'Inglés', 'Educación Artística', 'Educación Física'],
+  media: ['Castellano', 'Matemáticas', 'Historia', 'Geografía', 'Biología', 'Química', 'Física', 'Inglés', 'G.H.C', 'Ciencias de la Tierra', 'Educación Física', 'Arte y Patrimonio', 'Informática']
 };
 
 // ============ TIPOS ============
@@ -194,9 +167,18 @@ const NotasPage: React.FC = () => {
 
   const gradosActuales = gradosPorNivel[nivelSeleccionado as keyof typeof gradosPorNivel] || [];
   const materiasDisponibles = MATERIAS_POR_NIVEL[nivelSeleccionado as keyof typeof MATERIAS_POR_NIVEL] || [];
-  const seccionesActuales = gradoSeleccionado
-    ? gradosActuales.find(g => g.id === gradoSeleccionado)?.secciones || []
-    : [];
+
+  // ============ SECCIONES DINÁMICAS ============
+  // Ahora las secciones se calculan a partir de los estudiantes reales
+  const seccionesDisponibles = useMemo(() => {
+    const set = new Set<string>();
+    estudiantes
+      .filter(e => !nivelSeleccionado || e.nivel === nivelSeleccionado)
+      .forEach(e => {
+        if (e.seccion) set.add(e.seccion.toUpperCase().trim());
+      });
+    return Array.from(set).sort();
+  }, [estudiantes, nivelSeleccionado]);
 
   // ============ GESTIÓN DE SESIÓN ============
   useEffect(() => {
@@ -208,11 +190,9 @@ const NotasPage: React.FC = () => {
   useEffect(() => {
     const cargarDocente = async () => {
       if (status !== 'authenticated' || !session?.user) return;
-
       try {
         setCargandoDocente(true);
         const response = await fetch('/api/docentes?me=true');
-
         if (response.ok) {
           const data = await response.json();
           setDocenteInfo({
@@ -229,7 +209,6 @@ const NotasPage: React.FC = () => {
         setCargandoDocente(false);
       }
     };
-
     cargarDocente();
   }, [session, status]);
 
@@ -240,6 +219,8 @@ const NotasPage: React.FC = () => {
       const response = await fetch('/api/estudiantes');
       if (response.ok) {
         const data = await response.json();
+        console.log('📚 Estudiantes cargados:', data.length);
+        console.log('📚 Ejemplo:', data[0]);
         setEstudiantes(data);
       } else {
         sileo.error({ title: 'Error al cargar estudiantes' });
@@ -259,23 +240,18 @@ const NotasPage: React.FC = () => {
   // ============ CARGA DE NOTAS EXISTENTES ============
   const cargarNotas = async () => {
     if (!nivelSeleccionado || !gradoSeleccionado || !materiaSeleccionada) return;
-
     try {
       const params = new URLSearchParams({
         nivel: nivelSeleccionado,
-        grado: gradoSeleccionado,
         materia: materiaSeleccionada,
         periodo: periodoSeleccionado,
       });
-
-      if (seccionSeleccionada) {
-        params.append('seccion', seccionSeleccionada);
-      }
+      if (gradoSeleccionado) params.append('grado', gradoSeleccionado);
+      if (seccionSeleccionada) params.append('seccion', seccionSeleccionada);
 
       const response = await fetch(`/api/notas?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-
         const notasMap: Record<string, NotaEstudiante> = {};
         data.forEach((nota: any) => {
           notasMap[nota.estudianteId] = {
@@ -291,7 +267,6 @@ const NotasPage: React.FC = () => {
             periodo: nota.periodo || periodoSeleccionado,
           };
         });
-
         setNotas(notasMap);
         setNotasOriginales(JSON.parse(JSON.stringify(notasMap)));
       } else {
@@ -311,81 +286,120 @@ const NotasPage: React.FC = () => {
     }
   }, [nivelSeleccionado, gradoSeleccionado, seccionSeleccionada, materiaSeleccionada, periodoSeleccionado]);
 
-  // ============ NORMALIZACIÓN DE GRADO ============
+  // ============ NORMALIZACIÓN DE GRADO (MEJORADA) ============
   const normalizarGrado = (grado: string): string => {
     if (!grado) return '';
     return grado
+      .toString()
       .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')  // quitar tildes
       .trim()
       .replace(/[°º]/g, '')
       .replace(/\s+/g, ' ')
-      .replace(/^1ro\b/, '1er')
-      .replace(/^2do\b/, '2do')
-      .replace(/^3ro\b/, '3er')
-      .replace(/^4to\b/, '4to')
-      .replace(/^5to\b/, '5to')
-      .replace(/^6to\b/, '6to');
+      // Normalizar ordinales
+      .replace(/^1ro\b|^1er\b|^1º\b|^1°\b|^primero\b/, '1')
+      .replace(/^2do\b|^2da\b|^2º\b|^2°\b|^segundo\b/, '2')
+      .replace(/^3ro\b|^3ra\b|^3º\b|^3°\b|^tercero\b/, '3')
+      .replace(/^4to\b|^4ta\b|^4º\b|^4°\b|^cuarto\b/, '4')
+      .replace(/^5to\b|^5ta\b|^5º\b|^5°\b|^quinto\b/, '5')
+      .replace(/^6to\b|^6ta\b|^6º\b|^6°\b|^sexto\b/, '6');
   };
 
-  const gradoCoincide = (gradoEstudiante: string, filtroGradoId: string, filtroNivel: string): boolean => {
+  // ============ COMPARACIÓN FLEXIBLE DE GRADO ============
+  const gradoCoincide = (
+    gradoEstudiante: string,
+    filtroGradoId: string,
+    filtroNivel: string
+  ): boolean => {
     if (!gradoEstudiante || !filtroGradoId) return false;
 
     const gradoEst = normalizarGrado(gradoEstudiante);
     const idFiltro = normalizarGrado(filtroGradoId);
 
+    // Buscar el nombre completo del grado (ej: "1er Año")
     const gradoObj = gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.find(
       (g) => g.id === filtroGradoId
     );
     const nombreFiltro = normalizarGrado(gradoObj?.nombre || '');
 
-    return (
-      gradoEst === idFiltro ||
-      gradoEst === nombreFiltro ||
-      gradoEst.includes(idFiltro) ||
-      idFiltro.includes(gradoEst) ||
-      gradoEst.includes(nombreFiltro) ||
-      nombreFiltro.includes(gradoEst)
-    );
+    // Sacar solo el número para comparación numérica
+    const numEst = gradoEst.match(/\d+/)?.[0];
+    const numFiltro = idFiltro.match(/\d+/)?.[0];
+
+    // Coincidencia exacta (normalizada)
+    if (gradoEst === idFiltro || gradoEst === nombreFiltro) return true;
+
+    // Coincidencia por número (ej: "1" === "1")
+    if (numEst && numFiltro && numEst === numFiltro) return true;
+
+    // Inclusión parcial
+    if (gradoEst.includes(idFiltro) || idFiltro.includes(gradoEst)) return true;
+    if (nombreFiltro && (gradoEst.includes(nombreFiltro) || nombreFiltro.includes(gradoEst))) return true;
+
+    return false;
   };
 
-  // ============ FILTRADO DE ESTUDIANTES ============
-  const estudiantesFiltrados = useMemo(() => {
-    let filtrados = estudiantes;
+  // ============ COMPARACIÓN FLEXIBLE DE SECCIÓN ============
+  const seccionCoincide = (seccionEstudiante: string, filtroSeccion: string): boolean => {
+    if (!filtroSeccion) return true;
+    if (!seccionEstudiante) return false;
 
+    const normEst = seccionEstudiante.toString().toUpperCase().trim().replace(/^SECCION\s*/, '').replace(/^SECCIÓN\s*/, '');
+    const normFiltro = filtroSeccion.toString().toUpperCase().trim().replace(/^SECCION\s*/, '').replace(/^SECCIÓN\s*/, '');
+
+    return normEst === normFiltro || normEst.includes(normFiltro) || normFiltro.includes(normEst);
+  };
+
+  // ============ COMPARACIÓN FLEXIBLE DE NIVEL ============
+  const nivelCoincide = (nivelEstudiante: string, filtroNivel: string): boolean => {
+    if (!filtroNivel) return true;
+    if (!nivelEstudiante) return false;
+    return nivelEstudiante.toString().toLowerCase().trim() === filtroNivel.toString().toLowerCase().trim();
+  };
+
+  // ============ FILTRADO DE ESTUDIANTES (MÁS FLEXIBLE) ============
+  const estudiantesFiltrados = useMemo(() => {
+    let filtrados = [...estudiantes];
+
+    // Filtro de nivel (siempre se aplica si hay uno seleccionado)
     if (nivelSeleccionado) {
-      filtrados = filtrados.filter((e) => e.nivel === nivelSeleccionado);
+      filtrados = filtrados.filter((e) => nivelCoincide(e.nivel, nivelSeleccionado));
     }
 
+    // Filtro de grado (solo si hay uno seleccionado)
     if (gradoSeleccionado) {
       filtrados = filtrados.filter((e) =>
         gradoCoincide(e.grado, gradoSeleccionado, nivelSeleccionado)
       );
     }
 
+    // Filtro de sección (solo si hay uno seleccionado)
     if (seccionSeleccionada) {
-      filtrados = filtrados.filter((e) => e.seccion === seccionSeleccionada);
+      filtrados = filtrados.filter((e) => seccionCoincide(e.seccion, seccionSeleccionada));
     }
 
+    // Búsqueda por texto
     if (busquedaEstudiante.trim()) {
       const term = busquedaEstudiante.toLowerCase().trim();
       filtrados = filtrados.filter(
         (e) =>
-          e.nombres.toLowerCase().includes(term) ||
-          e.apellidos.toLowerCase().includes(term) ||
+          e.nombres?.toLowerCase().includes(term) ||
+          e.apellidos?.toLowerCase().includes(term) ||
           `${e.nombres} ${e.apellidos}`.toLowerCase().includes(term) ||
-          e.cedulaIdentidad.toLowerCase().includes(term)
+          e.cedulaIdentidad?.toLowerCase().includes(term)
       );
     }
 
+    // Ordenar alfabéticamente
     return filtrados.sort((a, b) =>
-      `${a.apellidos} ${a.nombres}`.localeCompare(`${b.apellidos} ${b.nombres}`)
+      `${a.apellidos || ''} ${a.nombres || ''}`.localeCompare(`${b.apellidos || ''} ${b.nombres || ''}`)
     );
   }, [estudiantes, nivelSeleccionado, gradoSeleccionado, seccionSeleccionada, busquedaEstudiante]);
 
   // ============ MANEJO DE NOTAS ============
   const handleNotaChange = (estudianteId: string, valor: string) => {
     const valorLimpio = valor.replace(',', '.');
-
     if (valorLimpio === '') {
       setNotas(prev => ({
         ...prev,
@@ -403,11 +417,8 @@ const NotasPage: React.FC = () => {
       }));
       return;
     }
-
     const num = parseFloat(valorLimpio);
-    if (isNaN(num)) return;
-    if (num < 0 || num > 20) return;
-
+    if (isNaN(num) || num < 0 || num > 20) return;
     setNotas(prev => ({
       ...prev,
       [estudianteId]: {
@@ -451,19 +462,16 @@ const NotasPage: React.FC = () => {
       sileo.error({ title: 'Error', description: 'No se encontró información del docente' });
       return;
     }
-
     if (!materiaSeleccionada) {
       sileo.warning({ title: 'Datos incompletos', description: 'Seleccione una materia' });
       return;
     }
-
     if (!gradoSeleccionado) {
       sileo.warning({ title: 'Datos incompletos', description: 'Seleccione un grado/año' });
       return;
     }
 
     const notasAGuardar = Object.values(notas).filter(n => n.nota !== '' && n.nota !== undefined);
-
     if (notasAGuardar.length === 0) {
       sileo.warning({ title: 'Sin notas', description: 'No hay notas para guardar' });
       return;
@@ -471,18 +479,20 @@ const NotasPage: React.FC = () => {
 
     try {
       setGuardando(true);
-
-      const payload = notasAGuardar.map(n => ({
-        estudianteId: n.estudianteId,
-        materia: materiaSeleccionada,
-        nivel: nivelSeleccionado,
-        grado: gradoSeleccionado,
-        seccion: n.seccion || seccionSeleccionada || 'A',
-        nota: parseFloat(n.nota),
-        observacion: n.observacion || '',
-        docenteId: docenteInfo.id,
-        periodo: periodoSeleccionado,
-      }));
+      const payload = notasAGuardar.map(n => {
+        const estudiante = estudiantes.find(e => e.id === n.estudianteId);
+        return {
+          estudianteId: n.estudianteId,
+          materia: materiaSeleccionada,
+          nivel: n.nivel || nivelSeleccionado,
+          grado: estudiante?.grado || gradoSeleccionado,
+          seccion: estudiante?.seccion || seccionSeleccionada || 'A',
+          nota: parseFloat(n.nota),
+          observacion: n.observacion || '',
+          docenteId: docenteInfo.id,
+          periodo: periodoSeleccionado,
+        };
+      });
 
       const response = await fetch('/api/notas', {
         method: 'POST',
@@ -500,20 +510,14 @@ const NotasPage: React.FC = () => {
       }
 
       const data = await response.json();
-
       sileo.success({
         title: 'Notas guardadas exitosamente',
         description: `${data.guardadas} ${data.guardadas === 1 ? 'nota guardada' : 'notas guardadas'}`
       });
-
       await cargarNotas();
-
     } catch (error) {
       console.error('Error al guardar notas:', error);
-      sileo.error({
-        title: 'Error de conexión',
-        description: 'No se pudieron guardar las notas'
-      });
+      sileo.error({ title: 'Error de conexión', description: 'No se pudieron guardar las notas' });
     } finally {
       setGuardando(false);
     }
@@ -540,7 +544,6 @@ const NotasPage: React.FC = () => {
       });
       return;
     }
-
     setNivelSeleccionado('media');
     setGradoSeleccionado('');
     setSeccionSeleccionada('');
@@ -567,7 +570,6 @@ const NotasPage: React.FC = () => {
     router.push('/editar');
   };
 
-  // ============ CERRAR SESIÓN ============
   const handleCerrarSesion = () => {
     setConfirmacion({
       abierto: true,
@@ -585,15 +587,10 @@ const NotasPage: React.FC = () => {
   const estadisticas = useMemo(() => {
     const notasValidas = Object.values(notas).filter(n => n.nota !== '' && n.nota !== undefined);
     const valores = notasValidas.map(n => parseFloat(n.nota)).filter(n => !isNaN(n));
-
-    if (valores.length === 0) {
-      return { promedio: 0, aprobados: 0, reprobados: 0, total: 0 };
-    }
-
+    if (valores.length === 0) return { promedio: 0, aprobados: 0, reprobados: 0, total: 0 };
     const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
     const aprobados = valores.filter(v => v >= 10).length;
     const reprobados = valores.filter(v => v < 10).length;
-
     return {
       promedio: promedio.toFixed(2),
       aprobados,
@@ -614,38 +611,29 @@ const NotasPage: React.FC = () => {
     );
   }
 
-  if (status === 'unauthenticated') {
-    return null;
-  }
+  if (status === 'unauthenticated') return null;
 
-  const filtrosCompletos = nivelSeleccionado && gradoSeleccionado && materiaSeleccionada;
+  // Solo requerimos nivel + grado para mostrar estudiantes (materia opcional)
+  const puedeMostrarEstudiantes = nivelSeleccionado && gradoSeleccionado;
 
   return (
     <div
       className="min-h-screen relative text-white overflow-x-hidden"
       style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
     >
-      <div
-        className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
-        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
-      />
+      <div className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
+        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }} />
       <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
 
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={volverAlEditor}
+          <Button variant="outline" size="icon" onClick={volverAlEditor}
             className="border-white/20 text-white hover:bg-emerald-500/20 hover:border-emerald-500/50 rounded-xl h-9 w-9 transition-all"
-            title="Volver al editor"
-          >
+            title="Volver al editor">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="text-emerald-400 font-extrabold tracking-widest text-xs">
-            GESTIÓN DE NOTAS
-          </div>
+          <div className="text-emerald-400 font-extrabold tracking-widest text-xs">GESTIÓN DE NOTAS</div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -657,12 +645,8 @@ const NotasPage: React.FC = () => {
               {docenteInfo?.nombres || session?.user?.name || 'Docente'}
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCerrarSesion}
-            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
-          >
+          <Button variant="ghost" size="sm" onClick={handleCerrarSesion}
+            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl">
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline ml-2">Salir</span>
           </Button>
@@ -677,9 +661,9 @@ const NotasPage: React.FC = () => {
             GESTIÓN DE NOTAS
           </h1>
           <p className="text-white/60 text-base">
-            {filtrosCompletos
-              ? `Calificaciones de ${materiaSeleccionada} — ${gradosActuales.find(g => g.id === gradoSeleccionado)?.nombre || gradoSeleccionado}${seccionSeleccionada ? ` "${seccionSeleccionada}"` : ''} — ${periodoSeleccionado}`
-              : 'Selecciona nivel, grado, materia y período para comenzar'}
+            {puedeMostrarEstudiantes
+              ? `${materiaSeleccionada || 'Sin materia'} — ${gradosActuales.find(g => g.id === gradoSeleccionado)?.nombre || gradoSeleccionado}${seccionSeleccionada ? ` "${seccionSeleccionada}"` : ''} — ${periodoSeleccionado}`
+              : 'Selecciona nivel y grado para comenzar'}
           </p>
         </header>
 
@@ -696,30 +680,23 @@ const NotasPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               {/* Nivel */}
               <div>
-                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">
-                  Nivel
-                </Label>
-                <Select
-                  value={nivelSeleccionado}
-                  onValueChange={(v) => {
-                    if (v) {
-                      setNivelSeleccionado(v);
-                      setGradoSeleccionado('');
-                      setSeccionSeleccionada('');
-                      setMateriaSeleccionada('');
-                      setNotas({});
-                      setNotasOriginales({});
-                    }
-                  }}
-                >
+                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Nivel</Label>
+                <Select value={nivelSeleccionado} onValueChange={(v) => {
+                  if (v) {
+                    setNivelSeleccionado(v);
+                    setGradoSeleccionado('');
+                    setSeccionSeleccionada('');
+                    setMateriaSeleccionada('');
+                    setNotas({});
+                    setNotasOriginales({});
+                  }
+                }}>
                   <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
                     <SelectValue placeholder="Nivel" />
                   </SelectTrigger>
                   <SelectContent>
                     {niveles.map((n) => (
-                      <SelectItem key={n.id} value={n.id}>
-                        {n.nombre.replace('Educación ', '')}
-                      </SelectItem>
+                      <SelectItem key={n.id} value={n.id}>{n.nombre.replace('Educación ', '')}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -727,90 +704,70 @@ const NotasPage: React.FC = () => {
 
               {/* Grado */}
               <div>
-                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">
-                  Grado / Año
-                </Label>
-                <Select
-                  value={gradoSeleccionado || 'none'}
-                  onValueChange={(v) => {
-                    if (v && v !== 'none') {
-                      setGradoSeleccionado(v);
-                      setSeccionSeleccionada('');
-                      setNotas({});
-                      setNotasOriginales({});
-                    }
-                  }}
-                >
+                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Grado / Año</Label>
+                <Select value={gradoSeleccionado || 'none'} onValueChange={(v) => {
+                  if (v && v !== 'none') {
+                    setGradoSeleccionado(v);
+                    setSeccionSeleccionada('');
+                    setNotas({});
+                    setNotasOriginales({});
+                  }
+                }}>
                   <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
                     <SelectValue placeholder="Seleccionar" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none" disabled>
-                      Seleccionar
-                    </SelectItem>
+                    <SelectItem value="none" disabled>Seleccionar</SelectItem>
                     {gradosActuales.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.nombre}
-                      </SelectItem>
+                      <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Sección */}
+              {/* Sección (flexible: muestra las secciones reales de los estudiantes) */}
               <div>
-                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">
-                  Sección
-                </Label>
-                <Select
-                  value={seccionSeleccionada || 'all'}
-                  onValueChange={(v) => {
-                    setSeccionSeleccionada(v === 'all' ? '' : (v ?? ''));
-                    setNotas({});
-                    setNotasOriginales({});
-                  }}
-                  disabled={nivelSeleccionado === 'inicial' || seccionesActuales.length === 0}
-                >
+                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Sección</Label>
+                <Select value={seccionSeleccionada || 'all'} onValueChange={(v) => {
+                  setSeccionSeleccionada(v === 'all' ? '' : (v ?? ''));
+                  setNotas({});
+                  setNotasOriginales({});
+                }}>
                   <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas las secciones</SelectItem>
-                    {seccionesActuales.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        Sección {s}
-                      </SelectItem>
-                    ))}
+                    {seccionesDisponibles.length > 0 ? (
+                      seccionesDisponibles.map((s) => (
+                        <SelectItem key={s} value={s}>Sección {s}</SelectItem>
+                      ))
+                    ) : (
+                      ['A', 'B', 'C', 'D', 'E'].map((s) => (
+                        <SelectItem key={s} value={s}>Sección {s}</SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Materia */}
               <div>
-                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">
-                  Materia
-                </Label>
-                <Select
-                  value={materiaSeleccionada || 'none'}
-                  onValueChange={(v) => {
-                    if (v && v !== 'none') {
-                      setMateriaSeleccionada(v);
-                      setNotas({});
-                      setNotasOriginales({});
-                    }
-                  }}
-                >
+                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Materia</Label>
+                <Select value={materiaSeleccionada || 'none'} onValueChange={(v) => {
+                  if (v && v !== 'none') {
+                    setMateriaSeleccionada(v);
+                    setNotas({});
+                    setNotasOriginales({});
+                  }
+                }}>
                   <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
                     <SelectValue placeholder="Seleccionar" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none" disabled>
-                      Seleccionar
-                    </SelectItem>
+                    <SelectItem value="none" disabled>Seleccionar</SelectItem>
                     {materiasDisponibles.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -818,36 +775,29 @@ const NotasPage: React.FC = () => {
 
               {/* Período */}
               <div>
-                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">
-                  Período
-                </Label>
-                <Select
-                  value={periodoSeleccionado}
-                  onValueChange={(v) => {
-                    if (v) {
-                      setPeriodoSeleccionado(v);
-                      setNotas({});
-                      setNotasOriginales({});
-                    }
-                  }}
-                >
+                <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Período</Label>
+                <Select value={periodoSeleccionado} onValueChange={(v) => {
+                  if (v) {
+                    setPeriodoSeleccionado(v);
+                    setNotas({});
+                    setNotasOriginales({});
+                  }
+                }}>
                   <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
                     {periodos.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* Resumen de filtros + botón limpiar */}
+            {/* Resumen + limpiar */}
             <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 items-center">
                 {nivelSeleccionado && (
                   <span className="text-[0.65rem] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold">
                     {niveles.find(n => n.id === nivelSeleccionado)?.nombre.replace('Educación ', '')}
@@ -871,30 +821,52 @@ const NotasPage: React.FC = () => {
                 <span className="text-[0.65rem] bg-blue-500/15 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-semibold">
                   {periodoSeleccionado}
                 </span>
+                <span className="text-[0.65rem] bg-white/5 text-gray-300 border border-white/10 px-2 py-0.5 rounded-full font-semibold">
+                  {estudiantesFiltrados.length} estudiantes
+                </span>
               </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={limpiarTodo}
-                className="border-white/10 text-gray-400 hover:bg-white/5 hover:border-emerald-500/40 h-8 text-xs"
-              >
+              <Button variant="outline" size="sm" onClick={limpiarTodo}
+                className="border-white/10 text-gray-400 hover:bg-white/5 hover:border-emerald-500/40 h-8 text-xs">
                 <X className="w-3.5 h-3.5 mr-1.5" /> Limpiar
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* CONTENIDO PRINCIPAL */}
-        {!filtrosCompletos ? (
+        {/* AYUDA / DEBUG - Solo cuando no hay estudiantes */}
+        {cargandoEstudiantes ? (
+          <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
+            <CardContent className="p-12 text-center">
+              <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-gray-400">Cargando estudiantes...</p>
+            </CardContent>
+          </Card>
+        ) : estudiantes.length === 0 ? (
+          <Card className="bg-red-500/5 backdrop-blur-xl border-red-500/30 shadow-2xl">
+            <CardContent className="p-8 text-center">
+              <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-white mb-2">No se pudieron cargar los estudiantes</h3>
+              <p className="text-gray-400 text-sm mb-4">
+                Verifica que la API <code className="text-emerald-400">/api/estudiantes</code> esté devolviendo datos.
+                Abre la consola del navegador (F12) para ver más detalles.
+              </p>
+              <Button onClick={cargarEstudiantes}
+                className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold">
+                Reintentar
+              </Button>
+            </CardContent>
+          </Card>
+        ) : !puedeMostrarEstudiantes ? (
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
             <CardContent className="p-12 text-center">
               <BookOpen className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-white mb-2">
-                Selecciona los filtros para comenzar
-              </h3>
-              <p className="text-gray-400 max-w-md mx-auto">
-                Elige el <strong className="text-emerald-400">nivel</strong>, <strong className="text-emerald-400">grado</strong>, <strong className="text-emerald-400">materia</strong> y <strong className="text-emerald-400">período</strong> para cargar la lista de estudiantes y asignar sus calificaciones.
+              <h3 className="text-xl font-bold text-white mb-2">Selecciona nivel y grado</h3>
+              <p className="text-gray-400 max-w-md mx-auto mb-4">
+                Hay <strong className="text-emerald-400">{estudiantes.length}</strong> estudiantes cargados en el sistema.
+                Selecciona un <strong className="text-emerald-400">nivel</strong> y un <strong className="text-emerald-400">grado</strong> para verlos.
+              </p>
+              <p className="text-xs text-gray-500">
+                Niveles disponibles: {Array.from(new Set(estudiantes.map(e => e.nivel))).join(', ') || 'ninguno'}
               </p>
             </CardContent>
           </Card>
@@ -904,42 +876,26 @@ const NotasPage: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               <Card className="bg-emerald-500/10 border-emerald-500/30 backdrop-blur">
                 <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-black text-emerald-400">
-                    {estadisticas.promedio}
-                  </div>
-                  <div className="text-[0.65rem] uppercase text-emerald-400/70 font-bold mt-1">
-                    Promedio
-                  </div>
+                  <div className="text-2xl font-black text-emerald-400">{estadisticas.promedio}</div>
+                  <div className="text-[0.65rem] uppercase text-emerald-400/70 font-bold mt-1">Promedio</div>
                 </CardContent>
               </Card>
               <Card className="bg-green-500/10 border-green-500/30 backdrop-blur">
                 <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-black text-green-400">
-                    {estadisticas.aprobados}
-                  </div>
-                  <div className="text-[0.65rem] uppercase text-green-400/70 font-bold mt-1">
-                    Aprobados (≥10)
-                  </div>
+                  <div className="text-2xl font-black text-green-400">{estadisticas.aprobados}</div>
+                  <div className="text-[0.65rem] uppercase text-green-400/70 font-bold mt-1">Aprobados (≥10)</div>
                 </CardContent>
               </Card>
               <Card className="bg-red-500/10 border-red-500/30 backdrop-blur">
                 <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-black text-red-400">
-                    {estadisticas.reprobados}
-                  </div>
-                  <div className="text-[0.65rem] uppercase text-red-400/70 font-bold mt-1">
-                    Reprobados (&lt;10)
-                  </div>
+                  <div className="text-2xl font-black text-red-400">{estadisticas.reprobados}</div>
+                  <div className="text-[0.65rem] uppercase text-red-400/70 font-bold mt-1">Reprobados (&lt;10)</div>
                 </CardContent>
               </Card>
               <Card className="bg-blue-500/10 border-blue-500/30 backdrop-blur">
                 <CardContent className="p-4 text-center">
-                  <div className="text-2xl font-black text-blue-400">
-                    {estadisticas.total}/{estudiantesFiltrados.length}
-                  </div>
-                  <div className="text-[0.65rem] uppercase text-blue-400/70 font-bold mt-1">
-                    Calificados
-                  </div>
+                  <div className="text-2xl font-black text-blue-400">{estadisticas.total}/{estudiantesFiltrados.length}</div>
+                  <div className="text-[0.65rem] uppercase text-blue-400/70 font-bold mt-1">Calificados</div>
                 </CardContent>
               </Card>
             </div>
@@ -964,11 +920,10 @@ const NotasPage: React.FC = () => {
                       Cambios sin guardar
                     </Badge>
                   )}
-                  <Button
-                    onClick={guardarNotas}
-                    disabled={!hayCambios || guardando}
+                  <Button onClick={guardarNotas}
+                    disabled={!hayCambios || guardando || !materiaSeleccionada}
                     className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
+                    title={!materiaSeleccionada ? 'Selecciona una materia para guardar' : ''}>
                     <Save className="mr-2 h-4 w-4" />
                     {guardando ? 'Guardando...' : 'Guardar Notas'}
                   </Button>
@@ -976,6 +931,17 @@ const NotasPage: React.FC = () => {
               </CardHeader>
 
               <CardContent className="space-y-4">
+                {/* Aviso si no hay materia seleccionada */}
+                {!materiaSeleccionada && (
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-300">
+                      Selecciona una <strong>materia</strong> para poder asignar y guardar calificaciones.
+                      Los estudiantes ya se muestran según el nivel y grado.
+                    </p>
+                  </div>
+                )}
+
                 {/* Búsqueda */}
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
@@ -987,10 +953,8 @@ const NotasPage: React.FC = () => {
                     className="bg-black/30 border-white/10 text-white pl-11 pr-11 h-11 text-sm"
                   />
                   {busquedaEstudiante && (
-                    <button
-                      onClick={() => setBusquedaEstudiante('')}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                    >
+                    <button onClick={() => setBusquedaEstudiante('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -998,45 +962,24 @@ const NotasPage: React.FC = () => {
 
                 <Separator className="bg-white/5" />
 
-                {/* Tabla de estudiantes */}
-                {cargandoEstudiantes ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
-                    <p>Cargando estudiantes...</p>
-                  </div>
-                ) : estudiantesFiltrados.length === 0 ? (
+                {/* Tabla */}
+                {estudiantesFiltrados.length === 0 ? (
                   <div className="text-center py-12 text-gray-400">
                     <Users className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
-                    <p className="text-lg">No se encontraron estudiantes</p>
-                    <p className="text-sm mt-2">
-                      {busquedaEstudiante
-                        ? 'Prueba con otra búsqueda'
-                        : 'No hay estudiantes en este grado/sección'}
-                    </p>
+                    <p className="text-lg">No se encontraron estudiantes con esos filtros</p>
+                    <p className="text-sm mt-2">Prueba seleccionando otro grado, sección o limpia la búsqueda</p>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-white/5 overflow-auto">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-black/30 hover:bg-black/30">
-                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-12 text-center">
-                            #
-                          </TableHead>
-                          <TableHead className="text-emerald-400 font-bold text-xs uppercase">
-                            Cédula
-                          </TableHead>
-                          <TableHead className="text-emerald-400 font-bold text-xs uppercase">
-                            Estudiante
-                          </TableHead>
-                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-32 text-center">
-                            Sección
-                          </TableHead>
-                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-36 text-center">
-                            Nota (0-20)
-                          </TableHead>
-                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-64">
-                            Observación
-                          </TableHead>
+                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-12 text-center">#</TableHead>
+                          <TableHead className="text-emerald-400 font-bold text-xs uppercase">Cédula</TableHead>
+                          <TableHead className="text-emerald-400 font-bold text-xs uppercase">Estudiante</TableHead>
+                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-32 text-center">Sección</TableHead>
+                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-36 text-center">Nota (0-20)</TableHead>
+                          <TableHead className="text-emerald-400 font-bold text-xs uppercase w-64">Observación</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1047,21 +990,19 @@ const NotasPage: React.FC = () => {
                           const reprobado = !isNaN(numNota) && numNota < 10;
 
                           return (
-                            <TableRow
-                              key={estudiante.id}
-                              className="border-white/5 hover:bg-white/5 transition-colors"
-                            >
-                              <TableCell className="text-center text-gray-500 text-sm font-mono">
-                                {index + 1}
-                              </TableCell>
+                            <TableRow key={estudiante.id} className="border-white/5 hover:bg-white/5 transition-colors">
+                              <TableCell className="text-center text-gray-500 text-sm font-mono">{index + 1}</TableCell>
                               <TableCell>
                                 <span className="font-mono font-semibold text-emerald-400 text-sm">
-                                  {estudiante.cedulaIdentidad}
+                                  {estudiante.cedulaIdentidad || '—'}
                                 </span>
                               </TableCell>
                               <TableCell>
                                 <div className="text-white font-medium">
                                   {estudiante.apellidos}, {estudiante.nombres}
+                                </div>
+                                <div className="text-[0.65rem] text-gray-500 mt-0.5">
+                                  {estudiante.grado} — {estudiante.seccion}
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">
@@ -1079,20 +1020,15 @@ const NotasPage: React.FC = () => {
                                     value={notaActual}
                                     onChange={(e) => handleNotaChange(estudiante.id, e.target.value)}
                                     placeholder="—"
-                                    className={`bg-black/40 border-white/10 text-white text-center h-10 font-bold text-base [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                      aprobado
-                                        ? 'border-green-500/50 text-green-400'
-                                        : reprobado
-                                        ? 'border-red-500/50 text-red-400'
-                                        : ''
+                                    disabled={!materiaSeleccionada}
+                                    className={`bg-black/40 border-white/10 text-white text-center h-10 font-bold text-base [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-40 ${
+                                      aprobado ? 'border-green-500/50 text-green-400'
+                                      : reprobado ? 'border-red-500/50 text-red-400'
+                                      : ''
                                     }`}
                                   />
-                                  {aprobado && (
-                                    <Check className="w-4 h-4 text-green-400 shrink-0" />
-                                  )}
-                                  {reprobado && (
-                                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                                  )}
+                                  {aprobado && <Check className="w-4 h-4 text-green-400 shrink-0" />}
+                                  {reprobado && <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1101,7 +1037,8 @@ const NotasPage: React.FC = () => {
                                   value={notas[estudiante.id]?.observacion || ''}
                                   onChange={(e) => handleObservacionChange(estudiante.id, e.target.value)}
                                   placeholder="Observación opcional..."
-                                  className="bg-black/40 border-white/10 text-white text-sm h-10"
+                                  disabled={!materiaSeleccionada}
+                                  className="bg-black/40 border-white/10 text-white text-sm h-10 disabled:opacity-40"
                                 />
                               </TableCell>
                             </TableRow>
@@ -1112,13 +1049,12 @@ const NotasPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Nota informativa */}
                 <div className="mt-4 p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
                   <p className="text-xs text-yellow-400 leading-relaxed m-0 flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
                       <strong>Nota:</strong> Las calificaciones deben estar entre <strong>0 y 20 puntos</strong>.
-                      Una nota mayor o igual a <strong>10</strong> se considera aprobatoria. Los cambios se guardan al hacer clic en <strong>"Guardar Notas"</strong>.
+                      Una nota mayor o igual a <strong>10</strong> se considera aprobatoria.
                     </span>
                   </p>
                 </div>
@@ -1128,7 +1064,6 @@ const NotasPage: React.FC = () => {
         )}
       </main>
 
-      {/* DIÁLOGO DE CONFIRMACIÓN */}
       {confirmacion?.abierto && (
         <ConfirmDialog
           abierto={confirmacion.abierto}
