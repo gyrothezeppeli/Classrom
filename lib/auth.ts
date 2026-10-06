@@ -63,7 +63,9 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
+      // ✅ CRÍTICO: Guardar el id explícitamente en el token
       if (user) {
+        token.id = user.id            // 👈 ESTA LÍNEA FALTABA
         token.role = user.role
         token.docenteId = user.docenteId
         token.estudianteId = user.estudianteId
@@ -72,7 +74,8 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.sub as string
+        // ✅ Usar token.id explícito, con fallback a token.sub
+        session.user.id = (token.id as string) || (token.sub as string)
         session.user.role = token.role as Role
         session.user.docenteId = token.docenteId as string
         session.user.estudianteId = token.estudianteId as string
@@ -80,15 +83,11 @@ export const authOptions: NextAuthOptions = {
       return session
     },
     async redirect({ url, baseUrl }) {
-      // ✅ Redirigir a URLs relativas dentro del sitio
       if (url.startsWith("/")) {
         return `${baseUrl}${url}`
-      }
-      // ✅ Si la URL pertenece al mismo origen, dejarla pasar
-      else if (new URL(url).origin === baseUrl) {
+      } else if (new URL(url).origin === baseUrl) {
         return url
       }
-      // ✅ Por defecto, al home
       return baseUrl
     }
   },
