@@ -7,10 +7,13 @@ import { prisma } from '@/lib/prisma';
 // ============================================
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }  // 👈 Promise aquí
 ) {
   try {
-    await prisma.nota.delete({ where: { id: params.id } });
+    const { id } = await params;  // 👈 await aquí
+
+    await prisma.nota.delete({ where: { id } });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error DELETE /api/notas/[id]:', error);
@@ -26,9 +29,10 @@ export async function DELETE(
 // ============================================
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }  // 👈 Promise aquí
 ) {
   try {
+    const { id } = await params;  // 👈 await aquí
     const body = await req.json();
     const { nota, observacion } = body;
 
@@ -41,7 +45,7 @@ export async function PUT(
     }
 
     const resultado = await prisma.nota.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         nota: notaNum,
         observacion: observacion || '',
