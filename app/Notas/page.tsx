@@ -43,6 +43,7 @@ import {
   AlertCircle,
   BookOpen,
   Pencil,
+  FileDown,
 } from "lucide-react";
 
 const PALETTE = {
@@ -117,6 +118,7 @@ const NotasPage: React.FC = () => {
   const [notasOriginales, setNotasOriginales] = useState<Record<string, NotaEstudiante>>({});
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [exportando, setExportando] = useState(false);
 
   // ============ ESTADOS DE UI ============
   const [confirmacion, setConfirmacion] = useState<{
@@ -285,7 +287,7 @@ const NotasPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelSeleccionado, gradoSeleccionado, seccionSeleccionada, materiaSeleccionada, periodoSeleccionado]);
 
-  // ============ NORMALIZACIÓN DE GRADO (MEJORADA) ============
+  // ============ NORMALIZACIÓN DE GRADO ============
   const normalizarGrado = (grado: string): string => {
     if (!grado) return '';
     return grado
@@ -490,6 +492,62 @@ const NotasPage: React.FC = () => {
     }
   };
 
+  // ============ EXPORTAR A EXCEL ============
+  const exportarAExcel = async () => {
+    if (!nivelSeleccionado || !gradoSeleccionado) {
+      sileo.warning({
+        title: 'Filtros incompletos',
+        description: 'Selecciona nivel y grado para exportar',
+      });
+      return;
+    }
+
+    try {
+      setExportando(true);
+      const params = new URLSearchParams({
+        nivel: nivelSeleccionado,
+        grado: gradoSeleccionado,
+      });
+      if (seccionSeleccionada) params.set('seccion', seccionSeleccionada);
+      if (materiaSeleccionada) params.set('materia', materiaSeleccionada);
+      if (periodoSeleccionado) params.set('periodo', periodoSeleccionado);
+
+      const res = await fetch(`/api/notas/exportar?${params}`);
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        sileo.error({
+          title: 'Error al exportar',
+          description: errorData.error || 'No se pudo generar el archivo',
+        });
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      const partes = ['Notas', gradoSeleccionado];
+      if (seccionSeleccionada) partes.push(`Seccion-${seccionSeleccionada}`);
+      if (materiaSeleccionada) partes.push(materiaSeleccionada);
+      if (periodoSeleccionado) partes.push(periodoSeleccionado.replace(/\s+/g, '-'));
+      a.download = `${partes.join('_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      sileo.success({ title: 'Excel descargado correctamente' });
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      sileo.error({ title: 'Error al exportar' });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   // ============ LIMPIAR FILTROS ============
   const limpiarTodo = () => {
     if (hayCambios) {
@@ -632,7 +690,6 @@ const NotasPage: React.FC = () => {
               : 'Selecciona nivel y grado para comenzar'}
           </p>
 
-          {/* ✅ NUEVO: Botón para ir a editar notas */}
           <Button
             onClick={() => router.push('/Notas/editar')}
             variant="outline"
@@ -885,13 +942,22 @@ const NotasPage: React.FC = () => {
                   </Badge>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {hayCambios && (
                     <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 px-3 py-1 text-xs font-semibold flex items-center gap-1.5">
                       <AlertCircle className="w-3 h-3" />
                       Cambios sin guardar
                     </Badge>
                   )}
+                  <Button
+                    onClick={exportarAExcel}
+                    disabled={exportando || !nivelSeleccionado || !gradoSeleccionado}
+                    variant="outline"
+                    className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-bold disabled:opacity-40"
+                  >
+                    <FileDown className="mr-2 h-4 w-4" />
+                    {exportando ? 'Exportando...' : 'Exportar Excel'}
+                  </Button>
                   <Button onClick={guardarNotas}
                     disabled={!hayCambios || guardando || !materiaSeleccionada}
                     className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold disabled:opacity-40 disabled:cursor-not-allowed"

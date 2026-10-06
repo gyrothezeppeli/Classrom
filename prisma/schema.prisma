@@ -71,12 +71,8 @@ model Docente {
   avisos           Aviso[]
   materiales       Material[]
   horarios         Horario[]
-
-  // ✅ Asistencias registradas por este docente
-  asistencias Asistencia[]
-
-  // ✅ NUEVO: Notas registradas por este docente
-  notas Nota[]
+  asistencias      Asistencia[]
+  notas            Nota[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
@@ -101,15 +97,9 @@ model Estudiante {
   planesEvaluacion EstudiantePlanEvaluacion[]
   avisos           EstudianteAviso[]
   materiales       EstudianteMaterial[]
-
-  // ✅ Notificaciones push
   pushSubscriptions PushSubscription[]
-
-  // ✅ Registros de asistencia del estudiante
-  asistencias AsistenciaEstudiante[]
-
-  // ✅ NUEVO: Notas del estudiante
-  notas Nota[]
+  asistencias      AsistenciaEstudiante[]
+  notas            Nota[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
