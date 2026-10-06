@@ -51,6 +51,7 @@ import {
   Search,
   Check,
   CalendarCheck,
+  GraduationCap,
 } from "lucide-react";
 
 const PALETTE = {
@@ -67,7 +68,8 @@ const TIPOS_CONTENIDO = [
   { id: 'material', nombre: 'Material', icon: FileText },
   { id: 'plan_evaluacion', nombre: 'Plan de Evaluación', icon: ClipboardList },
   { id: 'lista_estudiantes', nombre: 'Lista de Estudiantes', icon: Users },
-  { id: 'asistencia', nombre: 'Lista de Asistencia', icon: CalendarCheck }, // ✅ NUEVO
+  { id: 'asistencia', nombre: 'Lista de Asistencia', icon: CalendarCheck },
+  { id: 'notas', nombre: 'Notas', icon: GraduationCap },
 ];
 
 // ✅ MATERIAS ACTUALIZADAS
@@ -2188,6 +2190,10 @@ const EditTasksPage: React.FC = () => {
                               router.push('/asistencias');
                               return;
                             }
+                            if (tipo.id === 'notas') {
+                              router.push('/Notas');
+                              return;
+                            }
                             setTipoContenido(tipo.id);
                             limpiarFiltrosEstudiantes();
                           }}
@@ -2380,6 +2386,10 @@ const EditTasksPage: React.FC = () => {
                           onClick={() => {
                             if (tipo.id === 'asistencia') {
                               router.push('/asistencias');
+                              return;
+                            }
+                            if (tipo.id === 'notas') {
+                              router.push('/Notas');
                               return;
                             }
                             setTipoContenido(tipo.id);
