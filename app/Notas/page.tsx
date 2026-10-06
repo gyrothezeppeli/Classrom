@@ -42,6 +42,7 @@ import {
   Check,
   AlertCircle,
   BookOpen,
+  Pencil,
 } from "lucide-react";
 
 const PALETTE = {
@@ -169,7 +170,6 @@ const NotasPage: React.FC = () => {
   const materiasDisponibles = MATERIAS_POR_NIVEL[nivelSeleccionado as keyof typeof MATERIAS_POR_NIVEL] || [];
 
   // ============ SECCIONES DINÁMICAS ============
-  // Ahora las secciones se calculan a partir de los estudiantes reales
   const seccionesDisponibles = useMemo(() => {
     const set = new Set<string>();
     estudiantes
@@ -219,8 +219,6 @@ const NotasPage: React.FC = () => {
       const response = await fetch('/api/estudiantes');
       if (response.ok) {
         const data = await response.json();
-        console.log('📚 Estudiantes cargados:', data.length);
-        console.log('📚 Ejemplo:', data[0]);
         setEstudiantes(data);
       } else {
         sileo.error({ title: 'Error al cargar estudiantes' });
@@ -284,6 +282,7 @@ const NotasPage: React.FC = () => {
     if (nivelSeleccionado && gradoSeleccionado && materiaSeleccionada) {
       cargarNotas();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelSeleccionado, gradoSeleccionado, seccionSeleccionada, materiaSeleccionada, periodoSeleccionado]);
 
   // ============ NORMALIZACIÓN DE GRADO (MEJORADA) ============
@@ -293,11 +292,10 @@ const NotasPage: React.FC = () => {
       .toString()
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')  // quitar tildes
+      .replace(/[\u0300-\u036f]/g, '')
       .trim()
       .replace(/[°º]/g, '')
       .replace(/\s+/g, ' ')
-      // Normalizar ordinales
       .replace(/^1ro\b|^1er\b|^1º\b|^1°\b|^primero\b/, '1')
       .replace(/^2do\b|^2da\b|^2º\b|^2°\b|^segundo\b/, '2')
       .replace(/^3ro\b|^3ra\b|^3º\b|^3°\b|^tercero\b/, '3')
@@ -306,80 +304,51 @@ const NotasPage: React.FC = () => {
       .replace(/^6to\b|^6ta\b|^6º\b|^6°\b|^sexto\b/, '6');
   };
 
-  // ============ COMPARACIÓN FLEXIBLE DE GRADO ============
-  const gradoCoincide = (
-    gradoEstudiante: string,
-    filtroGradoId: string,
-    filtroNivel: string
-  ): boolean => {
+  const gradoCoincide = (gradoEstudiante: string, filtroGradoId: string, filtroNivel: string): boolean => {
     if (!gradoEstudiante || !filtroGradoId) return false;
-
     const gradoEst = normalizarGrado(gradoEstudiante);
     const idFiltro = normalizarGrado(filtroGradoId);
-
-    // Buscar el nombre completo del grado (ej: "1er Año")
     const gradoObj = gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.find(
       (g) => g.id === filtroGradoId
     );
     const nombreFiltro = normalizarGrado(gradoObj?.nombre || '');
-
-    // Sacar solo el número para comparación numérica
     const numEst = gradoEst.match(/\d+/)?.[0];
     const numFiltro = idFiltro.match(/\d+/)?.[0];
-
-    // Coincidencia exacta (normalizada)
     if (gradoEst === idFiltro || gradoEst === nombreFiltro) return true;
-
-    // Coincidencia por número (ej: "1" === "1")
     if (numEst && numFiltro && numEst === numFiltro) return true;
-
-    // Inclusión parcial
     if (gradoEst.includes(idFiltro) || idFiltro.includes(gradoEst)) return true;
     if (nombreFiltro && (gradoEst.includes(nombreFiltro) || nombreFiltro.includes(gradoEst))) return true;
-
     return false;
   };
 
-  // ============ COMPARACIÓN FLEXIBLE DE SECCIÓN ============
   const seccionCoincide = (seccionEstudiante: string, filtroSeccion: string): boolean => {
     if (!filtroSeccion) return true;
     if (!seccionEstudiante) return false;
-
     const normEst = seccionEstudiante.toString().toUpperCase().trim().replace(/^SECCION\s*/, '').replace(/^SECCIÓN\s*/, '');
     const normFiltro = filtroSeccion.toString().toUpperCase().trim().replace(/^SECCION\s*/, '').replace(/^SECCIÓN\s*/, '');
-
     return normEst === normFiltro || normEst.includes(normFiltro) || normFiltro.includes(normEst);
   };
 
-  // ============ COMPARACIÓN FLEXIBLE DE NIVEL ============
   const nivelCoincide = (nivelEstudiante: string, filtroNivel: string): boolean => {
     if (!filtroNivel) return true;
     if (!nivelEstudiante) return false;
     return nivelEstudiante.toString().toLowerCase().trim() === filtroNivel.toString().toLowerCase().trim();
   };
 
-  // ============ FILTRADO DE ESTUDIANTES (MÁS FLEXIBLE) ============
+  // ============ FILTRADO DE ESTUDIANTES ============
   const estudiantesFiltrados = useMemo(() => {
     let filtrados = [...estudiantes];
-
-    // Filtro de nivel (siempre se aplica si hay uno seleccionado)
     if (nivelSeleccionado) {
       filtrados = filtrados.filter((e) => nivelCoincide(e.nivel, nivelSeleccionado));
     }
-
-    // Filtro de grado (solo si hay uno seleccionado)
     if (gradoSeleccionado) {
       filtrados = filtrados.filter((e) =>
         gradoCoincide(e.grado, gradoSeleccionado, nivelSeleccionado)
       );
     }
-
-    // Filtro de sección (solo si hay uno seleccionado)
     if (seccionSeleccionada) {
       filtrados = filtrados.filter((e) => seccionCoincide(e.seccion, seccionSeleccionada));
     }
-
-    // Búsqueda por texto
     if (busquedaEstudiante.trim()) {
       const term = busquedaEstudiante.toLowerCase().trim();
       filtrados = filtrados.filter(
@@ -390,8 +359,6 @@ const NotasPage: React.FC = () => {
           e.cedulaIdentidad?.toLowerCase().includes(term)
       );
     }
-
-    // Ordenar alfabéticamente
     return filtrados.sort((a, b) =>
       `${a.apellidos || ''} ${a.nombres || ''}`.localeCompare(`${b.apellidos || ''} ${b.nombres || ''}`)
     );
@@ -613,7 +580,6 @@ const NotasPage: React.FC = () => {
 
   if (status === 'unauthenticated') return null;
 
-  // Solo requerimos nivel + grado para mostrar estudiantes (materia opcional)
   const puedeMostrarEstudiantes = nivelSeleccionado && gradoSeleccionado;
 
   return (
@@ -660,11 +626,21 @@ const NotasPage: React.FC = () => {
             <GraduationCap className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400" />
             GESTIÓN DE NOTAS
           </h1>
-          <p className="text-white/60 text-base">
+          <p className="text-white/60 text-base mb-4">
             {puedeMostrarEstudiantes
               ? `${materiaSeleccionada || 'Sin materia'} — ${gradosActuales.find(g => g.id === gradoSeleccionado)?.nombre || gradoSeleccionado}${seccionSeleccionada ? ` "${seccionSeleccionada}"` : ''} — ${periodoSeleccionado}`
               : 'Selecciona nivel y grado para comenzar'}
           </p>
+
+          {/* ✅ NUEVO: Botón para ir a editar notas */}
+          <Button
+            onClick={() => router.push('/Notas/editar')}
+            variant="outline"
+            className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 font-bold"
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Ver y Editar Notas Guardadas
+          </Button>
         </header>
 
         {/* FILTROS */}
@@ -725,7 +701,7 @@ const NotasPage: React.FC = () => {
                 </Select>
               </div>
 
-              {/* Sección (flexible: muestra las secciones reales de los estudiantes) */}
+              {/* Sección */}
               <div>
                 <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Sección</Label>
                 <Select value={seccionSeleccionada || 'all'} onValueChange={(v) => {
@@ -833,7 +809,7 @@ const NotasPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* AYUDA / DEBUG - Solo cuando no hay estudiantes */}
+        {/* ESTADOS DE CARGA / VACÍO */}
         {cargandoEstudiantes ? (
           <Card className="bg-white/5 backdrop-blur-xl border-white/10 shadow-2xl">
             <CardContent className="p-12 text-center">
@@ -848,7 +824,6 @@ const NotasPage: React.FC = () => {
               <h3 className="text-lg font-bold text-white mb-2">No se pudieron cargar los estudiantes</h3>
               <p className="text-gray-400 text-sm mb-4">
                 Verifica que la API <code className="text-emerald-400">/api/estudiantes</code> esté devolviendo datos.
-                Abre la consola del navegador (F12) para ver más detalles.
               </p>
               <Button onClick={cargarEstudiantes}
                 className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold">
@@ -864,9 +839,6 @@ const NotasPage: React.FC = () => {
               <p className="text-gray-400 max-w-md mx-auto mb-4">
                 Hay <strong className="text-emerald-400">{estudiantes.length}</strong> estudiantes cargados en el sistema.
                 Selecciona un <strong className="text-emerald-400">nivel</strong> y un <strong className="text-emerald-400">grado</strong> para verlos.
-              </p>
-              <p className="text-xs text-gray-500">
-                Niveles disponibles: {Array.from(new Set(estudiantes.map(e => e.nivel))).join(', ') || 'ninguno'}
               </p>
             </CardContent>
           </Card>
@@ -931,7 +903,6 @@ const NotasPage: React.FC = () => {
               </CardHeader>
 
               <CardContent className="space-y-4">
-                {/* Aviso si no hay materia seleccionada */}
                 {!materiaSeleccionada && (
                   <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
@@ -942,7 +913,6 @@ const NotasPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Búsqueda */}
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
                   <Input
@@ -962,7 +932,6 @@ const NotasPage: React.FC = () => {
 
                 <Separator className="bg-white/5" />
 
-                {/* Tabla */}
                 {estudiantesFiltrados.length === 0 ? (
                   <div className="text-center py-12 text-gray-400">
                     <Users className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
