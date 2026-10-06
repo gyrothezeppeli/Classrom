@@ -73,7 +73,10 @@ model Docente {
   horarios         Horario[]
 
   // ✅ Asistencias registradas por este docente
-  asistencias      Asistencia[]
+  asistencias Asistencia[]
+
+  // ✅ NUEVO: Notas registradas por este docente
+  notas Nota[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
@@ -103,7 +106,10 @@ model Estudiante {
   pushSubscriptions PushSubscription[]
 
   // ✅ Registros de asistencia del estudiante
-  asistencias       AsistenciaEstudiante[]
+  asistencias AsistenciaEstudiante[]
+
+  // ✅ NUEVO: Notas del estudiante
+  notas Nota[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
@@ -391,9 +397,8 @@ model Asistencia {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  estudiantes   AsistenciaEstudiante[]
+  estudiantes AsistenciaEstudiante[]
 
-  // ✅ NUEVO: evita duplicados por día/curso/materia
   @@unique([nivel, grado, seccion, materia, fecha])
   @@index([docenteId])
   @@index([nivel, grado, seccion])
@@ -403,15 +408,44 @@ model Asistencia {
 
 // ----- MODELO ASISTENCIA_ESTUDIANTE (por estudiante) -----
 model AsistenciaEstudiante {
-  id            String     @id @default(cuid())
-  asistenciaId  String
-  asistencia    Asistencia @relation(fields: [asistenciaId], references: [id], onDelete: Cascade)
-  estudianteId  String
-  estudiante    Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
-  asistio       Boolean    @default(true)
-  createdAt     DateTime   @default(now())
+  id           String     @id @default(cuid())
+  asistenciaId String
+  asistencia   Asistencia @relation(fields: [asistenciaId], references: [id], onDelete: Cascade)
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  asistio      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
 
   @@unique([asistenciaId, estudianteId])
   @@index([asistenciaId])
   @@index([estudianteId])
+}
+
+// ============================================
+// 10. MODELOS DE NOTAS
+// ============================================
+
+// ----- MODELO NOTA -----
+model Nota {
+  id           String     @id @default(cuid())
+  estudianteId String
+  estudiante   Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  materia      String
+  nivel        String
+  grado        String
+  seccion      String
+  periodo      String     @default("1er Lapso")
+  nota         Float
+  observacion  String?
+  docenteId    String?
+  docente      Docente?   @relation(fields: [docenteId], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([estudianteId, materia, nivel, grado, seccion, periodo])
+  @@index([estudianteId])
+  @@index([docenteId])
+  @@index([nivel, grado, seccion])
+  @@index([materia])
+  @@index([periodo])
 }
