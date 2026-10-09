@@ -457,7 +457,7 @@ export default function RegistrarEstudiantesPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push('/dashboard/control-estudios')}
+            onClick={() => router.push('/dashboard/control_estudios')}
             className="text-white/70 hover:text-white hover:bg-white/5 rounded-xl"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Volver
