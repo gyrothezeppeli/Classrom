@@ -4,9 +4,6 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-// ✅ Forzar runtime Node.js (necesario en Vercel)
-export const runtime = 'nodejs';
-
 // ============================================
 // POST - Guardar suscripción push
 // ============================================
@@ -28,7 +25,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ Buscar el estudiante asociado al usuario logueado
     const estudiante = await prisma.estudiante.findUnique({
       where: { userId: session.user.id },
     });
@@ -40,7 +36,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ Upsert: si ya existe el endpoint, actualiza; si no, crea
     await prisma.pushSubscription.upsert({
       where: { endpoint: subscription.endpoint },
       update: {
