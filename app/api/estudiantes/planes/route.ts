@@ -2,9 +2,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { coincideNivel, coincideGrado, coincideSeccion } from '@/lib/coincidencias';
 
-// GET - Obtener planes de evaluación para un estudiante
+// GET - Obtener planes de evaluación ASIGNADOS a un estudiante
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -17,16 +16,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // ✅ 1. Verificar que el estudiante existe
     const estudiante = await prisma.estudiante.findUnique({
       where: { id: estudianteId },
-      include: {
-        user: {
-          select: {
-            nombre: true,
-            apellido: true
-          }
-        }
-      }
+      select: { id: true, nivel: true, grado: true, seccion: true },
     });
 
     if (!estudiante) {
@@ -36,163 +29,83 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ✅ Traemos todos los planes y filtramos con variantes
-    const todosLosPlanes = await prisma.planEvaluacion.findMany({
+    // ✅ 2. Consultar la tabla intermedia (fuente de verdad)
+    const asignaciones = await prisma.estudiantePlanEvaluacion.findMany({
+      where: { estudianteId },
       include: {
-        docente: {
+        planEvaluacion: {
           include: {
-            user: {
-              select: {
-                nombre: true,
-                apellido: true
-              }
-            }
-          }
+            docente: {
+              include: {
+                user: {
+                  select: { nombre: true, apellido: true },
+                },
+              },
+            },
+          },
         },
-        estudiantes: {
-          where: {
-            estudianteId: estudianteId
-          }
-        }
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        planEvaluacion: { createdAt: 'desc' },
+      },
     });
 
-    const planesFiltrados = todosLosPlanes.filter(
-      (plan) =>
-        coincideNivel(plan.nivel, estudiante.nivel) &&
-        coincideGrado(plan.grado, estudiante.grado) &&
-        coincideSeccion(plan.seccion, estudiante.seccion)
-    );
+    console.log(`📊 ${asignaciones.length} planes asignados al estudiante ${estudianteId}`);
 
-    const planesFormateados = planesFiltrados.map((plan) => ({
-      id: plan.id,
-      areaFormacion: plan.titulo || 'Sin título',
-      titulo: plan.titulo,
-      descripcion: plan.descripcion,
-      nivel: plan.nivel,
-      grado: plan.grado,
-      seccion: plan.seccion,
-      secciones: plan.seccion,
-      materia: plan.materia,
-      docente: `${plan.docente.user.nombre} ${plan.docente.user.apellido || ''}`.trim(),
-      docenteId: plan.docenteId,
-      filas: plan.filas || [],
-      visto: plan.estudiantes.length > 0 ? plan.estudiantes[0].visto : false,
-      fechaVisto: plan.estudiantes.length > 0 ? plan.estudiantes[0].fechaVisto : null,
-      calificacion: plan.estudiantes.length > 0 ? plan.estudiantes[0].calificacion : null,
-      createdAt: plan.createdAt.toISOString(),
-      updatedAt: plan.updatedAt.toISOString()
-    }));
+    // ✅ 3. Formatear la respuesta con la estructura que espera el dashboard
+    const planesFormateados = asignaciones.map((a) => {
+      const plan = a.planEvaluacion;
 
-    console.log(`📊 ${planesFormateados.length} planes enviados al estudiante`);
+      // Adaptar las filas: la BD guarda fechaInicio/fechaFin pero el dashboard espera "fecha"
+      const filasAdaptadas = Array.isArray(plan.filas)
+        ? (plan.filas as any[]).map((f: any) => ({
+            id: f.id || `fila-${Math.random()}`,
+            // ✅ Convertir fechaInicio/fechaFin a un solo string
+            fecha: f.fechaInicio && f.fechaFin
+              ? `${f.fechaInicio} al ${f.fechaFin}`
+              : f.fechaInicio || f.fechaFin || f.fecha || '',
+            referenteTeorico: f.referenteTeorico || '',
+            estrategiaEvaluacion: f.estrategiaEvaluacion || '',
+            tecnicaEvaluacion: f.tecnicaEvaluacion || '',
+            instrumentoEvaluacion: f.instrumentoEvaluacion || '',
+            ptos: f.ptos || '',
+            porcentaje: f.porcentaje || '',
+            // ✅ Convertir array de criterios a string
+            criteriosEvaluacion: Array.isArray(f.criteriosEvaluacion)
+              ? f.criteriosEvaluacion.filter(Boolean).join(', ')
+              : (f.criteriosEvaluacion || ''),
+          }))
+        : [];
+
+      return {
+        id: plan.id,
+        asignacionId: a.id,
+        areaFormacion: plan.titulo || 'Sin título',
+        titulo: plan.titulo,
+        descripcion: plan.descripcion,
+        nivel: plan.nivel,
+        grado: plan.grado,
+        seccion: plan.seccion,
+        secciones: plan.seccion,
+        materia: plan.materia,
+        docente: plan.docente
+          ? `${plan.docente.user.nombre} ${plan.docente.user.apellido || ''}`.trim()
+          : 'Docente no asignado',
+        docenteId: plan.docenteId,
+        filas: filasAdaptadas,
+        visto: a.visto,
+        fechaVisto: a.fechaVisto,
+        calificacion: a.calificacion,
+        createdAt: plan.createdAt.toISOString(),
+        updatedAt: plan.updatedAt.toISOString(),
+      };
+    });
 
     return NextResponse.json(planesFormateados);
   } catch (error) {
     console.error('Error al obtener planes del estudiante:', error);
     return NextResponse.json(
       { error: 'Error al obtener planes' },
-      { status: 500 }
-    );
-  }
-}
-
-// POST - Marcar plan como visto
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { estudianteId, planId, planEvaluacionId, visto } = body;
-
-    // ✅ Aceptar tanto planId como planEvaluacionId
-    const idPlan = planId || planEvaluacionId;
-
-    if (!estudianteId || !idPlan) {
-      return NextResponse.json(
-        { error: 'Estudiante ID y Plan ID requeridos' },
-        { status: 400 }
-      );
-    }
-
-    // ✅ Verificar que el estudiante existe
-    const estudiante = await prisma.estudiante.findUnique({
-      where: { id: estudianteId }
-    });
-
-    if (!estudiante) {
-      return NextResponse.json(
-        { error: 'Estudiante no encontrado' },
-        { status: 404 }
-      );
-    }
-
-    // ✅ Verificar que el plan existe
-    const plan = await prisma.planEvaluacion.findUnique({
-      where: { id: idPlan }
-    });
-
-    if (!plan) {
-      return NextResponse.json(
-        { error: 'Plan de evaluación no encontrado' },
-        { status: 404 }
-      );
-    }
-
-    // ✅ Crear o actualizar relación con fechaVisto
-    const result = await prisma.estudiantePlanEvaluacion.upsert({
-      where: {
-        estudianteId_planEvaluacionId: {
-          estudianteId,
-          planEvaluacionId: idPlan
-        }
-      },
-      update: {
-        visto: visto !== undefined ? visto : true,
-        fechaVisto: new Date()
-      },
-      create: {
-        estudianteId,
-        planEvaluacionId: idPlan,
-        visto: visto !== undefined ? visto : true,
-        fechaVisto: new Date()
-      },
-      include: {
-        estudiante: {
-          include: {
-            user: {
-              select: {
-                nombre: true,
-                apellido: true
-              }
-            }
-          }
-        },
-        planEvaluacion: true
-      }
-    });
-
-    return NextResponse.json({
-      id: result.id,
-      estudianteId: result.estudianteId,
-      planEvaluacionId: result.planEvaluacionId,
-      visto: result.visto,
-      fechaVisto: result.fechaVisto,
-      calificacion: result.calificacion,
-      estudiante: {
-        nombre: result.estudiante.user.nombre,
-        apellido: result.estudiante.user.apellido
-      },
-      plan: {
-        titulo: result.planEvaluacion.titulo
-      },
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt
-    });
-  } catch (error) {
-    console.error('Error al actualizar plan:', error);
-    return NextResponse.json(
-      { error: 'Error al actualizar el plan' },
       { status: 500 }
     );
   }

@@ -37,57 +37,82 @@ export const coincideNivel = (a: string, b: string): boolean => {
 };
 
 // ============================================
-// Grado
+// Grado - VERSIÓN ROBUSTA
 // ============================================
 
 const variantesGrado = (grado: string): string[] => {
   const g = normalizar(grado);
-  const mapa: Record<string, string[]> = {
-    '1er ano': ['1er ano', '1ro', '1er año', '1'],
-    '2do ano': ['2do ano', '2do', '2do año', '2'],
-    '3er ano': ['3er ano', '3ro', '3er año', '3'],
-    '4to ano': ['4to ano', '4to', '4to año', '4'],
-    '5to ano': ['5to ano', '5to', '5to año', '5'],
-    '1er grado': ['1er grado', '1ro', '1'],
-    '2do grado': ['2do grado', '2do', '2'],
-    '3er grado': ['3er grado', '3ro', '3'],
-    '4to grado': ['4to grado', '4to', '4'],
-    '5to grado': ['5to grado', '5to', '5'],
-    '6to grado': ['6to grado', '6to', '6'],
-    '1er nivel': ['1er nivel', '1er_nivel', '1ro nivel', '1ro_nivel'],
-    '2do nivel': ['2do nivel', '2do_nivel'],
-    '3er nivel': ['3er nivel', '3er_nivel', '3ro nivel', '3ro_nivel'],
-    prekinder: ['prekinder', 'pre-kinder'],
-    kinder: ['kinder'],
-    preparatorio: ['preparatorio'],
-  };
-  return mapa[g] || [g];
+  if (!g) return [];
+
+  // Extraer el número principal
+  const match = g.match(/\d+/);
+  const num = match ? match[0] : null;
+
+  // Detectar el tipo
+  const esAno = g.includes('ano') || g.includes('año');
+  const esGrado = g.includes('grado');
+  const esNivel = g.includes('nivel');
+
+  const variantes = new Set<string>();
+  variantes.add(g); // incluir el original normalizado
+
+  if (num) {
+    variantes.add(num); // solo el número
+
+    // Ordinales para cada número
+    const ordinales: Record<string, string[]> = {
+      '1': ['1ro', '1er', '1ra', 'primero', 'primer'],
+      '2': ['2do', '2da', 'segundo'],
+      '3': ['3ro', '3ra', 'tercero'],
+      '4': ['4to', '4ta', 'cuarto'],
+      '5': ['5to', '5ta', 'quinto'],
+      '6': ['6to', '6ta', 'sexto'],
+    };
+
+    const ords = ordinales[num] || [];
+    ords.forEach((o) => variantes.add(o));
+
+    // Con tipo
+    if (esAno) {
+      ords.forEach((o) => variantes.add(`${o} ano`));
+      variantes.add(`${num} ano`);
+      variantes.add(`${num} anos`);
+    }
+    if (esGrado) {
+      ords.forEach((o) => variantes.add(`${o} grado`));
+      variantes.add(`${num} grado`);
+    }
+    if (esNivel) {
+      ords.forEach((o) => variantes.add(`${o} nivel`));
+      variantes.add(`${num} nivel`);
+    }
+  }
+
+  return Array.from(variantes);
 };
 
 export const coincideGrado = (a: string, b: string): boolean => {
   if (!a || !b) return false;
-  return (
-    variantesGrado(a).includes(normalizar(b)) ||
-    variantesGrado(b).includes(normalizar(a))
-  );
+
+  const va = variantesGrado(a);
+  const vb = variantesGrado(b);
+
+  // Intersección
+  return va.some((x) => vb.includes(x));
 };
 
 // ============================================
-// Sección (SOPORTA MÚLTIPLES: "A,B,C" ↔ "A")
+// Sección (soporta múltiples: "A,B,C" ↔ "A")
 // ============================================
 
-/**
- * Convierte una cadena de secciones "A,B,C" en un array normalizado ["a", "b", "c"].
- * También acepta arrays directamente.
- */
 const parsearSecciones = (valor: string | string[] | null | undefined): string[] => {
   if (!valor) return [];
   if (Array.isArray(valor)) {
-    return valor.map(v => normalizar(v)).filter(Boolean);
+    return valor.map((v) => normalizar(v)).filter(Boolean);
   }
   return valor
     .split(',')
-    .map(s => normalizar(s))
+    .map((s) => normalizar(s))
     .filter(Boolean);
 };
 
@@ -95,7 +120,7 @@ export const coincideSeccion = (a: string, b: string): boolean => {
   const na = normalizar(a);
   const nb = normalizar(b);
 
-  // ✅ "Única" o vacío → coincide con todo
+  // "Única" o vacío → coincide con todo
   if (
     na === 'unica' || na === 'única' || na === '' ||
     nb === 'unica' || nb === 'única' || nb === ''
@@ -103,15 +128,14 @@ export const coincideSeccion = (a: string, b: string): boolean => {
     return true;
   }
 
-  // ✅ Si "a" es múltiple tipo "A,B,C", verificar si incluye a "b"
   const seccionesA = parsearSecciones(a);
   const seccionesB = parsearSecciones(b);
 
-  // ✅ Si hay intersección entre ambas listas, coincide
-  const hayInterseccion = seccionesA.some(sa => seccionesB.includes(sa));
+  // Intersección
+  const hayInterseccion = seccionesA.some((sa) => seccionesB.includes(sa));
   if (hayInterseccion) return true;
 
-  // ✅ También permitir prefijos "seccion a" ↔ "a"
+  // Prefijos "seccion a" ↔ "a"
   for (const sa of seccionesA) {
     for (const sb of seccionesB) {
       if (
