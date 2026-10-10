@@ -58,7 +58,6 @@ const PALETTE = {
   success: '#22c55e'
 };
 
-// ✅ Color único para todas las materias activas
 const COLOR_MATERIA_ACTIVA = '#00BB7E';
 const COLOR_MATERIA_VACIA = '#6b7280';
 
@@ -236,6 +235,7 @@ const coincideGrado = (a: string, b: string) =>
   variantesGrado(a).includes(normalizarTexto(b)) ||
   variantesGrado(b).includes(normalizarTexto(a));
 
+// ✅ CORREGIDO: soporta secciones múltiples tipo "A,C,B" ↔ "A"
 const coincideSeccion = (a: string, b: string) => {
   const na = normalizarTexto(a);
   const nb = normalizarTexto(b);
@@ -247,7 +247,62 @@ const coincideSeccion = (a: string, b: string) => {
     return true;
   }
 
-  return na === nb || na === `seccion ${nb}` || `seccion ${na}` === nb;
+  // Parsear secciones por coma
+  const seccionesA = na.split(',').map(s => s.trim()).filter(Boolean);
+  const seccionesB = nb.split(',').map(s => s.trim()).filter(Boolean);
+
+  // Intersección
+  const hayInterseccion = seccionesA.some(sa => seccionesB.includes(sa));
+  if (hayInterseccion) return true;
+
+  // Prefijos "seccion a" ↔ "a"
+  for (const sa of seccionesA) {
+    for (const sb of seccionesB) {
+      if (
+        sa === sb ||
+        sa === `seccion ${sb}` ||
+        `seccion ${sa}` === sb
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+// ✅ NUEVO: comparación flexible de materia
+const coincideMateria = (materiaPlan: string, materiaBase: string): boolean => {
+  const mp = normalizarTexto(materiaPlan || '');
+  const mb = normalizarTexto(materiaBase || '');
+
+  if (!mp || !mb) return false;
+
+  // Igualdad exacta normalizada
+  if (mp === mb) return true;
+
+  // Inclusión parcial
+  if (mp.includes(mb) || mb.includes(mp)) return true;
+
+  // Equivalencias comunes
+  const equivalencias: Record<string, string[]> = {
+    'lengua espanola': ['castellano', 'lengua', 'espanol'],
+    'castellano': ['lengua espanola', 'lengua', 'espanol'],
+    'matematicas': ['matematica'],
+    'matematica': ['matematicas'],
+    'ghc': ['g h c', 'geografia historia civica'],
+    'g h c': ['ghc', 'geografia historia civica'],
+    'educacion fisica': ['ed fisica', 'edfisica'],
+    'informatica': ['computacion'],
+  };
+
+  const variantes = equivalencias[mp] || [];
+  if (variantes.includes(mb)) return true;
+
+  const variantesBase = equivalencias[mb] || [];
+  if (variantesBase.includes(mp)) return true;
+
+  return false;
 };
 
 const esNivelMedia = (nivel: string): boolean => {
@@ -352,12 +407,23 @@ const EstudianteDashboard: React.FC = () => {
 
         setEstudiante(estudianteData);
 
+        // ✅ LOG DE DIAGNÓSTICO 1: Datos del estudiante
+        console.log('👤 [DASHBOARD] Estudiante:', {
+          id: estudianteData.id,
+          nivel: estudianteData.nivel,
+          grado: estudianteData.grado,
+          seccion: estudianteData.seccion,
+        });
+
         const planesResponse = await fetch(`/api/estudiantes/planes?estudianteId=${data.id}`);
 
         let planesData: PlanEvaluacion[] = [];
 
         if (planesResponse.ok) {
           const rawPlanes = await planesResponse.json();
+
+          // ✅ LOG DE DIAGNÓSTICO 2: Planes que llegan del endpoint
+          console.log('📋 [DASHBOARD] Planes recibidos:', rawPlanes);
 
           planesData = (rawPlanes || []).map((plan: any) => ({
             id: plan.id || '',
@@ -473,8 +539,10 @@ const EstudianteDashboard: React.FC = () => {
         setDocentes(docentesMap);
 
         const materiasConstruidas: MateriaConPlanes[] = MATERIAS_BASE.map((base) => {
+          // ✅ CORREGIDO: filtros flexibles de materia + nivel/grado/sección
           const planesMateria = planesData.filter((plan: PlanEvaluacion) => {
-            const materiaOk = plan.materia === base.nombre || plan.areaFormacion === base.nombre;
+            const materiaOk = coincideMateria(plan.materia, base.nombre) ||
+                              coincideMateria(plan.areaFormacion, base.nombre);
             if (!materiaOk) return false;
             if (!coincideNivel(plan.nivel || '', estudianteData.nivel)) return false;
             if (!coincideGrado(plan.grado || '', estudianteData.grado)) return false;
@@ -483,7 +551,8 @@ const EstudianteDashboard: React.FC = () => {
           });
 
           const tareasMateria = tareasData.filter((t) => {
-            if (t.materia !== base.nombre) return false;
+            const materiaOk = coincideMateria(t.materia, base.nombre);
+            if (!materiaOk) return false;
             if (!coincideNivel(t.nivel || '', estudianteData.nivel)) return false;
             if (!coincideGrado(t.grado || '', estudianteData.grado)) return false;
             if (!coincideSeccion(t.seccion || '', estudianteData.seccion)) return false;
@@ -491,7 +560,8 @@ const EstudianteDashboard: React.FC = () => {
           });
 
           const avisosMateria = avisosData.filter((a) => {
-            if (a.materia !== base.nombre) return false;
+            const materiaOk = coincideMateria(a.materia, base.nombre);
+            if (!materiaOk) return false;
             if (!coincideNivel(a.nivel || '', estudianteData.nivel)) return false;
             if (!coincideGrado(a.grado || '', estudianteData.grado)) return false;
             if (!coincideSeccion(a.seccion || '', estudianteData.seccion)) return false;
@@ -499,7 +569,8 @@ const EstudianteDashboard: React.FC = () => {
           });
 
           const materialesMateria = materialesData.filter((m) => {
-            if (m.materia !== base.nombre) return false;
+            const materiaOk = coincideMateria(m.materia, base.nombre);
+            if (!materiaOk) return false;
             if (!coincideNivel(m.nivel || '', estudianteData.nivel)) return false;
             if (!coincideGrado(m.grado || '', estudianteData.grado)) return false;
             if (!coincideSeccion(m.seccion || '', estudianteData.seccion)) return false;
@@ -518,6 +589,11 @@ const EstudianteDashboard: React.FC = () => {
             profesor = materialesMateria[0].docente;
           }
 
+          // ✅ LOG DE DIAGNÓSTICO 3: Materias con planes
+          if (planesMateria.length > 0) {
+            console.log(`✅ [DASHBOARD] "${base.nombre}" → ${planesMateria.length} plan(es)`);
+          }
+
           return {
             ...base,
             profesor: profesor,
@@ -527,6 +603,17 @@ const EstudianteDashboard: React.FC = () => {
             materiales: materialesMateria
           };
         });
+
+        // ✅ LOG DE DIAGNÓSTICO 4: Resumen final
+        const totalPlanesAsignados = materiasConstruidas.reduce(
+          (sum, m) => sum + m.planEvaluacion.length, 0
+        );
+        console.log(`📊 [DASHBOARD] Total planes asignados a materias: ${totalPlanesAsignados}`);
+        console.log('📚 [DASHBOARD] Materias con contenido:',
+          materiasConstruidas
+            .filter(m => m.planEvaluacion.length > 0 || m.tareasPendientes.length > 0)
+            .map(m => `${m.nombre}: ${m.planEvaluacion.length} planes, ${m.tareasPendientes.length} tareas`)
+        );
 
         setMaterias(materiasConstruidas);
         setError(null);
