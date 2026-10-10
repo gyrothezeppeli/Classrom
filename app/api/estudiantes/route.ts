@@ -1,8 +1,9 @@
 // app/api/estudiantes/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { coincideNivel, coincideGrado, coincideSeccion } from '@/lib/coincidencias';
 
 // ============ GET - Listar todos los estudiantes ============
 export async function GET() {
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
+    // ✅ 1. Crear el usuario y el estudiante en una transacción
     const estudiante = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -114,6 +116,91 @@ export async function POST(req: NextRequest) {
       return estudiante;
     });
 
+    console.log(`✅ Estudiante creado: ${estudiante.user.nombre} ${estudiante.user.apellido} | ${estudiante.nivel} ${estudiante.grado} ${estudiante.seccion}`);
+
+    // ✅ 2. Asignar planes de evaluación existentes
+    const planesExistentes = await prisma.planEvaluacion.findMany();
+    const planesAsignados = planesExistentes.filter((plan) =>
+      coincideNivel(plan.nivel, estudiante.nivel) &&
+      coincideGrado(plan.grado, estudiante.grado) &&
+      coincideSeccion(plan.seccion, estudiante.seccion)
+    );
+
+    if (planesAsignados.length > 0) {
+      await prisma.estudiantePlanEvaluacion.createMany({
+        data: planesAsignados.map((plan) => ({
+          estudianteId: estudiante.id,
+          planEvaluacionId: plan.id,
+          visto: false,
+        })),
+        skipDuplicates: true,
+      });
+      console.log(`   → ${planesAsignados.length} planes asignados`);
+    }
+
+    // ✅ 3. Asignar tareas existentes
+    const tareasExistentes = await prisma.tarea.findMany();
+    const tareasAsignadas = tareasExistentes.filter((tarea) =>
+      coincideNivel(tarea.nivel, estudiante.nivel) &&
+      coincideGrado(tarea.grado, estudiante.grado) &&
+      coincideSeccion(tarea.seccion, estudiante.seccion)
+    );
+
+    if (tareasAsignadas.length > 0) {
+      await prisma.estudianteTarea.createMany({
+        data: tareasAsignadas.map((tarea) => ({
+          estudianteId: estudiante.id,
+          tareaId: tarea.id,
+          visto: false,
+          entregado: false,
+        })),
+        skipDuplicates: true,
+      });
+      console.log(`   → ${tareasAsignadas.length} tareas asignadas`);
+    }
+
+    // ✅ 4. Asignar avisos existentes
+    const avisosExistentes = await prisma.aviso.findMany();
+    const avisosAsignados = avisosExistentes.filter((aviso) =>
+      coincideNivel(aviso.nivel, estudiante.nivel) &&
+      coincideGrado(aviso.grado, estudiante.grado) &&
+      coincideSeccion(aviso.seccion, estudiante.seccion)
+    );
+
+    if (avisosAsignados.length > 0) {
+      await prisma.estudianteAviso.createMany({
+        data: avisosAsignados.map((aviso) => ({
+          estudianteId: estudiante.id,
+          avisoId: aviso.id,
+          visto: false,
+        })),
+        skipDuplicates: true,
+      });
+      console.log(`   → ${avisosAsignados.length} avisos asignados`);
+    }
+
+    // ✅ 5. Asignar materiales existentes
+    const materialesExistentes = await prisma.material.findMany();
+    const materialesAsignados = materialesExistentes.filter((material) =>
+      coincideNivel(material.nivel, estudiante.nivel) &&
+      coincideGrado(material.grado, estudiante.grado) &&
+      coincideSeccion(material.seccion, estudiante.seccion)
+    );
+
+    if (materialesAsignados.length > 0) {
+      await prisma.estudianteMaterial.createMany({
+        data: materialesAsignados.map((material) => ({
+          estudianteId: estudiante.id,
+          materialId: material.id,
+          visto: false,
+        })),
+        skipDuplicates: true,
+      });
+      console.log(`   → ${materialesAsignados.length} materiales asignados`);
+    }
+
+    console.log(`🎉 Total asignado a ${estudiante.user.nombre}: ${planesAsignados.length} planes, ${tareasAsignadas.length} tareas, ${avisosAsignados.length} avisos, ${materialesAsignados.length} materiales`);
+
     return NextResponse.json({
       id: estudiante.id,
       userId: estudiante.userId,
@@ -125,7 +212,13 @@ export async function POST(req: NextRequest) {
       nivel: estudiante.nivel,
       grado: estudiante.grado,
       seccion: estudiante.seccion,
-      createdAt: estudiante.user.createdAt
+      createdAt: estudiante.user.createdAt,
+      asignaciones: {
+        planes: planesAsignados.length,
+        tareas: tareasAsignadas.length,
+        avisos: avisosAsignados.length,
+        materiales: materialesAsignados.length,
+      }
     }, { status: 201 });
 
   } catch (error) {
