@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ClassroomContentService, type ClassroomTask, type ClassroomNotice, type ClassroomMaterial, type ClassroomGuide, type ClassroomPlan } from '@/lib/services/client/ClassroomContentService';
+
+const classroomContentService = new ClassroomContentService();
 
 const COLORES = {
   principal: '#00BB7E',
@@ -24,11 +27,11 @@ const ClassroomPage: React.FC = () => {
   const router = useRouter();
   const [seccionActiva, setSeccionActiva] = useState('tareas');
 
-  const [tareas, setTareas] = useState<any[]>([]);
-  const [avisos, setAvisos] = useState<any[]>([]);
-  const [materiales, setMateriales] = useState<any[]>([]);
-  const [guias, setGuias] = useState<any[]>([]);
-  const [planEvaluacion, setPlanEvaluacion] = useState<any[]>([]);
+  const [tareas, setTareas] = useState<ClassroomTask[]>([]);
+  const [avisos, setAvisos] = useState<ClassroomNotice[]>([]);
+  const [materiales, setMateriales] = useState<ClassroomMaterial[]>([]);
+  const [guias, setGuias] = useState<ClassroomGuide[]>([]);
+  const [planEvaluacion, setPlanEvaluacion] = useState<ClassroomPlan[]>([]);
 
   const [nuevaTarea, setNuevaTarea] = useState({ titulo: '', descripcion: '', fechaEntrega: '', materia: '' });
   const [nuevoAviso, setNuevoAviso] = useState({ titulo: '', descripcion: '', fecha: '' });
@@ -37,24 +40,21 @@ const ClassroomPage: React.FC = () => {
   const [nuevoPlan, setNuevoPlan] = useState({ periodo: '', contenido: '', fecha: '' });
 
   const currentKey = getKey();
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   useEffect(() => {
     const cargarDatos = () => {
       try {
-        const storedTareas = localStorage.getItem(`tareas_${currentKey}`);
-        setTareas(storedTareas ? JSON.parse(storedTareas) : []);
+        setTareas(classroomContentService.load('tarea', currentKey));
 
-        const avisosStored = localStorage.getItem(`avisos_${currentKey}`);
-        setAvisos(avisosStored ? JSON.parse(avisosStored) : []);
+        setAvisos(classroomContentService.load('aviso', currentKey));
 
-        const materialesStored = localStorage.getItem(`materiales_${currentKey}`);
-        setMateriales(materialesStored ? JSON.parse(materialesStored) : []);
+        setMateriales(classroomContentService.load('material', currentKey));
 
-        const guiasStored = localStorage.getItem(`guias_${currentKey}`);
-        setGuias(guiasStored ? JSON.parse(guiasStored) : []);
+        setGuias(classroomContentService.load('guia', currentKey));
 
-        const planStored = localStorage.getItem(`plan_${currentKey}`);
-        setPlanEvaluacion(planStored ? JSON.parse(planStored) : []);
+        setPlanEvaluacion(classroomContentService.load('plan', currentKey));
+      setLoadedKey(currentKey);
       } catch (error) {
         console.error('Error cargando datos:', error);
       }
@@ -62,87 +62,94 @@ const ClassroomPage: React.FC = () => {
     cargarDatos();
   }, [currentKey]);
 
-  useEffect(() => { 
+  useEffect(() => {
+    if (loadedKey !== currentKey) return;
     try {
-      localStorage.setItem(`tareas_${currentKey}`, JSON.stringify(tareas)); 
+      classroomContentService.save('tarea', currentKey, tareas); 
     } catch (error) {
       console.error('Error guardando tareas:', error);
     }
-  }, [tareas, currentKey]);
+  }, [tareas, currentKey, loadedKey]);
   
-  useEffect(() => { 
+  useEffect(() => {
+    if (loadedKey !== currentKey) return;
     try {
-      localStorage.setItem(`avisos_${currentKey}`, JSON.stringify(avisos)); 
+      classroomContentService.save('aviso', currentKey, avisos); 
     } catch (error) {
       console.error('Error guardando avisos:', error);
     }
-  }, [avisos, currentKey]);
+  }, [avisos, currentKey, loadedKey]);
   
-  useEffect(() => { 
+  useEffect(() => {
+    if (loadedKey !== currentKey) return;
     try {
-      localStorage.setItem(`materiales_${currentKey}`, JSON.stringify(materiales)); 
+      classroomContentService.save('material', currentKey, materiales); 
     } catch (error) {
       console.error('Error guardando materiales:', error);
     }
-  }, [materiales, currentKey]);
+  }, [materiales, currentKey, loadedKey]);
   
-  useEffect(() => { 
+  useEffect(() => {
+    if (loadedKey !== currentKey) return;
     try {
-      localStorage.setItem(`guias_${currentKey}`, JSON.stringify(guias)); 
+      classroomContentService.save('guia', currentKey, guias); 
     } catch (error) {
       console.error('Error guardando guias:', error);
     }
-  }, [guias, currentKey]);
+  }, [guias, currentKey, loadedKey]);
   
-  useEffect(() => { 
+  useEffect(() => {
+    if (loadedKey !== currentKey) return;
     try {
-      localStorage.setItem(`plan_${currentKey}`, JSON.stringify(planEvaluacion)); 
+      classroomContentService.save('plan', currentKey, planEvaluacion); 
     } catch (error) {
       console.error('Error guardando plan:', error);
     }
-  }, [planEvaluacion, currentKey]);
+  }, [planEvaluacion, currentKey, loadedKey]);
 
   const agregarTarea = () => {
     if (!nuevaTarea.titulo || !nuevaTarea.fechaEntrega) return;
-    setTareas([...tareas, { ...nuevaTarea, id: Date.now(), completado: false }]);
+    setTareas((items) => classroomContentService.add(items, { ...nuevaTarea, completado: false }));
     setNuevaTarea({ titulo: '', descripcion: '', fechaEntrega: '', materia: '' });
   };
 
   const toggleTarea = (id: number) => {
-    setTareas(tareas.map(t => t.id === id ? { ...t, completado: !t.completado } : t));
+    setTareas((items) => classroomContentService.toggleTask(items, id));
   };
 
   const agregarAviso = () => {
     if (!nuevoAviso.titulo) return;
-    setAvisos([...avisos, { ...nuevoAviso, id: Date.now(), fecha: nuevoAviso.fecha || new Date().toLocaleDateString() }]);
+    setAvisos((items) => classroomContentService.add(items, { ...nuevoAviso, fecha: nuevoAviso.fecha || new Date().toLocaleDateString() }));
     setNuevoAviso({ titulo: '', descripcion: '', fecha: '' });
   };
 
   const agregarMaterial = () => {
     if (!nuevoMaterial.titulo) return;
-    setMateriales([...materiales, { ...nuevoMaterial, id: Date.now() }]);
+    setMateriales((items) => classroomContentService.add(items, nuevoMaterial));
     setNuevoMaterial({ titulo: '', descripcion: '', enlace: '' });
   };
 
   const agregarGuia = () => {
     if (!nuevaGuia.titulo) return;
-    setGuias([...guias, { ...nuevaGuia, id: Date.now() }]);
+    setGuias((items) => classroomContentService.add(items, nuevaGuia));
     setNuevaGuia({ titulo: '', descripcion: '', archivo: '' });
   };
 
   const agregarPlan = () => {
     if (!nuevoPlan.periodo) return;
-    setPlanEvaluacion([...planEvaluacion, { ...nuevoPlan, id: Date.now() }]);
+    const plan = classroomContentService.createPlan(nuevoPlan);
+    if (!plan) return;
+    setPlanEvaluacion((items) => classroomContentService.add(items, plan));
     setNuevoPlan({ periodo: '', contenido: '', fecha: '' });
   };
 
   const eliminarElemento = (id: number, tipo: string) => {
     if (!confirm('¿Seguro que desea eliminar este registro?')) return;
-    if (tipo === 'tarea') setTareas(tareas.filter(t => t.id !== id));
-    if (tipo === 'aviso') setAvisos(avisos.filter(a => a.id !== id));
-    if (tipo === 'material') setMateriales(materiales.filter(m => m.id !== id));
-    if (tipo === 'guia') setGuias(guias.filter(g => g.id !== id));
-    if (tipo === 'plan') setPlanEvaluacion(planEvaluacion.filter(p => p.id !== id));
+    if (tipo === 'tarea') setTareas((items) => classroomContentService.remove(items, id));
+    if (tipo === 'aviso') setAvisos((items) => classroomContentService.remove(items, id));
+    if (tipo === 'material') setMateriales((items) => classroomContentService.remove(items, id));
+    if (tipo === 'guia') setGuias((items) => classroomContentService.remove(items, id));
+    if (tipo === 'plan') setPlanEvaluacion((items) => classroomContentService.remove(items, id));
   };
 
   return (

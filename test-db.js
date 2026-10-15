@@ -1,5 +1,5 @@
 // test-db.js
-const { Pool } = require('pg');
+import('pg').then(({ Pool }) => {
 
 const pool = new Pool({
   connectionString: 'postgresql://postgres:1234@localhost:5432/classroom',
@@ -12,4 +12,5 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('Conexión exitosa:', res.rows[0]);
   }
   pool.end();
+});
 });

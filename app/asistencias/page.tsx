@@ -1,12 +1,13 @@
 // app/asistencia/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { sileo } from 'sileo';
 
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AttendanceReport } from "@/lib/domain/attendance/AttendanceReport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,6 +85,13 @@ interface Estudiante {
   correoElectronico: string;
 }
 
+interface AsistenciaDetalle {
+  estudiantes?: Array<{
+    estudianteId: string;
+    asistio: boolean;
+  }>;
+}
+
 interface DocenteInfo {
   id: string;
   nombres: string;
@@ -116,7 +124,7 @@ interface Asistencia {
 
 export default function AsistenciaPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   const [docenteInfo, setDocenteInfo] = useState<DocenteInfo | null>(null);
   const [cargandoDocente, setCargandoDocente] = useState(true);
@@ -186,11 +194,9 @@ export default function AsistenciaPage() {
   const materiasDisponibles = MATERIAS_POR_NIVEL[nivel as keyof typeof MATERIAS_POR_NIVEL] || [];
 
   // ============ Cargar estudiantes + asistencia existente del día ============
-  const cargarEstudiantes = async () => {
+  const cargarEstudiantes = useCallback(async () => {
     if (!nivel || !grado || !seccion) return;
     try {
-      setCargandoEstudiantes(true);
-
       // 1. Cargar estudiantes del curso
       const res = await fetch(`/api/asistencia/estudiantes?nivel=${nivel}&grado=${grado}&seccion=${seccion}`);
       if (!res.ok) return;
@@ -198,7 +204,7 @@ export default function AsistenciaPage() {
       setEstudiantes(data);
 
       // 2. Buscar si ya hay asistencia guardada para ese día
-      let asistenciasExistentes: Record<string, boolean> = {};
+      const asistenciasExistentes: Record<string, boolean> = {};
       let existeRegistro = false;
 
       if (materia && fecha) {
@@ -217,8 +223,8 @@ export default function AsistenciaPage() {
             const detalleRes = await fetch(`/api/asistencia/${asistenciaDelDia.id}`);
 
             if (detalleRes.ok) {
-              const detalle = await detalleRes.json();
-              detalle.estudiantes?.forEach((ae: any) => {
+              const detalle = await detalleRes.json() as AsistenciaDetalle;
+              detalle.estudiantes?.forEach((ae) => {
                 asistenciasExistentes[ae.estudianteId] = ae.asistio;
               });
             }
@@ -240,17 +246,24 @@ export default function AsistenciaPage() {
     } finally {
       setCargandoEstudiantes(false);
     }
-  };
+  }, [nivel, grado, seccion, materia, fecha]);
 
   useEffect(() => {
-    if (vista === 'pasar-lista' && nivel && grado && seccion) cargarEstudiantes();
-  }, [vista, nivel, grado, seccion, materia, fecha]);
+    let active = true;
+    if (vista === 'pasar-lista' && nivel && grado && seccion) {
+      void Promise.resolve().then(() => {
+        if (active) return cargarEstudiantes();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [vista, nivel, grado, seccion, cargarEstudiantes]);
 
   // ============ Cargar historial ============
-  const cargarHistorial = async () => {
+  const cargarHistorial = useCallback(async () => {
     if (!docenteInfo?.id) return;
     try {
-      setCargandoHistorial(true);
       const params = new URLSearchParams({ docenteId: docenteInfo.id });
       if (nivel) params.set('nivel', nivel);
       if (grado) params.set('grado', grado);
@@ -264,17 +277,24 @@ export default function AsistenciaPage() {
     } finally {
       setCargandoHistorial(false);
     }
-  };
+  }, [docenteInfo, nivel, grado, seccion, materia]);
 
   useEffect(() => {
-    if (vista === 'historial') cargarHistorial();
-  }, [vista, nivel, grado, seccion, materia, docenteInfo]);
+    let active = true;
+    if (vista === 'historial') {
+      void Promise.resolve().then(() => {
+        if (active) return cargarHistorial();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [vista, cargarHistorial]);
 
   // ============ Cargar reporte ============
-  const cargarReporte = async () => {
+  const cargarReporte = useCallback(async () => {
     if (!nivel || !grado || !seccion || !mes) return;
     try {
-      setCargandoReporte(true);
       const params = new URLSearchParams({ nivel, grado, seccion, mes });
       if (materia) params.set('materia', materia);
 
@@ -285,11 +305,19 @@ export default function AsistenciaPage() {
     } finally {
       setCargandoReporte(false);
     }
-  };
+  }, [nivel, grado, seccion, mes, materia]);
 
   useEffect(() => {
-    if (vista === 'reporte' && nivel && grado && seccion) cargarReporte();
-  }, [vista, nivel, grado, seccion, materia, mes]);
+    let active = true;
+    if (vista === 'reporte' && nivel && grado && seccion) {
+      void Promise.resolve().then(() => {
+        if (active) return cargarReporte();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [vista, nivel, grado, seccion, cargarReporte]);
 
   // ============ Acciones ============
   const toggleAsistencia = (id: string) => {
@@ -339,7 +367,7 @@ export default function AsistenciaPage() {
       });
 
       cargarEstudiantes();
-    } catch (error) {
+    } catch {
       sileo.error({ title: 'Error de conexión' });
     } finally {
       setGuardando(false);
@@ -954,7 +982,7 @@ export default function AsistenciaPage() {
                       </TableHeader>
                       <TableBody>
                         {reporte.reporte.map((r) => {
-                          const critico = r.porcentajeInasistencia >= 25;
+                          const critico = AttendanceReport.isCritical(r.porcentajeInasistencia);
                           return (
                             <TableRow key={r.estudianteId} className="border-white/5 hover:bg-white/5">
                               <TableCell>

@@ -32,7 +32,7 @@ const EditStudentsListPage: React.FC = () => {
   const [filtroNivel, setFiltroNivel] = useState('');
   const [filtroGrado, setFiltroGrado] = useState('');
   const [filtroSeccion, setFiltroSeccion] = useState('');
-  const [loading, setLoading] = useState(false);
+  const loading = false;
 
   // Datos de ejemplo para pruebas
   const [estudiantes] = useState<Estudiante[]>([
@@ -275,7 +275,7 @@ const EditStudentsListPage: React.FC = () => {
                 <div style={searchHintStyle}>
                   {searchTerm && (
                     <span>
-                      Resultados para: <strong>"{searchTerm}"</strong>
+                      Resultados para: <strong>&quot;{searchTerm}&quot;</strong>
                     </span>
                   )}
                 </div>
@@ -362,7 +362,7 @@ const EditStudentsListPage: React.FC = () => {
                       <td colSpan={10} style={emptyStateStyle}>
                         {searchTerm ? (
                           <>
-                            No se encontraron estudiantes con el criterio de búsqueda: <strong>"{searchTerm}"</strong>
+                            No se encontraron estudiantes con el criterio de búsqueda: <strong>&quot;{searchTerm}&quot;</strong>
                             <br />
                             <button 
                               onClick={() => setSearchTerm('')}

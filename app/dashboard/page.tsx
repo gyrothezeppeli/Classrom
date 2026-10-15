@@ -1,11 +1,14 @@
 // app/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { signIn, useSession } from 'next-auth/react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { sileo } from 'sileo';
 import { User, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { AuthForm, type AuthFormData, type AuthFormErrors, type AuthFormField, type UserRole } from '@/lib/auth/AuthForm';
+import { AuthService } from '@/lib/auth/AuthService';
+import { RememberedEmailStore } from '@/lib/auth/RememberedEmailStore';
 
 import {
   Select,
@@ -15,105 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const COLORES = {
-  principal: '#00BB7E',
-  deepBg: '#1a2e26',
-  error: '#ef4444'
-};
-
-type UserRole = 'teacher' | 'student' | 'control';
-
-// ============================================
-// CÓDIGO DE ACCESO PARA DOCENTES Y CONTROL
-// ============================================
-const CODIGO_ACCESO_STAFF = 'cuatri.37';
-
-// ============================================
-// VALIDADORES
-// ============================================
-
-const REGEX = {
-  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  nombre: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]{2,50}$/,
-  cedula: /^[VEJvej]?-?\d{6,9}$/,
-  telefono: /^(\+58|0)?4\d{2}-?\d{7}$/,
-  password: /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/,
-};
-
-const MENSAJES = {
-  email: {
-    requerido: 'El correo es obligatorio',
-    formato: 'Ingresa un correo válido',
-  },
-  password: {
-    requerido: 'La contraseña es obligatoria',
-    formato: 'Mínimo 6 caracteres, con al menos 1 letra y 1 número',
-  },
-  nombre: {
-    requerido: 'El nombre es obligatorio',
-    formato: 'Mínimo 2 letras. Solo letras y espacios',
-  },
-  apellido: {
-    formato: 'Solo letras y espacios',
-  },
-  cedula: {
-    requerido: 'La cédula es obligatoria',
-    formato: 'Formato inválido',
-  },
-  telefono: {
-    formato: 'Formato inválido',
-  },
-  nivel: { requerido: 'Selecciona un nivel' },
-  grado: { requerido: 'Selecciona un grado' },
-  seccion: { requerido: 'Selecciona una sección' },
-  codigoAcceso: {
-    requerido: 'El código de acceso es obligatorio',
-    formato: 'Código de acceso incorrecto',
-  },
-};
-
-interface ErroresForm {
-  nombre?: string;
-  apellido?: string;
-  cedula?: string;
-  email?: string;
-  password?: string;
-  telefono?: string;
-  nivel?: string;
-  grado?: string;
-  seccion?: string;
-  codigoAcceso?: string;
-}
-
-function normalizarNivel(nivel: string): string {
-  const mapa: { [key: string]: string } = {
-    'preescolar': 'inicial',
-    'primaria': 'primaria',
-    'bachillerato': 'media',
-    'inicial': 'inicial',
-    'media': 'media',
-  };
-  return mapa[nivel] || nivel;
-}
-
-function normalizarGrado(grado: string): string {
-  const mapa: { [key: string]: string } = {
-    '1er_ano': '1ro', '2do_ano': '2do', '3er_ano': '3ro', '4to_ano': '4to', '5to_ano': '5to',
-    '1er Año': '1ro', '2do Año': '2do', '3er Año': '3ro', '4to Año': '4to', '5to Año': '5to',
-    '1er Grado': '1ro', '2do Grado': '2do', '3er Grado': '3ro', '4to Grado': '4to',
-    '5to Grado': '5to', '6to Grado': '6to',
-  };
-  return mapa[grado] || grado;
-}
-
-function normalizarSeccion(seccion: string, nivel?: string): string {
-  if (nivel === 'preescolar' || nivel === 'inicial') {
-    return 'Única';
-  }
-  return seccion?.toUpperCase()?.trim() || '';
-}
-
-const REMEMBER_ME_KEY = 'portal_remember_email';
+const authService = new AuthService();
+const rememberedEmailStore = new RememberedEmailStore();
 
 const AuthPage: React.FC = () => {
   const router = useRouter();
@@ -122,38 +28,23 @@ const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [loginExitoso, setLoginExitoso] = useState(false);
-  const [errores, setErrores] = useState<ErroresForm>({});
+  const [errores, setErrores] = useState<AuthFormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showCodigo, setShowCodigo] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [formData, setFormData] = useState({
-    nombre: '',
-    apellido: '',
-    cedula: '',
-    email: '',
-    password: '',
-    telefono: '',
-    nivel: '',
-    grado: '',
-    seccion: '',
-    codigoAcceso: ''
-  });
-
-  useEffect(() => {
-    try {
-      const emailGuardado = localStorage.getItem(REMEMBER_ME_KEY);
-      if (emailGuardado) {
-        setFormData((prev) => ({ ...prev, email: emailGuardado }));
-        setRememberMe(true);
-      }
-    } catch (error) {
-      console.error('Error al leer localStorage:', error);
-    }
-  }, []);
+  const rememberedEmail = useSyncExternalStore(
+    rememberedEmailStore.subscribe,
+    rememberedEmailStore.getSnapshot,
+    rememberedEmailStore.getServerSnapshot
+  );
+  const [rememberMe, setRememberMe] = useState<boolean | null>(null);
+  const [emailEdited, setEmailEdited] = useState(false);
+  const [formData, setFormData] = useState<AuthFormData>(() => AuthForm.createEmptyData());
+  const emailActual = emailEdited ? formData.email : rememberedEmail || formData.email;
+  const datosFormulario: AuthFormData = { ...formData, email: emailActual };
 
   useEffect(() => {
     if (loginExitoso && session?.user) {
-      const role = (session.user as any).role;
+      const role = session.user.role;
       if (role === 'DOCENTE') router.push('/editar');
       else if (role === 'ADMIN' || role === 'COORDINACION') router.push('/control_estudios');
       else router.push('/dashboard/estudiante');
@@ -162,7 +53,7 @@ const AuthPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated' && session?.user && !loginExitoso) {
-      const role = (session.user as any).role;
+      const role = session.user.role;
       if (role === 'DOCENTE') router.push('/editar');
       else if (role === 'ADMIN' || role === 'COORDINACION') router.push('/control_estudios');
       else router.push('/dashboard/estudiante');
@@ -170,101 +61,18 @@ const AuthPage: React.FC = () => {
   }, [status, session, router, loginExitoso]);
 
   // ✅ ¿Se requiere código de acceso? Solo para docente y control en modo registro
-  const requiereCodigo = !isLogin && (userRole === 'teacher' || userRole === 'control');
+  const authForm = new AuthForm(datosFormulario, userRole, isLogin);
+  const requiereCodigo = authForm.requiresAccessCode;
 
-  const validarCampo = (campo: keyof ErroresForm, valor: string): string | undefined => {
-    const esRegistro = !isLogin;
-
-    switch (campo) {
-      case 'email':
-        if (!valor.trim()) return MENSAJES.email.requerido;
-        if (!REGEX.email.test(valor.trim())) return MENSAJES.email.formato;
-        return undefined;
-
-      case 'password':
-        if (!valor) return MENSAJES.password.requerido;
-        if (esRegistro && !REGEX.password.test(valor)) return MENSAJES.password.formato;
-        return undefined;
-
-      case 'nombre':
-        if (!esRegistro) return undefined;
-        if (!valor.trim()) return MENSAJES.nombre.requerido;
-        if (!REGEX.nombre.test(valor.trim())) return MENSAJES.nombre.formato;
-        return undefined;
-
-      case 'apellido':
-        if (!esRegistro) return undefined;
-        if (valor.trim() && !REGEX.nombre.test(valor.trim())) return MENSAJES.apellido.formato;
-        return undefined;
-
-      case 'cedula':
-        if (!esRegistro) return undefined;
-        if (!valor.trim()) return MENSAJES.cedula.requerido;
-        if (!REGEX.cedula.test(valor.trim())) return MENSAJES.cedula.formato;
-        return undefined;
-
-      case 'telefono':
-        if (!esRegistro) return undefined;
-        if (valor.trim() && !REGEX.telefono.test(valor.trim())) return MENSAJES.telefono.formato;
-        return undefined;
-
-      case 'nivel':
-        if (!esRegistro || userRole !== 'student') return undefined;
-        if (!valor) return MENSAJES.nivel.requerido;
-        return undefined;
-
-      case 'grado':
-        if (!esRegistro || userRole !== 'student') return undefined;
-        if (!valor) return MENSAJES.grado.requerido;
-        return undefined;
-
-      case 'seccion':
-        if (!esRegistro || userRole !== 'student') return undefined;
-        if (formData.nivel === 'preescolar') return undefined;
-        if (!valor) return MENSAJES.seccion.requerido;
-        return undefined;
-
-      // ✅ Validación del código de acceso
-      case 'codigoAcceso':
-        if (!esRegistro) return undefined;
-        if (userRole !== 'teacher' && userRole !== 'control') return undefined;
-        if (!valor.trim()) return MENSAJES.codigoAcceso.requerido;
-        if (valor.trim() !== CODIGO_ACCESO_STAFF) return MENSAJES.codigoAcceso.formato;
-        return undefined;
-
-      default:
-        return undefined;
-    }
-  };
-
-  const validarFormulario = (): ErroresForm => {
-    const nuevosErrores: ErroresForm = {};
-
-    let camposAValidar: (keyof ErroresForm)[] = isLogin
-      ? ['email', 'password']
-      : ['nombre', 'apellido', 'cedula', 'email', 'password', 'telefono', 'nivel', 'grado', 'seccion'];
-
-    // ✅ Agregar validación de código para docente y control
-    if (!isLogin && (userRole === 'teacher' || userRole === 'control')) {
-      camposAValidar = [...camposAValidar, 'codigoAcceso'];
-    }
-
-    camposAValidar.forEach((campo) => {
-      const error = validarCampo(campo, formData[campo] || '');
-      if (error) nuevosErrores[campo] = error;
-    });
-
-    return nuevosErrores;
-  };
-
-  const handleBlur = (campo: keyof ErroresForm) => {
-    const error = validarCampo(campo, formData[campo] || '');
+  const handleBlur = (campo: AuthFormField) => {
+    const error = authForm.validateField(campo);
     setErrores((prev) => ({ ...prev, [campo]: error }));
   };
 
-  const handleChange = (campo: string, valor: string | null) => {
+  const handleChange = (campo: AuthFormField, valor: string | null) => {
+    if (campo === 'email') setEmailEdited(true);
     setFormData((prev) => ({ ...prev, [campo]: valor ?? '' }));
-    if (errores[campo as keyof ErroresForm]) {
+    if (errores[campo]) {
       setErrores((prev) => ({ ...prev, [campo]: undefined }));
     }
   };
@@ -281,46 +89,17 @@ const AuthPage: React.FC = () => {
     { value: 'C', label: 'C' }
   ];
 
-  const getOpcionesGrado = () => {
-    switch (formData.nivel) {
-      case 'preescolar':
-        return [
-          { value: '1er_nivel', label: '1er Nivel' },
-          { value: '2do_nivel', label: '2do Nivel' },
-          { value: '3er_nivel', label: '3er Nivel' }
-        ];
-      case 'primaria':
-        return [
-          { value: '1er_grado', label: '1er Grado' },
-          { value: '2do_grado', label: '2do Grado' },
-          { value: '3er_grado', label: '3er Grado' },
-          { value: '4to_grado', label: '4to Grado' },
-          { value: '5to_grado', label: '5to Grado' },
-          { value: '6to_grado', label: '6to Grado' }
-        ];
-      case 'bachillerato':
-        return [
-          { value: '1er_ano', label: '1er Año' },
-          { value: '2do_ano', label: '2do Año' },
-          { value: '3er_ano', label: '3er Año' },
-          { value: '4to_ano', label: '4to Año' },
-          { value: '5to_ano', label: '5to Año' }
-        ];
-      default:
-        return [];
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const nuevosErrores = validarFormulario();
+    const form = new AuthForm(datosFormulario, userRole, isLogin);
+    const nuevosErrores = form.validate();
     if (Object.keys(nuevosErrores).length > 0) {
       setErrores(nuevosErrores);
       const primerCampo = Object.keys(nuevosErrores)[0];
       sileo.error({
         title: 'Datos incompletos',
-        description: nuevosErrores[primerCampo as keyof ErroresForm] || '',
+        description: nuevosErrores[primerCampo as AuthFormField] || '',
       });
       return;
     }
@@ -331,10 +110,7 @@ const AuthPage: React.FC = () => {
     try {
       if (!isLogin) {
         // ✅ Validación adicional del código antes de enviar
-        if (
-          (userRole === 'teacher' || userRole === 'control') &&
-          formData.codigoAcceso.trim() !== CODIGO_ACCESO_STAFF
-        ) {
+        if (form.requiresAccessCode && !form.hasValidAccessCode()) {
           sileo.error({
             title: 'Código incorrecto',
             description: 'El código de acceso es inválido',
@@ -343,42 +119,12 @@ const AuthPage: React.FC = () => {
           return;
         }
 
-        const roleMap = {
-          teacher: 'DOCENTE',
-          student: 'ESTUDIANTE',
-          control: 'COORDINACION'
-        };
+        const registration = await authService.register(form.toRegistrationPayload());
 
-        const nivelNormalizado = normalizarNivel(formData.nivel);
-        const gradoNormalizado = normalizarGrado(formData.grado);
-        const seccionNormalizada = normalizarSeccion(formData.seccion, formData.nivel);
-
-        const userData = {
-          email: formData.email.trim().toLowerCase(),
-          password: formData.password,
-          nombre: formData.nombre.trim() || 'Usuario',
-          apellido: formData.apellido?.trim() || '',
-          telefono: formData.telefono || '',
-          cedulaIdentidad: formData.cedula.trim() || '',
-          role: roleMap[userRole],
-          nivel: userRole === 'student' ? nivelNormalizado : undefined,
-          grado: userRole === 'student' ? gradoNormalizado : undefined,
-          seccion: userRole === 'student' ? seccionNormalizada : undefined,
-          especialidad: userRole === 'teacher' ? 'General' : undefined,
-        };
-
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(userData),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
+        if (registration.error) {
           sileo.error({
             title: 'Error al registrar',
-            description: data.error || 'Intenta de nuevo',
+            description: registration.error,
           });
           setLoading(false);
           return;
@@ -390,20 +136,13 @@ const AuthPage: React.FC = () => {
         });
 
         setIsLogin(true);
-        setFormData({
-          nombre: '', apellido: '', cedula: '', email: '', password: '',
-          telefono: '', nivel: '', grado: '', seccion: '', codigoAcceso: ''
-        });
+        setFormData(AuthForm.createEmptyData());
         setErrores({});
         setLoading(false);
         return;
       }
 
-      const result = await signIn('credentials', {
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        redirect: false,
-      });
+      const result = await authService.login(emailActual, formData.password);
 
       if (result?.error) {
         sileo.error({
@@ -415,15 +154,7 @@ const AuthPage: React.FC = () => {
       }
 
       if (result?.ok) {
-        try {
-          if (rememberMe) {
-            localStorage.setItem(REMEMBER_ME_KEY, formData.email.trim().toLowerCase());
-          } else {
-            localStorage.removeItem(REMEMBER_ME_KEY);
-          }
-        } catch (error) {
-          console.error('Error al guardar en localStorage:', error);
-        }
+        authService.rememberEmail(emailActual, rememberMe ?? Boolean(rememberedEmail));
         setLoginExitoso(true);
       }
     } catch (error) {
@@ -437,10 +168,8 @@ const AuthPage: React.FC = () => {
   };
 
   const resetFormData = () => {
-    setFormData({
-      nombre: '', apellido: '', cedula: '', email: '', password: '',
-      telefono: '', nivel: '', grado: '', seccion: '', codigoAcceso: ''
-    });
+    setFormData(AuthForm.createEmptyData());
+    setEmailEdited(false);
     setErrores({});
   };
 
@@ -650,7 +379,7 @@ const AuthPage: React.FC = () => {
                             <SelectValue placeholder={formData.nivel ? 'Grado/Año *' : 'Primero selecciona un nivel'} />
                           </SelectTrigger>
                           <SelectContent>
-                            {getOpcionesGrado().map((grado) => (
+                            {authForm.getGradeOptions().map((grado) => (
                               <SelectItem key={grado.value} value={grado.value}>
                                 {grado.label}
                               </SelectItem>
@@ -710,7 +439,7 @@ const AuthPage: React.FC = () => {
                   <input
                     type="email"
                     placeholder="Correo electrónico"
-                    value={formData.email}
+                    value={emailActual}
                     onChange={(e) => handleChange('email', e.target.value)}
                     onBlur={() => handleBlur('email')}
                     disabled={loading}
@@ -758,7 +487,7 @@ const AuthPage: React.FC = () => {
                     <span className="relative flex items-center">
                       <input
                         type="checkbox"
-                        checked={rememberMe}
+                        checked={rememberMe ?? Boolean(rememberedEmail)}
                         onChange={(e) => setRememberMe(e.target.checked)}
                         className="peer sr-only"
                       />

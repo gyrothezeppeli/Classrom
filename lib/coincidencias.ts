@@ -1,152 +1,128 @@
-// lib/coincidencias.ts
+export class SchoolCourseMatcher {
+  private normalize(value: string): string {
+    if (!value) return '';
+    return value
+      .toLowerCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\s_]+/g, ' ');
+  }
 
-// ============================================
-// Utilidades de normalización
-// ============================================
-
-const normalizar = (valor: string): string => {
-  if (!valor) return '';
-  return valor
-    .toLowerCase()
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\s_]+/g, ' ');
-};
-
-// ============================================
-// Nivel
-// ============================================
-
-const variantesNivel = (nivel: string): string[] => {
-  const n = normalizar(nivel);
-  const mapa: Record<string, string[]> = {
-    inicial: ['inicial', 'preescolar', 'educacion inicial'],
-    primaria: ['primaria', 'educacion primaria'],
-    media: ['media', 'bachillerato', 'educacion media'],
-  };
-  return mapa[n] || [n];
-};
-
-export const coincideNivel = (a: string, b: string): boolean => {
-  if (!a || !b) return false;
-  return (
-    variantesNivel(a).includes(normalizar(b)) ||
-    variantesNivel(b).includes(normalizar(a))
-  );
-};
-
-// ============================================
-// Grado - VERSIÓN ROBUSTA
-// ============================================
-
-const variantesGrado = (grado: string): string[] => {
-  const g = normalizar(grado);
-  if (!g) return [];
-
-  // Extraer el número principal
-  const match = g.match(/\d+/);
-  const num = match ? match[0] : null;
-
-  // Detectar el tipo
-  const esAno = g.includes('ano') || g.includes('año');
-  const esGrado = g.includes('grado');
-  const esNivel = g.includes('nivel');
-
-  const variantes = new Set<string>();
-  variantes.add(g); // incluir el original normalizado
-
-  if (num) {
-    variantes.add(num); // solo el número
-
-    // Ordinales para cada número
-    const ordinales: Record<string, string[]> = {
-      '1': ['1ro', '1er', '1ra', 'primero', 'primer'],
-      '2': ['2do', '2da', 'segundo'],
-      '3': ['3ro', '3ra', 'tercero'],
-      '4': ['4to', '4ta', 'cuarto'],
-      '5': ['5to', '5ta', 'quinto'],
-      '6': ['6to', '6ta', 'sexto'],
+  private levelVariants(level: string): string[] {
+    const normalized = this.normalize(level);
+    const variants: Record<string, string[]> = {
+      inicial: ['inicial', 'preescolar', 'educacion inicial'],
+      primaria: ['primaria', 'educacion primaria'],
+      media: ['media', 'bachillerato', 'educacion media'],
     };
-
-    const ords = ordinales[num] || [];
-    ords.forEach((o) => variantes.add(o));
-
-    // Con tipo
-    if (esAno) {
-      ords.forEach((o) => variantes.add(`${o} ano`));
-      variantes.add(`${num} ano`);
-      variantes.add(`${num} anos`);
-    }
-    if (esGrado) {
-      ords.forEach((o) => variantes.add(`${o} grado`));
-      variantes.add(`${num} grado`);
-    }
-    if (esNivel) {
-      ords.forEach((o) => variantes.add(`${o} nivel`));
-      variantes.add(`${num} nivel`);
-    }
+    return variants[normalized] || [normalized];
   }
 
-  return Array.from(variantes);
-};
-
-export const coincideGrado = (a: string, b: string): boolean => {
-  if (!a || !b) return false;
-
-  const va = variantesGrado(a);
-  const vb = variantesGrado(b);
-
-  // Intersección
-  return va.some((x) => vb.includes(x));
-};
-
-// ============================================
-// Sección (soporta múltiples: "A,B,C" ↔ "A")
-// ============================================
-
-const parsearSecciones = (valor: string | string[] | null | undefined): string[] => {
-  if (!valor) return [];
-  if (Array.isArray(valor)) {
-    return valor.map((v) => normalizar(v)).filter(Boolean);
-  }
-  return valor
-    .split(',')
-    .map((s) => normalizar(s))
-    .filter(Boolean);
-};
-
-export const coincideSeccion = (a: string, b: string): boolean => {
-  const na = normalizar(a);
-  const nb = normalizar(b);
-
-  // "Única" o vacío → coincide con todo
-  if (
-    na === 'unica' || na === 'única' || na === '' ||
-    nb === 'unica' || nb === 'única' || nb === ''
-  ) {
-    return true;
+  matchesLevel(a: string, b: string): boolean {
+    if (!a || !b) return false;
+    return (
+      this.levelVariants(a).includes(this.normalize(b)) ||
+      this.levelVariants(b).includes(this.normalize(a))
+    );
   }
 
-  const seccionesA = parsearSecciones(a);
-  const seccionesB = parsearSecciones(b);
+  private gradeVariants(grade: string): string[] {
+    const normalized = this.normalize(grade);
+    if (!normalized) return [];
 
-  // Intersección
-  const hayInterseccion = seccionesA.some((sa) => seccionesB.includes(sa));
-  if (hayInterseccion) return true;
+    const match = normalized.match(/\d+/);
+    const number = match ? match[0] : null;
+    const isYear = normalized.includes('ano') || normalized.includes('año');
+    const isGrade = normalized.includes('grado');
+    const isLevel = normalized.includes('nivel');
+    const variants = new Set<string>([normalized]);
 
-  // Prefijos "seccion a" ↔ "a"
-  for (const sa of seccionesA) {
-    for (const sb of seccionesB) {
-      if (
-        sa === sb ||
-        sa === `seccion ${sb}` ||
-        `seccion ${sa}` === sb
-      ) {
-        return true;
+    if (number) {
+      variants.add(number);
+      const ordinals: Record<string, string[]> = {
+        '1': ['1ro', '1er', '1ra', 'primero', 'primer'],
+        '2': ['2do', '2da', 'segundo'],
+        '3': ['3ro', '3ra', 'tercero'],
+        '4': ['4to', '4ta', 'cuarto'],
+        '5': ['5to', '5ta', 'quinto'],
+        '6': ['6to', '6ta', 'sexto'],
+      };
+
+      const numberOrdinals = ordinals[number] || [];
+      numberOrdinals.forEach((ordinal) => variants.add(ordinal));
+
+      if (isYear) {
+        numberOrdinals.forEach((ordinal) => variants.add(`${ordinal} ano`));
+        variants.add(`${number} ano`);
+        variants.add(`${number} anos`);
+      }
+      if (isGrade) {
+        numberOrdinals.forEach((ordinal) => variants.add(`${ordinal} grado`));
+        variants.add(`${number} grado`);
+      }
+      if (isLevel) {
+        numberOrdinals.forEach((ordinal) => variants.add(`${ordinal} nivel`));
+        variants.add(`${number} nivel`);
       }
     }
+
+    return Array.from(variants);
   }
 
-  return false;
-};
+  matchesGrade(a: string, b: string): boolean {
+    if (!a || !b) return false;
+    const aVariants = this.gradeVariants(a);
+    const bVariants = this.gradeVariants(b);
+    return aVariants.some((variant) => bVariants.includes(variant));
+  }
+
+  private parseSections(value: string | string[] | null | undefined): string[] {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map((section) => this.normalize(section)).filter(Boolean);
+    }
+    return value
+      .split(',')
+      .map((section) => this.normalize(section))
+      .filter(Boolean);
+  }
+
+  matchesSection(a: string, b: string): boolean {
+    const normalizedA = this.normalize(a);
+    const normalizedB = this.normalize(b);
+
+    if (
+      normalizedA === 'unica' ||
+      normalizedA === '' ||
+      normalizedB === 'unica' ||
+      normalizedB === ''
+    ) {
+      return true;
+    }
+
+    const sectionsA = this.parseSections(a);
+    const sectionsB = this.parseSections(b);
+    const intersects = sectionsA.some((section) => sectionsB.includes(section));
+    if (intersects) return true;
+
+    return sectionsA.some((sectionA) =>
+      sectionsB.some(
+        (sectionB) =>
+          sectionA === `seccion ${sectionB}` ||
+          `seccion ${sectionA}` === sectionB
+      )
+    );
+  }
+}
+
+export const schoolCourseMatcher = new SchoolCourseMatcher();
+
+export const coincideNivel = (a: string, b: string): boolean =>
+  schoolCourseMatcher.matchesLevel(a, b);
+
+export const coincideGrado = (a: string, b: string): boolean =>
+  schoolCourseMatcher.matchesGrade(a, b);
+
+export const coincideSeccion = (a: string, b: string): boolean =>
+  schoolCourseMatcher.matchesSection(a, b);

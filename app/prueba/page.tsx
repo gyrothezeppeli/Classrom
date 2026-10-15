@@ -589,8 +589,10 @@ const GestionInstitutoPage: React.FC = () => {
                         <input
                           type="checkbox"
                           onChange={(e) => {
-                            const checkboxes = document.querySelectorAll('input[type="checkbox"][data-estudiante]');
-                            checkboxes.forEach((cb: any) => cb.checked = e.target.checked);
+                            const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-estudiante]');
+                            checkboxes.forEach((checkbox) => {
+                              checkbox.checked = e.target.checked;
+                            });
                           }}
                           style={checkboxStyle}
                         />
@@ -640,8 +642,10 @@ const GestionInstitutoPage: React.FC = () => {
                   </select>
                   <button
                     onClick={() => {
-                      const checkboxes = document.querySelectorAll('input[type="checkbox"][data-estudiante]:checked');
-                      const ids = Array.from(checkboxes).map((cb: any) => cb.dataset.estudiante);
+                      const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-estudiante]:checked');
+                      const ids = Array.from(checkboxes)
+                        .map((checkbox) => checkbox.dataset.estudiante)
+                        .filter((id): id is string => Boolean(id));
                       if (ids.length === 0) {
                         alert('Seleccione al menos un estudiante');
                         return;

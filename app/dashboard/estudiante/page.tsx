@@ -140,6 +140,18 @@ interface Material {
   createdAt: string;
 }
 
+type PlanApi = Omit<Partial<PlanEvaluacion>, 'filas'> & {
+  titulo?: string;
+  seccion?: string;
+  filas?: Array<Omit<Partial<FilaPlan>, 'criteriosEvaluacion'> & {
+    fecha?: string;
+    criteriosEvaluacion?: string | string[];
+  }>;
+};
+type TareaApi = Partial<Tarea>;
+type AvisoApi = Partial<Aviso>;
+type MaterialApi = Partial<Material>;
+
 interface Estudiante {
   id: string;
   nombres: string;
@@ -330,7 +342,6 @@ const EstudianteDashboard: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<PlanEvaluacion | null>(null);
   const [estudiante, setEstudiante] = useState<Estudiante | null>(null);
   const [materias, setMaterias] = useState<MateriaConPlanes[]>([]);
-  const [docentes, setDocentes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -349,6 +360,15 @@ const EstudianteDashboard: React.FC = () => {
   const [mostrarTodasEntregas, setMostrarTodasEntregas] = useState(false);
   const [mostrarTodasMaterias, setMostrarTodasMaterias] = useState(false);
 
+  const actualizarBusqueda = (value: string) => {
+    setBusqueda(value);
+    setMostrarTodasMaterias(false);
+  };
+  const actualizarFiltroActivo = (value: FiltroMaterias) => {
+    setFiltroActivo(value);
+    setMostrarTodasMaterias(false);
+  };
+
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -356,10 +376,6 @@ const EstudianteDashboard: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  useEffect(() => {
-    setMostrarTodasMaterias(false);
-  }, [busqueda, filtroActivo]);
 
   useEffect(() => {
     const cargarDatosCompletos = async () => {
@@ -425,7 +441,7 @@ const EstudianteDashboard: React.FC = () => {
           // ✅ LOG DE DIAGNÓSTICO 2: Planes que llegan del endpoint
           console.log('📋 [DASHBOARD] Planes recibidos:', rawPlanes);
 
-          planesData = (rawPlanes || []).map((plan: any) => ({
+          planesData = (rawPlanes as PlanApi[]).map((plan) => ({
             id: plan.id || '',
             areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
             docente: plan.docente || 'Docente no asignado',
@@ -435,7 +451,21 @@ const EstudianteDashboard: React.FC = () => {
             nivel: plan.nivel || '',
             grado: plan.grado || '',
             materia: plan.materia || '',
-            filas: Array.isArray(plan.filas) ? plan.filas : [],
+            filas: Array.isArray(plan.filas) ? plan.filas.map((fila, index) => ({
+              id: fila.id || `fila-${index}`,
+              fecha: fila.fecha || '',
+              referenteTeorico: fila.referenteTeorico || '',
+              estrategiaEvaluacion: fila.estrategiaEvaluacion || '',
+              tecnicaEvaluacion: fila.tecnicaEvaluacion || '',
+              instrumentoEvaluacion: fila.instrumentoEvaluacion || '',
+              ptos: fila.ptos || '',
+              porcentaje: fila.porcentaje || '',
+              criteriosEvaluacion: typeof fila.criteriosEvaluacion === 'string'
+                ? fila.criteriosEvaluacion
+                : Array.isArray(fila.criteriosEvaluacion)
+                  ? fila.criteriosEvaluacion.join(', ')
+                  : '',
+            })) : [],
             visto: plan.visto || false,
             fechaVisto: plan.fechaVisto || null,
             createdAt: plan.createdAt || new Date().toISOString()
@@ -447,7 +477,7 @@ const EstudianteDashboard: React.FC = () => {
           const tareasResponse = await fetch(`/api/tareas?estudianteId=${data.id}`);
           if (tareasResponse.ok) {
             const rawTareas = await tareasResponse.json();
-            tareasData = (rawTareas || []).map((t: any) => ({
+            tareasData = (rawTareas as TareaApi[]).map((t) => ({
               id: t.id || '',
               titulo: t.titulo || '',
               descripcion: t.descripcion || '',
@@ -476,7 +506,7 @@ const EstudianteDashboard: React.FC = () => {
           const avisosResponse = await fetch(`/api/avisos?estudianteId=${data.id}`);
           if (avisosResponse.ok) {
             const rawAvisos = await avisosResponse.json();
-            avisosData = (rawAvisos || []).map((a: any) => ({
+            avisosData = (rawAvisos as AvisoApi[]).map((a) => ({
               id: a.id || '',
               titulo: a.titulo || '',
               descripcion: a.descripcion || '',
@@ -500,7 +530,7 @@ const EstudianteDashboard: React.FC = () => {
           const materialesResponse = await fetch(`/api/materiales?estudianteId=${data.id}`);
           if (materialesResponse.ok) {
             const rawMateriales = await materialesResponse.json();
-            materialesData = (rawMateriales || []).map((m: any) => ({
+            materialesData = (rawMateriales as MaterialApi[]).map((m) => ({
               id: m.id || '',
               titulo: m.titulo || '',
               descripcion: m.descripcion || '',
@@ -536,7 +566,6 @@ const EstudianteDashboard: React.FC = () => {
           }
         }
 
-        setDocentes(docentesMap);
 
         const materiasConstruidas: MateriaConPlanes[] = MATERIAS_BASE.map((base) => {
           // ✅ CORREGIDO: filtros flexibles de materia + nivel/grado/sección
@@ -918,12 +947,12 @@ const EstudianteDashboard: React.FC = () => {
                     type="text"
                     placeholder="Buscar materias o profesores..."
                     value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
+                    onChange={(e) => actualizarBusqueda(e.target.value)}
                     className="bg-white/5 border-white/10 text-white pl-11 h-11 rounded-2xl backdrop-blur-md focus:border-emerald-500/60"
                   />
                   {busqueda && (
                     <button
-                      onClick={() => setBusqueda('')}
+                      onClick={() => actualizarBusqueda('')}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
                     >
                       <X className="w-4 h-4" />
@@ -940,7 +969,7 @@ const EstudianteDashboard: React.FC = () => {
                   ].map((filtro) => (
                     <Button
                       key={filtro.id}
-                      onClick={() => setFiltroActivo(filtro.id)}
+                      onClick={() => actualizarFiltroActivo(filtro.id)}
                       variant={filtroActivo === filtro.id ? 'default' : 'outline'}
                       size="sm"
                       className={
@@ -1694,13 +1723,10 @@ const PlanEvaluacionDetalle: React.FC<{
     try {
       setExportando(true);
 
-      const jsPDFModule = await import('jspdf');
-      const autoTableModule = await import('jspdf-autotable');
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
 
-      const JsPDFClass = (jsPDFModule as any).default || (jsPDFModule as any).jsPDF;
-      const autoTableFn = (autoTableModule as any).default || autoTableModule;
-
-      const doc = new JsPDFClass({
+      const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4'
@@ -1776,13 +1802,9 @@ const PlanEvaluacionDetalle: React.FC<{
         margin: { top: 10, right: 10, bottom: 15, left: 10 }
       };
 
-      if (typeof autoTableFn === 'function') {
-        autoTableFn(doc, tableConfig);
-      } else if ((doc as any).autoTable) {
-        (doc as any).autoTable(tableConfig);
-      }
+      autoTable(doc, tableConfig);
 
-      const finalY = (doc as any).lastAutoTable?.finalY || yPos + 50;
+      const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || yPos + 50;
       const totalPuntos = filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0);
 
       doc.setFontSize(8);

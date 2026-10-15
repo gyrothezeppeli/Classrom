@@ -8,6 +8,7 @@ import { sileo } from 'sileo';
 
 // ============ COMPONENTES PROPIOS ============
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ScheduleSlot } from "@/lib/domain/schedule/ScheduleSlot";
 
 // ============ SHADCN UI ============
 import { Button } from "@/components/ui/button";
@@ -119,7 +120,7 @@ interface Docente {
 // ============================================
 const HorariosPage: React.FC = () => {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [docentes, setDocentes] = useState<Docente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,14 +179,7 @@ const HorariosPage: React.FC = () => {
     }
   }, [status, router]);
 
-  useEffect(() => {
-    if (status === 'authenticated') {
-      cargarDatos();
-    }
-  }, [status]);
-
   const cargarDatos = async () => {
-    setLoading(true);
     try {
       const [resHorarios, resDocentes] = await Promise.all([
         fetch('/api/horarios'),
@@ -200,8 +194,8 @@ const HorariosPage: React.FC = () => {
       if (resDocentes.ok) {
         const data = await resDocentes.json();
         setDocentes(
-          data.map((d: any) => ({
-            id: d.id,
+          (data as Array<Partial<Docente> & { nombre?: string; apellido?: string }>).map((d) => ({
+            id: d.id || '',
             nombres: d.nombres || d.nombre || '',
             apellidos: d.apellidos || d.apellido || '',
             email: d.email || '',
@@ -215,6 +209,18 @@ const HorariosPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    if (status === 'authenticated') {
+      void Promise.resolve().then(() => {
+        if (active) return cargarDatos();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [status]);
 
   // ============ FILTRADO ============
 
@@ -314,13 +320,10 @@ const HorariosPage: React.FC = () => {
 
   const exportarAPDF = async () => {
     try {
-      const jsPDFModule = await import('jspdf');
-      const autoTableModule = await import('jspdf-autotable');
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
 
-      const JsPDFClass = (jsPDFModule as any).default || (jsPDFModule as any).jsPDF;
-      const autoTableFn = (autoTableModule as any).default || autoTableModule;
-
-      const doc = new JsPDFClass({
+      const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4',
@@ -373,11 +376,7 @@ const HorariosPage: React.FC = () => {
         margin: { top: 10, right: 10, bottom: 15, left: 10 },
       };
 
-      if (typeof autoTableFn === 'function') {
-        autoTableFn(doc, tableConfig);
-      } else if ((doc as any).autoTable) {
-        (doc as any).autoTable(tableConfig);
-      }
+      autoTable(doc, tableConfig);
 
       const nombreArchivo = `Horarios_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(nombreArchivo);
@@ -392,10 +391,9 @@ const HorariosPage: React.FC = () => {
   // ============ EXPORTAR PDF INDIVIDUAL (FORMATO CUADRÍCULA) ============
   const exportarHorarioIndividualPDF = async (h: Horario) => {
     try {
-      const jsPDFModule = await import('jspdf');
-      const JsPDFClass = (jsPDFModule as any).default || (jsPDFModule as any).jsPDF;
+      const { jsPDF } = await import('jspdf');
 
-      const doc = new JsPDFClass({
+      const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4',
@@ -916,7 +914,7 @@ interface HorarioModalProps {
   secciones: string[];
   materiasPorNivel: { [key: string]: string[] };
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: () => void;
 }
 
 const HorarioModal: React.FC<HorarioModalProps> = ({
@@ -973,9 +971,7 @@ const HorarioModal: React.FC<HorarioModalProps> = ({
     : [];
 
   const horaFinPorBloque = (hora: string, duracion: number): string => {
-    const [h, m] = hora.split(':').map(Number);
-    const fin = h + duracion;
-    return `${String(fin).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return ScheduleSlot.endAfterHours(hora, duracion);
   };
 
   const obtenerHorarioEnCelda = (dia: string, hora: string): Horario | null => {
@@ -988,12 +984,6 @@ const HorarioModal: React.FC<HorarioModalProps> = ({
   const esInicioDeBloque = (dia: string, hora: string): boolean => {
     const h = obtenerHorarioEnCelda(dia, hora);
     return h !== null && h.horaInicio === hora;
-  };
-
-  const bloquesDeHorario = (h: Horario): number => {
-    const [hIni] = h.horaInicio.split(':').map(Number);
-    const [hFin] = h.horaFin.split(':').map(Number);
-    return Math.max(1, hFin - hIni);
   };
 
   const handleAgregarHora = () => {
@@ -1096,15 +1086,11 @@ const HorarioModal: React.FC<HorarioModalProps> = ({
 
     const horaFin = horaFinPorBloque(celdaActiva.hora, formCelda.duracion);
 
-    const choca = horariosLocales.some((h) => {
-      if (h.id === bloqueEnEdicion?.id) return false;
-      if (h.diaSemana !== celdaActiva.dia) return false;
-      return (
-        (celdaActiva.hora >= h.horaInicio && celdaActiva.hora < h.horaFin) ||
-        (horaFin > h.horaInicio && horaFin <= h.horaFin) ||
-        (celdaActiva.hora <= h.horaInicio && horaFin >= h.horaFin)
-      );
-    });
+    const bloqueNuevo = new ScheduleSlot(celdaActiva.dia, celdaActiva.hora, horaFin);
+    const choca = horariosLocales.some((h) =>
+      h.id !== bloqueEnEdicion?.id
+      && bloqueNuevo.overlaps(new ScheduleSlot(h.diaSemana, h.horaInicio, h.horaFin))
+    );
 
     if (choca) {
       sileo.warning({
@@ -1221,7 +1207,7 @@ const HorarioModal: React.FC<HorarioModalProps> = ({
         description: `${data.total} bloques guardados correctamente`,
       });
 
-      onSave(payload[0]);
+      onSave();
     } catch (error) {
       console.error('Error:', error);
       sileo.error({ title: 'Error de conexión' });

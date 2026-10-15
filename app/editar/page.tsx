@@ -1,8 +1,7 @@
 // app/editar/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { sileo } from 'sileo';
@@ -133,7 +132,13 @@ interface PlanEvaluacion {
   grado: string;
   materia: string;
   createdAt?: string;
+  seccion?: string;
 }
+
+type PlanApi = Omit<Partial<PlanEvaluacion>, 'filas'> & {
+  titulo?: string;
+  filas?: Array<Partial<FilaPlan> & { fecha?: string }>;
+};
 
 interface DocenteInfo {
   id: string;
@@ -303,7 +308,30 @@ const EditTasksPage: React.FC = () => {
             especialidad: data.especialidad || ''
           });
         } else if (response.status === 404) {
-          await crearDocenteAutomaticamente();
+          try {
+            const createResponse = await fetch('/api/docentes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: session.user.id,
+                especialidad: 'General',
+              }),
+            });
+
+            if (createResponse.ok) {
+              const data = await createResponse.json();
+              setDocenteInfo({
+                id: data.docente.id,
+                nombres: data.docente.nombre || '',
+                apellidos: data.docente.apellido || '',
+                email: data.docente.email || '',
+                especialidad: data.docente.especialidad || ''
+              });
+              window.location.reload();
+            }
+          } catch (error) {
+            console.error('Error:', error);
+          }
         }
       } catch (error) {
         console.error('Error al cargar docente:', error);
@@ -315,34 +343,7 @@ const EditTasksPage: React.FC = () => {
     cargarDocente();
   }, [session, status]);
 
-  const crearDocenteAutomaticamente = async () => {
-    try {
-      const response = await fetch('/api/docentes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: session?.user?.id,
-          especialidad: 'General',
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setDocenteInfo({
-          id: data.docente.id,
-          nombres: data.docente.nombre || '',
-          apellidos: data.docente.apellido || '',
-          email: data.docente.email || '',
-          especialidad: data.docente.especialidad || ''
-        });
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    }
-  };
-
-  const cargarPlanes = async () => {
+  const cargarPlanes = useCallback(async () => {
     try {
       setCargandoPlanes(true);
       let url = '/api/planes-evaluacion';
@@ -355,15 +356,16 @@ const EditTasksPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
 
-        const planesNormalizados = data.map((plan: any) => ({
-          ...plan,
-          secciones: plan.secciones || plan.seccion || 'A',
+        const planesNormalizados = (data as PlanApi[]).map((plan) => ({
+          id: plan.id || '',
           areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
           docente: plan.docente || 'Docente',
+          docenteId: plan.docenteId,
           ano: plan.ano || plan.grado || '1ro',
+          secciones: plan.secciones || plan.seccion || 'A',
           filas: Array.isArray(plan.filas)
-            ? plan.filas.map((f: any) => ({
-                id: f.id || `fila-${Date.now()}-${Math.random()}`,
+            ? plan.filas.map((f) => ({
+                id: f.id || '',
                 fechaInicio: f.fechaInicio || f.fecha || '',
                 fechaFin: f.fechaFin || '',
                 referenteTeorico: f.referenteTeorico || '',
@@ -376,7 +378,11 @@ const EditTasksPage: React.FC = () => {
                   ? f.criteriosEvaluacion.filter(Boolean)
                   : (f.criteriosEvaluacion ? [f.criteriosEvaluacion] : [''])
               }))
-            : []
+            : [],
+          nivel: plan.nivel || '',
+          grado: plan.grado || '',
+          materia: plan.materia || '',
+          createdAt: plan.createdAt,
         }));
 
         setPlanesGuardados(planesNormalizados);
@@ -389,28 +395,34 @@ const EditTasksPage: React.FC = () => {
     } finally {
       setCargandoPlanes(false);
     }
-  };
+  }, [docenteInfo]);
 
   useEffect(() => {
+    let active = true;
     if (status === 'authenticated' && docenteInfo?.id) {
-      cargarPlanes();
+      void Promise.resolve().then(() => {
+        if (active) return cargarPlanes();
+      });
     }
-  }, [status, docenteInfo]);
+    return () => {
+      active = false;
+    };
+  }, [status, docenteInfo?.id, cargarPlanes]);
 
   useEffect(() => {
+    let active = true;
     if (status === 'authenticated' && docenteInfo?.id) {
-      cargarPlanes();
+      void Promise.resolve().then(() => {
+        if (active) return cargarPlanes();
+      });
     }
-  }, [nivelSeleccionado, gradoSeleccionado, seccionesSeleccionadas, docenteInfo]);
+    return () => {
+      active = false;
+    };
+  }, [nivelSeleccionado, gradoSeleccionado, seccionesSeleccionadas, docenteInfo?.id, status, cargarPlanes]);
 
   // ============ CARGA DE ESTUDIANTES ============
-  useEffect(() => {
-    if (tipoContenido === 'lista_estudiantes' && estudiantes.length === 0) {
-      cargarEstudiantes();
-    }
-  }, [tipoContenido]);
-
-  const cargarEstudiantes = async () => {
+  const cargarEstudiantes = useCallback(async () => {
     try {
       setCargandoEstudiantes(true);
       const response = await fetch('/api/estudiantes');
@@ -426,7 +438,19 @@ const EditTasksPage: React.FC = () => {
     } finally {
       setCargandoEstudiantes(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (tipoContenido === 'lista_estudiantes' && estudiantes.length === 0) {
+      void Promise.resolve().then(() => {
+        if (active) return cargarEstudiantes();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [tipoContenido, estudiantes.length, cargarEstudiantes]);
 
   const normalizarGrado = (grado: string): string => {
     if (!grado) return '';
@@ -464,7 +488,7 @@ const EditTasksPage: React.FC = () => {
     );
   };
 
-  const estudiantesFiltrados = useMemo(() => {
+  const estudiantesFiltrados = (() => {
     let filtrados = estudiantes;
 
     if (busquedaEstudiante.trim()) {
@@ -493,7 +517,7 @@ const EditTasksPage: React.FC = () => {
     }
 
     return filtrados;
-  }, [estudiantes, busquedaEstudiante, filtroEstudianteNivel, filtroEstudianteGrado, filtroEstudianteSeccion]);
+  })();
 
   const limpiarFiltrosEstudiantes = () => {
     setBusquedaEstudiante('');
@@ -513,7 +537,7 @@ const EditTasksPage: React.FC = () => {
     if (gradoSeleccionado && plan.grado !== gradoSeleccionado) coincide = false;
 
     if (seccionesSeleccionadas.length > 0) {
-      const seccionesPlan = parsearSecciones(plan.secciones || (plan as any).seccion || '');
+      const seccionesPlan = parsearSecciones(plan.secciones || plan.seccion || '');
       const hayCoincidencia = seccionesSeleccionadas.some(s => seccionesPlan.includes(s));
       if (!hayCoincidencia) coincide = false;
     }
@@ -585,7 +609,7 @@ const EditTasksPage: React.FC = () => {
         : 'Única';
 
       let endpoint = '/api/tareas';
-      let payload: any = {};
+      let payload: Record<string, unknown> = {};
 
       if (tipoContenido === 'aviso') {
         endpoint = '/api/avisos';
@@ -837,7 +861,6 @@ const EditTasksPage: React.FC = () => {
         filas: planActual.filas || [],
       };
 
-      let response;
       let url = '/api/planes-evaluacion';
       let method = 'POST';
 
@@ -846,8 +869,8 @@ const EditTasksPage: React.FC = () => {
         method = 'PUT';
       }
 
-      response = await fetch(url, {
-        method: method,
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(planData),
       });
@@ -986,13 +1009,10 @@ const EditTasksPage: React.FC = () => {
 
       const filas = Array.isArray(plan.filas) ? plan.filas : [];
 
-      const jsPDFModule = await import('jspdf');
-      const autoTableModule = await import('jspdf-autotable');
+      const { jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
 
-      const JsPDFClass = (jsPDFModule as any).default || (jsPDFModule as any).jsPDF;
-      const autoTableFn = (autoTableModule as any).default || autoTableModule;
-
-      const doc = new JsPDFClass({
+      const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4'
@@ -1075,13 +1095,9 @@ const EditTasksPage: React.FC = () => {
         margin: { top: 10, right: 10, bottom: 15, left: 10 }
       };
 
-      if (typeof autoTableFn === 'function') {
-        autoTableFn(doc, tableConfig);
-      } else if ((doc as any).autoTable) {
-        (doc as any).autoTable(tableConfig);
-      }
+      autoTable(doc, tableConfig);
 
-      const finalY = (doc as any).lastAutoTable?.finalY || yPos + 50;
+      const finalY = (doc as typeof doc & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || yPos + 50;
       const totalPuntos = filas.reduce((sum, f) => sum + (parseInt(f.ptos) || 0), 0);
 
       doc.setFontSize(8);
@@ -1798,7 +1814,7 @@ const EditTasksPage: React.FC = () => {
           <div className="text-center py-12 text-gray-400">
             <p className="text-lg">No has creado planes de evaluación aún.</p>
             <p className="text-sm mt-2">
-              Crea tu primer plan utilizando el botón "Crear Nuevo Plan".
+              Crea tu primer plan utilizando el botón &quot;Crear Nuevo Plan&quot;.
             </p>
           </div>
         ) : (

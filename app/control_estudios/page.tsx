@@ -1,10 +1,11 @@
 // app/dashboard/control-estudios/page.tsx
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { sileo } from 'sileo';
+import { Grade } from "@/lib/domain/grades/Grade";
 
 // ============ SHADCN UI ============
 import { Button } from "@/components/ui/button";
@@ -39,14 +40,13 @@ import {
   AlertCircle,
   CalendarDays,
   ClipboardList,
-  Save,
   FileDown,
   Trash2,
-  Plus,
-  FileSpreadsheet,
+  Layers,
   CheckCircle2,
   AlertTriangle,
-  Layers,
+  FileSpreadsheet,
+  Save,
 } from "lucide-react";
 
 const PALETTE = {
@@ -102,7 +102,7 @@ interface Nota {
   docente?: string | null;
 }
 
-type TabType = 'estudiantes' | 'docentes' | 'notas' | 'actualizar';
+type TabType = 'estudiantes' | 'docentes' | 'notas' | 'notasDocentes' | 'actualizar';
 
 interface FilaPrevisualizacion {
   cedula: string;
@@ -166,19 +166,8 @@ const GestionInstitutoPage: React.FC = () => {
   const [cargandoNotas, setCargandoNotas] = useState(false);
   const [filtroMateria, setFiltroMateria] = useState<string>('');
   const [filtroPeriodo, setFiltroPeriodo] = useState<string>('1er Lapso');
-  const [notasEnEdicion, setNotasEnEdicion] = useState<Record<string, { nota: number; observacion: string }>>({});
-  const [guardandoNotas, setGuardandoNotas] = useState(false);
   const [exportando, setExportando] = useState(false);
 
-  const [modoCrearNomina, setModoCrearNomina] = useState(false);
-  const [crearNivel, setCrearNivel] = useState('media');
-  const [crearGrado, setCrearGrado] = useState('');
-  const [crearSeccion, setCrearSeccion] = useState('');
-  const [crearMateria, setCrearMateria] = useState('');
-  const [crearPeriodo, setCrearPeriodo] = useState('1er Lapso');
-  const [crearNotas, setCrearNotas] = useState<Record<string, { nota: string; observacion: string }>>({});
-
-  const [modoVerNotasDocentes, setModoVerNotasDocentes] = useState(false);
   const [notasDocentes, setNotasDocentes] = useState<Nota[]>([]);
   const [cargandoNotasDocentes, setCargandoNotasDocentes] = useState(false);
   const [filtroDocente, setFiltroDocente] = useState<string>('');
@@ -186,16 +175,16 @@ const GestionInstitutoPage: React.FC = () => {
 
   const [archivosPrevisualizacion, setArchivosPrevisualizacion] = useState<ArchivoPrevisualizacion[]>([]);
   const [importandoMasivo, setImportandoMasivo] = useState(false);
-  const [guardandoMasivo, setGuardandoMasivo] = useState(false);
-
   const [verConsolidado, setVerConsolidado] = useState(false);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+  // ============ ESTADOS PARA ACTUALIZAR DATOS ============
+  const [seleccionados, setSeleccionados] = useState<string[]>([]);
+  const [nuevoNivel, setNuevoNivel] = useState<string>('');
+  const [nuevoGrado, setNuevoGrado] = useState<string>('');
+  const [nuevaSeccion, setNuevaSeccion] = useState<string>('');
+  const [actualizandoMasivo, setActualizandoMasivo] = useState(false);
 
   const cargarDatos = async () => {
-    setLoading(true);
     try {
       const resEstudiantes = await fetch('/api/estudiantes');
       if (resEstudiantes.ok) {
@@ -217,23 +206,17 @@ const GestionInstitutoPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (tabActiva === 'notas' && filtroNivel && filtroGrado && filtroSeccion) {
-      cargarNotas();
-    } else if (tabActiva === 'notas') {
-      setNotas([]);
-    }
-  }, [tabActiva, filtroNivel, filtroGrado, filtroSeccion, filtroMateria, filtroPeriodo]);
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) return cargarDatos();
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  useEffect(() => {
-    if (modoVerNotasDocentes) {
-      cargarNotasDocentes();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modoVerNotasDocentes]);
-
-  const cargarNotas = async () => {
+  const cargarNotas = useCallback(async () => {
     if (!filtroNivel || !filtroGrado || !filtroSeccion) return;
-    setCargandoNotas(true);
     try {
       const params = new URLSearchParams({
         nivel: filtroNivel,
@@ -247,7 +230,6 @@ const GestionInstitutoPage: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setNotas(data);
-        setNotasEnEdicion({});
       }
     } catch (error) {
       console.error('Error al cargar notas:', error);
@@ -255,7 +237,19 @@ const GestionInstitutoPage: React.FC = () => {
     } finally {
       setCargandoNotas(false);
     }
-  };
+  }, [filtroNivel, filtroGrado, filtroSeccion, filtroMateria, filtroPeriodo]);
+
+  useEffect(() => {
+    let active = true;
+    if (tabActiva === 'notas' && filtroNivel && filtroGrado && filtroSeccion) {
+      void Promise.resolve().then(() => {
+        if (active) return cargarNotas();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [tabActiva, filtroNivel, filtroGrado, filtroSeccion, cargarNotas]);
 
   const cargarNotasDocentes = async () => {
     setCargandoNotasDocentes(true);
@@ -282,6 +276,18 @@ const GestionInstitutoPage: React.FC = () => {
       setCargandoNotasDocentes(false);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    if (tabActiva === 'notasDocentes') {
+      void Promise.resolve().then(() => {
+        if (active) return cargarNotasDocentes();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [tabActiva]);
 
   const exportarNotasDocentes = async () => {
     try {
@@ -330,7 +336,7 @@ const GestionInstitutoPage: React.FC = () => {
       if (filtroMateria) partes.push(filtroMateria.replace(/\s+/g, '-'));
       if (filtroPeriodo) partes.push(filtroPeriodo.replace(/\s+/g, '-'));
       if (filtroDocente) partes.push(filtroDocente.replace(/\s+/g, '-'));
-      const nombreArchivo = `${partes.join('_')}_${Date.now()}.xlsx`;
+      const nombreArchivo = `${partes.join('_')}.xlsx`;
 
       XLSX.writeFile(workbook, nombreArchivo);
 
@@ -390,34 +396,8 @@ const GestionInstitutoPage: React.FC = () => {
   const periodos = ['1er Lapso', '2do Lapso', '3er Lapso'];
   const secciones = ['A', 'B', 'C', 'D', 'E'];
 
-  const gradosCrear = gradosPorNivel[crearNivel as keyof typeof gradosPorNivel] || [];
-  const materiasCrear = MATERIAS_POR_NIVEL[crearNivel] || [];
-
-  const estudiantesDelCurso = useMemo(() => {
-    if (!filtroNivel || !filtroGrado || !filtroSeccion) return [];
-    return estudiantes
-      .filter(
-        (e) =>
-          e.nivel === filtroNivel &&
-          e.grado === filtroGrado &&
-          e.seccion === filtroSeccion
-      )
-      .sort((a, b) => a.apellidos.localeCompare(b.apellidos));
-  }, [estudiantes, filtroNivel, filtroGrado, filtroSeccion]);
-
-  const estudiantesCrear = useMemo(() => {
-    if (!crearNivel || !crearGrado || !crearSeccion) return [];
-    return estudiantes
-      .filter(
-        (e) =>
-          e.nivel === crearNivel &&
-          e.grado === crearGrado &&
-          e.seccion === crearSeccion
-      )
-      .sort((a, b) => a.apellidos.localeCompare(b.apellidos));
-  }, [estudiantes, crearNivel, crearGrado, crearSeccion]);
-
   const notasFiltradas = useMemo(() => {
+    if (!filtroNivel || !filtroGrado || !filtroSeccion) return [];
     if (!searchTerm.trim()) return notas;
     const t = searchTerm.toLowerCase().trim();
     return notas.filter(
@@ -426,9 +406,9 @@ const GestionInstitutoPage: React.FC = () => {
         (n.apellidos || '').toLowerCase().includes(t) ||
         (n.cedulaIdentidad || '').toLowerCase().includes(t)
     );
-  }, [notas, searchTerm]);
+  }, [notas, searchTerm, filtroNivel, filtroGrado, filtroSeccion]);
 
-  const notasDocentesFiltradas = useMemo(() => {
+  const notasDocentesFiltradas = (() => {
     let lista = notasDocentes;
 
     const norm = (s?: string | null) =>
@@ -495,16 +475,7 @@ const GestionInstitutoPage: React.FC = () => {
     }
 
     return lista;
-  }, [
-    notasDocentes,
-    searchTerm,
-    filtroNivel,
-    filtroGrado,
-    filtroSeccion,
-    filtroMateria,
-    filtroPeriodo,
-    filtroDocente,
-  ]);
+  })();
 
   const detectarCursoPorCedulas = (
     cedulas: string[]
@@ -645,7 +616,7 @@ const GestionInstitutoPage: React.FC = () => {
           const buffer = await file.arrayBuffer();
           const workbook = XLSX.read(buffer, { type: 'array' });
           const primeraHoja = workbook.Sheets[workbook.SheetNames[0]];
-          const filasRaw: any[] = XLSX.utils.sheet_to_json(primeraHoja, { defval: '' });
+          const filasRaw = XLSX.utils.sheet_to_json<Record<string, unknown>>(primeraHoja, { defval: '' });
 
           if (filasRaw.length === 0) {
             nuevosArchivos.push({
@@ -762,8 +733,8 @@ const GestionInstitutoPage: React.FC = () => {
               return;
             }
 
-            const nota = parseFloat(String(notaRaw).replace(',', '.'));
-            if (isNaN(nota)) {
+            const nota = Grade.parse(String(notaRaw));
+            if (!Number.isFinite(nota)) {
               filasProcesadas.push({
                 cedula,
                 nota: String(notaRaw),
@@ -776,7 +747,7 @@ const GestionInstitutoPage: React.FC = () => {
               return;
             }
 
-            if (nota < 0 || nota > 20) {
+            if (!Grade.isValid(nota)) {
               filasProcesadas.push({
                 cedula,
                 nota: String(nota),
@@ -862,95 +833,6 @@ const GestionInstitutoPage: React.FC = () => {
     );
   };
 
-  const guardarTodoMasivo = async () => {
-    const archivosValidos = archivosPrevisualizacion.filter(
-      (a) => !a.error && a.filas.some((f) => f.valido)
-    );
-
-    if (archivosValidos.length === 0) {
-      return sileo.warning({
-        title: 'Nada para guardar',
-        description: 'No hay archivos con notas válidas',
-      });
-    }
-
-    for (const archivo of archivosValidos) {
-      if (!archivo.materiaDetectada) {
-        return sileo.warning({
-          title: 'Falta materia',
-          description: `El archivo "${archivo.nombreArchivo}" no tiene materia detectada.`,
-        });
-      }
-      if (!archivo.nivelDetectado || !archivo.gradoDetectado || !archivo.seccionDetectada) {
-        return sileo.warning({
-          title: 'Falta curso',
-          description: `El archivo "${archivo.nombreArchivo}" no tiene curso detectado.`,
-        });
-      }
-    }
-
-    const todasLasNotas: Array<{
-      estudianteId: string;
-      materia: string;
-      nivel: string;
-      grado: string;
-      seccion: string;
-      periodo: string;
-      nota: number;
-      observacion: string;
-    }> = [];
-
-    archivosValidos.forEach((archivo) => {
-      archivo.filas
-        .filter((f) => f.valido && f.estudianteId)
-        .forEach((f) => {
-          todasLasNotas.push({
-            estudianteId: f.estudianteId!,
-            materia: archivo.materiaDetectada,
-            nivel: archivo.nivelDetectado,
-            grado: archivo.gradoDetectado,
-            seccion: archivo.seccionDetectada,
-            periodo: archivo.periodoDetectado,
-            nota: parseFloat(f.nota),
-            observacion: f.observacion || '',
-          });
-        });
-    });
-
-    if (todasLasNotas.length === 0) {
-      return sileo.warning({ title: 'Sin notas para guardar' });
-    }
-
-    setGuardandoMasivo(true);
-    try {
-      const res = await fetch('/api/notas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notas: todasLasNotas }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        sileo.error({ title: 'Error al guardar', description: err.error });
-        return;
-      }
-
-      const data = await res.json();
-      sileo.success({
-        title: 'Nóminas guardadas',
-        description: `${data.guardadas} nota${data.guardadas === 1 ? '' : 's'} registrada${data.guardadas === 1 ? '' : 's'}`,
-      });
-
-      setArchivosPrevisualizacion([]);
-      setVerConsolidado(false);
-    } catch (error) {
-      console.error('Error al guardar masivo:', error);
-      sileo.error({ title: 'Error de conexión' });
-    } finally {
-      setGuardandoMasivo(false);
-    }
-  };
-
   const cancelarImportacionMasiva = () => {
     setArchivosPrevisualizacion([]);
     setVerConsolidado(false);
@@ -1009,8 +891,7 @@ const GestionInstitutoPage: React.FC = () => {
     const validas = materias
       .map((m) => notas[m])
       .filter((n): n is number => n !== null && n !== undefined && !isNaN(n));
-    if (validas.length === 0) return null;
-    return validas.reduce((a, b) => a + b, 0) / validas.length;
+    return Grade.average(validas);
   };
 
   const exportarConsolidado = async () => {
@@ -1075,236 +956,6 @@ const GestionInstitutoPage: React.FC = () => {
     } finally {
       setExportando(false);
     }
-  };
-
-  const guardarConsolidado = async () => {
-    const { estudiantes: listaEst } = generarConsolidado;
-
-    if (listaEst.length === 0) {
-      return sileo.warning({ title: 'Sin datos para guardar' });
-    }
-
-    const archivosValidos = archivosPrevisualizacion.filter(
-      (a) => !a.error && a.filas.some((f) => f.valido)
-    );
-
-    for (const archivo of archivosValidos) {
-      if (!archivo.nivelDetectado || !archivo.gradoDetectado || !archivo.seccionDetectada) {
-        return sileo.warning({
-          title: 'Falta curso',
-          description: `El archivo "${archivo.nombreArchivo}" no tiene curso detectado.`,
-        });
-      }
-      if (!archivo.materiaDetectada) {
-        return sileo.warning({
-          title: 'Falta materia',
-          description: `El archivo "${archivo.nombreArchivo}" no tiene materia detectada.`,
-        });
-      }
-    }
-
-    const payload: Array<{
-      estudianteId: string;
-      materia: string;
-      nivel: string;
-      grado: string;
-      seccion: string;
-      periodo: string;
-      nota: number;
-      observacion: string;
-    }> = [];
-
-    archivosValidos.forEach((archivo) => {
-      archivo.filas
-        .filter((f) => f.valido && f.estudianteId)
-        .forEach((f) => {
-          payload.push({
-            estudianteId: f.estudianteId!,
-            materia: archivo.materiaDetectada,
-            nivel: archivo.nivelDetectado,
-            grado: archivo.gradoDetectado,
-            seccion: archivo.seccionDetectada,
-            periodo: archivo.periodoDetectado,
-            nota: parseFloat(f.nota),
-            observacion: f.observacion || '',
-          });
-        });
-    });
-
-    if (payload.length === 0) {
-      return sileo.warning({ title: 'Sin notas para guardar' });
-    }
-
-    setGuardandoMasivo(true);
-    try {
-      const res = await fetch('/api/notas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notas: payload }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        sileo.error({ title: 'Error al guardar', description: err.error });
-        return;
-      }
-
-      const data = await res.json();
-      sileo.success({
-        title: 'Consolidado guardado',
-        description: `${data.guardadas} nota${data.guardadas === 1 ? '' : 's'} registrada${data.guardadas === 1 ? '' : 's'}`,
-      });
-
-      setArchivosPrevisualizacion([]);
-      setVerConsolidado(false);
-    } catch (error) {
-      console.error('Error al guardar consolidado:', error);
-      sileo.error({ title: 'Error de conexión' });
-    } finally {
-      setGuardandoMasivo(false);
-    }
-  };
-
-  const guardarNotasMasivo = async () => {
-    const cambios = Object.entries(notasEnEdicion);
-    if (cambios.length === 0) {
-      return sileo.warning({ title: 'No hay cambios para guardar' });
-    }
-    if (!filtroMateria) {
-      return sileo.warning({ title: 'Selecciona una materia para guardar' });
-    }
-
-    setGuardandoNotas(true);
-    try {
-      const payload = cambios.map(([estudianteId, valor]) => ({
-        estudianteId,
-        materia: filtroMateria,
-        nivel: filtroNivel,
-        grado: filtroGrado,
-        seccion: filtroSeccion,
-        periodo: filtroPeriodo,
-        nota: valor.nota,
-        observacion: valor.observacion,
-      }));
-
-      const res = await fetch('/api/notas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notas: payload }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        sileo.error({ title: 'Error al guardar', description: err.error });
-        return;
-      }
-
-      const data = await res.json();
-      sileo.success({
-        title: 'Notas actualizadas',
-        description: `${data.guardadas} nota${data.guardadas === 1 ? '' : 's'} guardada${data.guardadas === 1 ? '' : 's'}`,
-      });
-      setNotasEnEdicion({});
-      cargarNotas();
-    } catch (error) {
-      console.error('Error al guardar notas:', error);
-      sileo.error({ title: 'Error de conexión' });
-    } finally {
-      setGuardandoNotas(false);
-    }
-  };
-
-  const crearNomina = async () => {
-    if (!crearNivel || !crearGrado || !crearSeccion || !crearMateria) {
-      return sileo.warning({
-        title: 'Datos incompletos',
-        description: 'Selecciona nivel, grado, sección y materia',
-      });
-    }
-
-    const notasAGuardar = Object.entries(crearNotas)
-      .map(([estudianteId, valor]) => ({
-        estudianteId,
-        nota: parseFloat(valor.nota),
-        observacion: valor.observacion,
-      }))
-      .filter((n) => !isNaN(n.nota) && n.nota >= 0 && n.nota <= 20);
-
-    if (notasAGuardar.length === 0) {
-      return sileo.warning({
-        title: 'Sin notas',
-        description: 'Ingresa al menos una nota',
-      });
-    }
-
-    setGuardandoNotas(true);
-    try {
-      const payload = notasAGuardar.map((n) => ({
-        estudianteId: n.estudianteId,
-        materia: crearMateria,
-        nivel: crearNivel,
-        grado: crearGrado,
-        seccion: crearSeccion,
-        periodo: crearPeriodo,
-        nota: n.nota,
-        observacion: n.observacion || '',
-      }));
-
-      const res = await fetch('/api/notas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notas: payload }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        sileo.error({ title: 'Error al crear', description: err.error });
-        return;
-      }
-
-      const data = await res.json();
-      sileo.success({
-        title: 'Nómina creada',
-        description: `${data.guardadas} nota${data.guardadas === 1 ? '' : 's'} registrada${data.guardadas === 1 ? '' : 's'}`,
-      });
-
-      setModoCrearNomina(false);
-      setCrearGrado('');
-      setCrearSeccion('');
-      setCrearMateria('');
-      setCrearNotas({});
-
-      setFiltroNivel(crearNivel);
-      setFiltroGrado(crearGrado);
-      setFiltroSeccion(crearSeccion);
-      setFiltroMateria(crearMateria);
-      setFiltroPeriodo(crearPeriodo);
-    } catch (error) {
-      console.error('Error al crear nómina:', error);
-      sileo.error({ title: 'Error de conexión' });
-    } finally {
-      setGuardandoNotas(false);
-    }
-  };
-
-  const eliminarNota = (notaId: string) => {
-    setConfirmacion({
-      abierto: true,
-      titulo: '¿Eliminar nota?',
-      descripcion: 'Esta acción no se puede deshacer',
-      onConfirm: async () => {
-        setConfirmacion(null);
-        try {
-          const res = await fetch(`/api/notas/${notaId}`, { method: 'DELETE' });
-          if (res.ok) {
-            sileo.success({ title: 'Nota eliminada' });
-            cargarNotas();
-          }
-        } catch (error) {
-          sileo.error({ title: 'Error al eliminar' });
-        }
-      },
-    });
   };
 
   const exportarAExcel = async () => {
@@ -1397,32 +1048,84 @@ const GestionInstitutoPage: React.FC = () => {
     setFiltroSeccion('');
     setFiltroMateria('');
     setFiltroDocente('');
-    setNotasEnEdicion({});
+    // Limpiamos también los estados de actualización al cambiar de pestaña
+    setSeleccionados([]);
+    setNuevoNivel('');
+    setNuevoGrado('');
+    setNuevaSeccion('');
   };
 
   const tieneFiltrosActivos = searchTerm || filtroNivel || filtroGrado || filtroSeccion || filtroMateria;
 
-  const handleEdicionMasiva = async (estudianteIds: string[], nuevoNivel: string, nuevoGrado: string, nuevaSeccion: string) => {
-    const estudiantesActualizados = estudiantes.map(e => {
-      if (estudianteIds.includes(e.id)) {
-        return { ...e, nivel: nuevoNivel || e.nivel, grado: nuevoGrado || e.grado, seccion: nuevaSeccion || e.seccion };
-      }
-      return e;
-    });
+  // ============ FUNCIÓN MEJORADA DE ACTUALIZACIÓN MASIVA ============
+  const handleEdicionMasiva = async () => {
+    if (seleccionados.length === 0) {
+      return sileo.warning({ 
+        title: 'Sin selección', 
+        description: 'Seleccione al menos un estudiante para actualizar' 
+      });
+    }
 
+    if (!nuevoNivel && !nuevoGrado && !nuevaSeccion) {
+      return sileo.warning({ 
+        title: 'Sin cambios', 
+        description: 'Seleccione al menos un campo (Nivel, Grado o Sección) para actualizar' 
+      });
+    }
+
+    setActualizandoMasivo(true);
     try {
+      const actualizaciones = seleccionados.map(id => {
+        const update: Partial<Pick<Estudiante, 'nivel' | 'grado' | 'seccion'>> & { id: string } = { id };
+        if (nuevoNivel) update.nivel = nuevoNivel;
+        if (nuevoGrado) update.grado = nuevoGrado;
+        if (nuevaSeccion) update.seccion = nuevaSeccion;
+        return update;
+      });
+
       const response = await fetch('/api/estudiantes/masivo', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estudiantes: estudiantesActualizados.filter(e => estudianteIds.includes(e.id)) })
+        body: JSON.stringify({ actualizaciones })
       });
-      if (response.ok) {
-        setEstudiantes(estudiantesActualizados);
-        sileo.success({ title: `${estudianteIds.length} estudiantes actualizados` });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Error al actualizar');
       }
+
+      // Actualizamos el estado local para reflejar los cambios
+      setEstudiantes(prev => prev.map(est => {
+        if (seleccionados.includes(est.id)) {
+          return {
+            ...est,
+            nivel: nuevoNivel || est.nivel,
+            grado: nuevoGrado || est.grado,
+            seccion: nuevaSeccion || est.seccion
+          };
+        }
+        return est;
+      }));
+
+      sileo.success({ 
+        title: 'Actualización exitosa', 
+        description: `${seleccionados.length} estudiante(s) actualizado(s)` 
+      });
+
+      // Limpiamos la selección y los filtros de actualización
+      setSeleccionados([]);
+      setNuevoNivel('');
+      setNuevoGrado('');
+      setNuevaSeccion('');
+      
     } catch (error) {
       console.error('Error en edicion masiva:', error);
-      sileo.error({ title: 'Error en edición masiva' });
+      sileo.error({ 
+        title: 'Error al actualizar', 
+        description: error instanceof Error ? error.message : 'No se pudieron actualizar los estudiantes'
+      });
+    } finally {
+      setActualizandoMasivo(false);
     }
   };
 
@@ -1446,7 +1149,8 @@ const GestionInstitutoPage: React.FC = () => {
   const tabs = [
     { key: 'estudiantes' as const, label: 'Estudiantes', icon: <Users className="w-4 h-4" /> },
     { key: 'docentes' as const, label: 'Docentes', icon: <GraduationCap className="w-4 h-4" /> },
-    { key: 'notas' as const, label: 'Nóminas de Notas', icon: <ClipboardList className="w-4 h-4" /> },
+    { key: 'notas' as const, label: 'Nóminas', icon: <ClipboardList className="w-4 h-4" /> },
+    { key: 'notasDocentes' as const, label: 'Ver Notas de Docentes', icon: <GraduationCap className="w-4 h-4" /> },
     { key: 'actualizar' as const, label: 'Actualizar Datos', icon: <RefreshCw className="w-4 h-4" /> }
   ];
 
@@ -1481,6 +1185,7 @@ const GestionInstitutoPage: React.FC = () => {
             {tabActiva === 'estudiantes' && `${estudiantes.length} estudiantes`}
             {tabActiva === 'docentes' && `${docentes.length} docentes`}
             {tabActiva === 'notas' && `${notas.length} notas`}
+            {tabActiva === 'notasDocentes' && `${notasDocentes.length} notas`}
             {tabActiva === 'actualizar' && 'Actualizar'}
           </Badge>
           <Button
@@ -1497,603 +1202,191 @@ const GestionInstitutoPage: React.FC = () => {
 
       <main className="relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         <Card className="bg-white/3 backdrop-blur-xl border-white/5 overflow-hidden rounded-3xl">
-          <div className="flex gap-0 px-4 sm:px-10 border-b border-white/5 bg-black/10 overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => { setTabActiva(tab.key); limpiarFiltros(); }}
-                className={`px-6 sm:px-8 py-4 text-sm sm:text-base font-semibold transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${
-                  tabActiva === tab.key
-                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
-                    : 'border-transparent text-white hover:bg-white/5'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-
-            <button
-              onClick={() => router.push('/dashboard/horarios')}
-              className="px-6 sm:px-8 py-4 text-sm sm:text-base font-bold transition-all whitespace-nowrap flex items-center gap-2 bg-emerald-500 text-emerald-950 hover:bg-emerald-400 rounded-lg my-2 ml-2 shadow-lg shadow-emerald-500/20"
-            >
-              <CalendarDays className="w-4 h-4" />
-              Horarios
-            </button>
-          </div>
-
-          <CardHeader className="px-4 sm:px-10 py-6 sm:py-8 bg-emerald-500/5 border-b border-white/5 flex flex-row justify-between items-center flex-wrap gap-4">
-            <div className="space-y-2">
-              <CardTitle className="text-2xl sm:text-3xl font-black text-white m-0">
-                {tabActiva === 'estudiantes' && 'Gestión de Estudiantes'}
-                {tabActiva === 'docentes' && 'Gestión de Docentes'}
-                {tabActiva === 'notas' && 'Nóminas de Notas'}
-                {tabActiva === 'actualizar' && 'Actualizar Datos de Estudiantes'}
-              </CardTitle>
-              <p className="text-gray-400 text-sm sm:text-base m-0">
-                {tabActiva === 'estudiantes' && `Total: ${estudiantes.length} estudiantes registrados`}
-                {tabActiva === 'docentes' && `Total: ${docentes.length} docentes registrados`}
-                {tabActiva === 'notas' && 'Crea, edita y exporta nóminas de calificaciones'}
-                {tabActiva === 'actualizar' && `Seleccione los estudiantes para actualizar`}
-              </p>
-            </div>
-
-            {tabActiva === 'notas' && (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => {
-                    setModoCrearNomina(true);
-                    setModoVerNotasDocentes(false);
-                    setVerConsolidado(false);
-                  }}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Crear Nómina
-                </Button>
-
-                <label
-                  className={`inline-flex items-center justify-center gap-2 rounded-md px-4 h-9 text-sm font-bold cursor-pointer transition-colors bg-emerald-500 hover:bg-emerald-600 text-emerald-950 shadow-lg shadow-emerald-500/20 ${importandoMasivo ? 'opacity-50 pointer-events-none' : ''}`}
-                >
-                  {importandoMasivo ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Procesando...
-                    </>
-                  ) : (
-                    <>
-                      <Layers className="h-4 w-4" />
-                      Importar varias nóminas
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    multiple
-                    onChange={procesarArchivosMasivo}
-                    className="hidden"
-                    disabled={importandoMasivo}
-                  />
-                </label>
-
-                <Button
-                  onClick={() => {
-                    setModoVerNotasDocentes(true);
-                    setModoCrearNomina(false);
-                    setVerConsolidado(false);
-                    setFiltroNivel('');
-                    setFiltroGrado('');
-                    setFiltroSeccion('');
-                    setFiltroMateria('');
-                    setFiltroDocente('');
-                    setSearchTerm('');
-                  }}
-                  variant="outline"
-                  className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 font-bold"
-                >
-                  <GraduationCap className="mr-2 h-4 w-4" />
-                  Ver Notas de Docentes
-                </Button>
+          {/* Layout principal: Sidebar y Contenido */}
+          <div className="flex flex-col lg:flex-row min-h-[600px]">
+            
+            {/* Sidebar Vertical */}
+            <aside className="w-full lg:w-64 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-white/5 bg-black/10">
+              <div className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible p-2 gap-1">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setTabActiva(tab.key); limpiarFiltros(); }}
+                    className={`px-4 py-3 text-sm font-semibold transition-all rounded-lg whitespace-nowrap flex items-center gap-3 w-full justify-start ${
+                      tabActiva === tab.key
+                        ? 'bg-emerald-500/15 text-emerald-400'
+                        : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+                
+                <div className="hidden lg:block mt-auto pt-4 border-t border-white/5">
+                  <button
+                    onClick={() => router.push('/dashboard/horarios')}
+                    className="px-4 py-3 text-sm font-bold transition-all rounded-lg whitespace-nowrap flex items-center gap-3 w-full justify-start bg-emerald-500 text-emerald-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                    Horarios
+                  </button>
+                </div>
               </div>
-            )}
-          </CardHeader>
+            </aside>
 
-          <CardContent className="px-4 sm:px-10 py-6 sm:py-8 space-y-6">
-            {tabActiva !== 'notas' && (
-              <>
-                <div className="space-y-4">
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
-                    <Input
-                      type="text"
-                      placeholder={
-                        tabActiva === 'estudiantes' ? 'Buscar por nombre, apellido o cedula...' :
-                        tabActiva === 'docentes' ? 'Buscar por nombre, apellido, cedula o email...' :
-                        'Buscar estudiantes por nombre, apellido o cedula...'
-                      }
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="bg-black/30 border-white/10 text-white pl-12 pr-12 h-14 text-base"
-                    />
-                    {searchTerm && (
-                      <button
-                        onClick={() => setSearchTerm('')}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                    <Select
-                      value={filtroNivel || 'all'}
-                      onValueChange={(v) => {
-                        setFiltroNivel(v === 'all' || !v ? '' : v);
-                        setFiltroGrado('');
-                      }}
-                    >
-                      <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
-                        <SelectValue placeholder="Todos los niveles" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los niveles</SelectItem>
-                        {niveles.map((n) => (
-                          <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {(tabActiva === 'estudiantes' || tabActiva === 'actualizar') && (
-                      <Select
-                        value={filtroGrado || 'all'}
-                        onValueChange={(v) => setFiltroGrado(v === 'all' || !v ? '' : v)}
-                        disabled={!filtroNivel}
-                      >
-                        <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
-                          <SelectValue placeholder="Todos los grados" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos los grados</SelectItem>
-                          {filtroNivel && gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.map((g) => (
-                            <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    <Select
-                      value={filtroSeccion || 'all'}
-                      onValueChange={(v) => setFiltroSeccion(v === 'all' || !v ? '' : v)}
-                    >
-                      <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
-                        <SelectValue placeholder="Todas las secciones" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas las secciones</SelectItem>
-                        {secciones.map((s) => (
-                          <SelectItem key={s} value={s}>Seccion {s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {tieneFiltrosActivos && (
-                      <Button
-                        variant="outline"
-                        onClick={limpiarFiltros}
-                        className="border-white/10 text-gray-400 hover:bg-white/5 hover:border-emerald-500/40 h-11"
-                      >
-                        <X className="w-4 h-4 mr-2" /> Limpiar filtros
-                      </Button>
-                    )}
-                  </div>
-
-                  <p className="text-gray-400 text-sm">
-                    {tabActiva === 'estudiantes' && `Mostrando ${estudiantesFiltrados.length} de ${estudiantes.length} estudiantes`}
-                    {tabActiva === 'docentes' && `Mostrando ${docentesFiltrados.length} de ${docentes.length} docentes`}
-                    {tabActiva === 'actualizar' && `Mostrando ${estudiantesFiltrados.length} de ${estudiantes.length} estudiantes`}
+            {/* Contenido Principal */}
+            <div className="flex-1 min-w-0">
+              <CardHeader className="px-4 sm:px-10 py-6 sm:py-8 bg-emerald-500/5 border-b border-white/5 flex flex-row justify-between items-center flex-wrap gap-4">
+                <div className="space-y-2">
+                  <CardTitle className="text-2xl sm:text-3xl font-black text-white m-0">
+                    {tabActiva === 'estudiantes' && 'Gestión de Estudiantes'}
+                    {tabActiva === 'docentes' && 'Gestión de Docentes'}
+                    {tabActiva === 'notas' && 'Nóminas'}
+                    {tabActiva === 'notasDocentes' && 'Notas Subidas por Docentes'}
+                    {tabActiva === 'actualizar' && 'Actualizar Datos de Estudiantes'}
+                  </CardTitle>
+                  <p className="text-gray-400 text-sm sm:text-base m-0">
+                    {tabActiva === 'estudiantes' && `Total: ${estudiantes.length} estudiantes registrados`}
+                    {tabActiva === 'docentes' && `Total: ${docentes.length} docentes registrados`}
+                    {tabActiva === 'notas' && 'Visualiza y exporta nóminas de calificaciones'}
+                    {tabActiva === 'notasDocentes' && 'Revisa las calificaciones subidas por los docentes'}
+                    {tabActiva === 'actualizar' && `Seleccione los estudiantes para actualizar`}
                   </p>
                 </div>
 
-                <Separator className="bg-white/5" />
-              </>
-            )}
+                {tabActiva === 'notas' && (
+                  <div className="flex flex-wrap gap-2">
+                    <label
+                      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 h-9 text-sm font-bold cursor-pointer transition-colors bg-emerald-500 hover:bg-emerald-600 text-emerald-950 shadow-lg shadow-emerald-500/20 ${importandoMasivo ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      {importandoMasivo ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Procesando...
+                        </>
+                      ) : (
+                        <>
+                          <Layers className="h-4 w-4" />
+                          Importar varias nóminas
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        multiple
+                        onChange={procesarArchivosMasivo}
+                        className="hidden"
+                        disabled={importandoMasivo}
+                      />
+                    </label>
+                  </div>
+                )}
+              </CardHeader>
 
-            {tabActiva === 'notas' && (
-              <div className="space-y-6">
-                {archivosPrevisualizacion.length > 0 && (
-                  <Card className="bg-emerald-500/5 border-emerald-500/30 rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-emerald-400 text-lg flex items-center justify-between">
-                        <span className="flex items-center gap-2">
-                          <Layers className="w-5 h-5" />
-                          Importación Masiva ({archivosPrevisualizacion.length} archivo{archivosPrevisualizacion.length === 1 ? '' : 's'})
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={cancelarImportacionMasiva}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="flex flex-wrap gap-3">
-                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                          {archivosPrevisualizacion.length} archivo(s)
-                        </Badge>
-                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                          <CheckCircle2 className="w-3 h-3 mr-1" />
-                          {archivosPrevisualizacion.reduce((acc, a) => acc + a.filas.filter((f) => f.valido).length, 0)} notas válidas
-                        </Badge>
-                        {archivosPrevisualizacion.reduce((acc, a) => acc + a.filas.filter((f) => !f.valido).length, 0) > 0 && (
-                          <Badge className="bg-red-500/15 text-red-400 border-red-500/30">
-                            <AlertTriangle className="w-3 h-3 mr-1" />
-                            {archivosPrevisualizacion.reduce((acc, a) => acc + a.filas.filter((f) => !f.valido).length, 0)} errores
-                          </Badge>
+              <CardContent className="px-4 sm:px-10 py-6 sm:py-8 space-y-6">
+                {tabActiva !== 'notas' && tabActiva !== 'notasDocentes' && (
+                  <>
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
+                        <Input
+                          type="text"
+                          placeholder={
+                            tabActiva === 'estudiantes' ? 'Buscar por nombre, apellido o cedula...' :
+                            tabActiva === 'docentes' ? 'Buscar por nombre, apellido, cedula o email...' :
+                            'Buscar estudiantes por nombre, apellido o cedula...'
+                          }
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="bg-black/30 border-white/10 text-white pl-12 pr-12 h-14 text-base"
+                        />
+                        {searchTerm && (
+                          <button
+                            onClick={() => setSearchTerm('')}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
                         )}
                       </div>
 
-                      <div className="space-y-3">
-                        {archivosPrevisualizacion.map((archivo) => {
-                          const validas = archivo.filas.filter((f) => f.valido).length;
-                          const invalidas = archivo.filas.filter((f) => !f.valido).length;
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <Select
+                          value={filtroNivel || 'all'}
+                          onValueChange={(v) => {
+                            setFiltroNivel(v === 'all' || !v ? '' : v);
+                            setFiltroGrado('');
+                          }}
+                        >
+                          <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
+                            <SelectValue placeholder="Todos los niveles" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los niveles</SelectItem>
+                            {niveles.map((n) => (
+                              <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
 
-                          return (
-                            <Card key={archivo.id} className="bg-black/30 border-white/10 backdrop-blur">
-                              <CardContent className="p-4 space-y-3">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <FileSpreadsheet className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                                    <span className="text-white font-medium text-sm truncate">{archivo.nombreArchivo}</span>
-                                    {archivo.error ? (
-                                      <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[0.6rem] flex-shrink-0">
-                                        {archivo.error}
-                                      </Badge>
-                                    ) : (
-                                      <>
-                                        <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[0.6rem] flex-shrink-0">
-                                          {validas} válidas
-                                        </Badge>
-                                        {invalidas > 0 && (
-                                          <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[0.6rem] flex-shrink-0">
-                                            {invalidas} con error
-                                          </Badge>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    onClick={() => eliminarArchivoPrevisualizacion(archivo.id)}
-                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 flex-shrink-0"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </div>
+                        {(tabActiva === 'estudiantes' || tabActiva === 'actualizar') && (
+                          <Select
+                            value={filtroGrado || 'all'}
+                            onValueChange={(v) => setFiltroGrado(v === 'all' || !v ? '' : v)}
+                            disabled={!filtroNivel}
+                          >
+                            <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
+                              <SelectValue placeholder="Todos los grados" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos los grados</SelectItem>
+                              {filtroNivel && gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.map((g) => (
+                                <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
 
-                                {!archivo.error && (
-                                  <>
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                                      <div>
-                                        <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Nivel</Label>
-                                        <Select
-                                          value={archivo.nivelDetectado || 'none'}
-                                          onValueChange={(v) => actualizarArchivo(archivo.id, { nivelDetectado: v === 'none' || !v ? '' : v })}
-                                        >
-                                          <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
-                                            <SelectValue placeholder="Seleccionar" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="none">Seleccionar</SelectItem>
-                                            {niveles.map((n) => (
-                                              <SelectItem key={n.id} value={n.id}>{n.nombre.replace('Educacion ', '')}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
+                        <Select
+                          value={filtroSeccion || 'all'}
+                          onValueChange={(v) => setFiltroSeccion(v === 'all' || !v ? '' : v)}
+                        >
+                          <SelectTrigger className="bg-black/30 border-white/10 text-white h-11">
+                            <SelectValue placeholder="Todas las secciones" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todas las secciones</SelectItem>
+                            {secciones.map((s) => (
+                              <SelectItem key={s} value={s}>Seccion {s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
 
-                                      <div>
-                                        <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Grado</Label>
-                                        <Select
-                                          value={archivo.gradoDetectado || 'none'}
-                                          onValueChange={(v) => actualizarArchivo(archivo.id, { gradoDetectado: v === 'none' || !v ? '' : v })}
-                                        >
-                                          <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
-                                            <SelectValue placeholder="Seleccionar" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="none">Seleccionar</SelectItem>
-                                            {archivo.nivelDetectado &&
-                                              gradosPorNivel[archivo.nivelDetectado as keyof typeof gradosPorNivel]?.map((g) => (
-                                                <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
-                                              ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-
-                                      <div>
-                                        <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Sección</Label>
-                                        <Select
-                                          value={archivo.seccionDetectada || 'none'}
-                                          onValueChange={(v) => actualizarArchivo(archivo.id, { seccionDetectada: v === 'none' || !v ? '' : v })}
-                                        >
-                                          <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
-                                            <SelectValue placeholder="Seleccionar" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="none">Seleccionar</SelectItem>
-                                            {secciones.map((s) => (
-                                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-
-                                      <div>
-                                        <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Materia</Label>
-                                        <Select
-                                          value={archivo.materiaDetectada || 'none'}
-                                          onValueChange={(v) => actualizarArchivo(archivo.id, { materiaDetectada: v === 'none' || !v ? '' : v })}
-                                        >
-                                          <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
-                                            <SelectValue placeholder="Seleccionar" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="none">Seleccionar</SelectItem>
-                                            {archivo.nivelDetectado &&
-                                              MATERIAS_POR_NIVEL[archivo.nivelDetectado]?.map((m) => (
-                                                <SelectItem key={m} value={m}>{m}</SelectItem>
-                                              ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-
-                                      <div>
-                                        <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Período</Label>
-                                        <Select
-                                          value={archivo.periodoDetectado}
-                                          onValueChange={(v) => actualizarArchivo(archivo.id, { periodoDetectado: v || '1er Lapso' })}
-                                        >
-                                          <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {periodos.map((p) => (
-                                              <SelectItem key={p} value={p}>{p}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-                                    </div>
-
-                                    {(!archivo.materiaDetectada || !archivo.gradoDetectado || !archivo.seccionDetectada || !archivo.nivelDetectado) && (
-                                      <div className="flex items-center gap-2 text-yellow-400 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded p-2">
-                                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                                        <span>Faltan datos por detectar. Complétalos manualmente.</span>
-                                      </div>
-                                    )}
-
-                                    <div className="rounded-lg border border-white/10 overflow-auto max-h-[200px]">
-                                      <Table>
-                                        <TableHeader className="sticky top-0 bg-black/60 backdrop-blur">
-                                          <TableRow className="bg-black/40 hover:bg-black/40">
-                                            <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase">Cédula</TableHead>
-                                            <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase">Estudiante</TableHead>
-                                            <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase text-center">Nota</TableHead>
-                                            <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase">Observación</TableHead>
-                                            <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase text-center">Estado</TableHead>
-                                          </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                          {archivo.filas.map((fila, idx) => (
-                                            <TableRow
-                                              key={idx}
-                                              className={`border-white/5 text-xs ${fila.valido ? '' : 'bg-red-500/5'}`}
-                                            >
-                                              <TableCell className="font-mono text-white py-1.5">{fila.cedula || '-'}</TableCell>
-                                              <TableCell className="text-white py-1.5">{fila.estudianteNombre || '-'}</TableCell>
-                                              <TableCell className="text-center py-1.5">
-                                                <span className={`font-bold ${
-                                                  !fila.valido ? 'text-red-400' :
-                                                  parseFloat(fila.nota) >= 10 ? 'text-emerald-400' : 'text-yellow-400'
-                                                }`}>
-                                                  {fila.nota || '-'}
-                                                </span>
-                                              </TableCell>
-                                              <TableCell className="text-gray-400 py-1.5">{fila.observacion || '-'}</TableCell>
-                                              <TableCell className="text-center py-1.5">
-                                                {fila.valido ? (
-                                                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[0.55rem] px-1.5 py-0">
-                                                    Válida
-                                                  </Badge>
-                                                ) : (
-                                                  <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[0.55rem] px-1.5 py-0">
-                                                    {fila.error}
-                                                  </Badge>
-                                                )}
-                                              </TableCell>
-                                            </TableRow>
-                                          ))}
-                                        </TableBody>
-                                      </Table>
-                                    </div>
-                                  </>
-                                )}
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
+                        {tieneFiltrosActivos && (
+                          <Button
+                            variant="outline"
+                            onClick={limpiarFiltros}
+                            className="border-white/10 text-gray-400 hover:bg-white/5 hover:border-emerald-500/40 h-11"
+                          >
+                            <X className="w-4 h-4 mr-2" /> Limpiar filtros
+                          </Button>
+                        )}
                       </div>
 
-                      {verConsolidado && generarConsolidado.estudiantes.length > 0 && (
-                        <Card className="bg-emerald-500/5 border-emerald-500/30 rounded-xl mt-4">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-emerald-400 text-base flex items-center justify-between">
-                              <span className="flex items-center gap-2">
-                                <Layers className="w-4 h-4" />
-                                Nómina Consolidada - {generarConsolidado.materias.length} materia(s)
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setVerConsolidado(false)}
-                                className="text-gray-400 hover:text-white"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="flex flex-wrap gap-2">
-                              <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                                {generarConsolidado.estudiantes.length} estudiantes
-                              </Badge>
-                              <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                                {generarConsolidado.materias.length} materias
-                              </Badge>
-                              {generarConsolidado.estudiantes[0]?.curso && (
-                                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                                  Curso: {generarConsolidado.estudiantes[0].curso.grado} - {generarConsolidado.estudiantes[0].curso.seccion}
-                                </Badge>
-                              )}
-                            </div>
+                      <p className="text-gray-400 text-sm">
+                        {tabActiva === 'estudiantes' && `Mostrando ${estudiantesFiltrados.length} de ${estudiantes.length} estudiantes`}
+                        {tabActiva === 'docentes' && `Mostrando ${docentesFiltrados.length} de ${docentes.length} docentes`}
+                        {tabActiva === 'actualizar' && `Mostrando ${estudiantesFiltrados.length} de ${estudiantes.length} estudiantes`}
+                      </p>
+                    </div>
 
-                            <div className="rounded-lg border border-white/10 overflow-auto max-h-[500px]">
-                              <Table>
-                                <TableHeader className="sticky top-0 bg-black/60 backdrop-blur z-10">
-                                  <TableRow className="bg-black/40 hover:bg-black/40">
-                                    <TableHead className="text-emerald-400 font-bold text-[0.65rem] uppercase sticky left-0 bg-black/80 z-20">
-                                      Cédula
-                                    </TableHead>
-                                    <TableHead className="text-emerald-400 font-bold text-[0.65rem] uppercase sticky left-20 bg-black/80 z-20 min-w-[180px]">
-                                      Estudiante
-                                    </TableHead>
-                                    {generarConsolidado.materias.map((m) => (
-                                      <TableHead key={m} className="text-emerald-400 font-bold text-[0.65rem] uppercase text-center min-w-[110px]">
-                                        {m}
-                                      </TableHead>
-                                    ))}
-                                    <TableHead className="text-emerald-400 font-bold text-[0.65rem] uppercase text-center bg-emerald-500/10 min-w-[100px]">
-                                      Promedio
-                                    </TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {generarConsolidado.estudiantes.map((est) => {
-                                    const promedio = calcularPromedio(est.notas, generarConsolidado.materias);
-                                    return (
-                                      <TableRow key={est.estudianteId} className="border-white/5 hover:bg-emerald-500/5">
-                                        <TableCell className="font-mono text-emerald-400 text-sm sticky left-0 bg-[#0d1a15]/90 z-10">
-                                          {est.cedula}
-                                        </TableCell>
-                                        <TableCell className="text-white text-sm sticky left-20 bg-[#0d1a15]/90 z-10 min-w-[180px]">
-                                          {est.apellido}, {est.nombre}
-                                        </TableCell>
-                                        {generarConsolidado.materias.map((m) => {
-                                          const nota = est.notas[m];
-                                          const tieneNota = nota !== null && nota !== undefined;
-                                          return (
-                                            <TableCell key={m} className="text-center">
-                                              {tieneNota ? (
-                                                <Badge
-                                                  className={
-                                                    nota! >= 10
-                                                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-bold'
-                                                      : 'bg-red-500/15 text-red-400 border-red-500/30 font-bold'
-                                                  }
-                                                >
-                                                  {nota}
-                                                </Badge>
-                                              ) : (
-                                                <span className="text-gray-600 text-xs">-</span>
-                                              )}
-                                            </TableCell>
-                                          );
-                                        })}
-                                        <TableCell className="text-center bg-emerald-500/10">
-                                          {promedio !== null ? (
-                                            <span className={`font-bold text-sm ${
-                                              promedio >= 10 ? 'text-emerald-400' : 'text-red-400'
-                                            }`}>
-                                              {promedio.toFixed(2)}
-                                            </span>
-                                          ) : (
-                                            <span className="text-gray-600 text-xs">-</span>
-                                          )}
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                                </TableBody>
-                              </Table>
-                            </div>
-
-                            <div className="text-xs text-gray-400">
-                              <p className="m-0">
-                                Celdas con <span className="text-gray-600">-</span> significan que el estudiante no tiene nota en esa materia.
-                              </p>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-white/5">
-                              <Button
-                                variant="outline"
-                                onClick={exportarConsolidado}
-                                disabled={exportando}
-                                className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
-                              >
-                                <FileDown className="mr-2 h-4 w-4" />
-                                {exportando ? 'Exportando...' : 'Descargar Excel consolidado'}
-                              </Button>
-                              <Button
-                                onClick={guardarConsolidado}
-                                disabled={guardandoMasivo}
-                                className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
-                              >
-                                <Save className="mr-2 h-4 w-4" />
-                                {guardandoMasivo ? 'Guardando...' : 'Guardar en el sistema'}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      <div className="flex flex-wrap gap-2 justify-end pt-4 border-t border-white/5">
-                        <Button
-                          variant="outline"
-                          onClick={cancelarImportacionMasiva}
-                          className="border-white/20 text-white hover:bg-white/10"
-                        >
-                          <X className="mr-2 h-4 w-4" />
-                          Cancelar todo
-                        </Button>
-
-                        <Button
-                          onClick={() => setVerConsolidado(true)}
-                          disabled={archivosPrevisualizacion.every((a) => a.error || !a.materiaDetectada || a.filas.filter((f) => f.valido).length === 0)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold disabled:opacity-40"
-                        >
-                          <Layers className="mr-2 h-4 w-4" />
-                          Ver nómina consolidada
-                        </Button>
-
-                        <Button
-                          onClick={guardarTodoMasivo}
-                          disabled={guardandoMasivo || archivosPrevisualizacion.every((a) => a.error || a.filas.filter((f) => f.valido).length === 0)}
-                          className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold disabled:opacity-40"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {guardandoMasivo ? 'Guardando...' : `Guardar todas las notas`}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                    <Separator className="bg-white/5" />
+                  </>
                 )}
 
-                {modoVerNotasDocentes && (
+                {/* ============ TAB NOTAS DOCENTES ============ */}
+                {tabActiva === 'notasDocentes' && (
                   <Card className="bg-emerald-500/5 border-emerald-500/30 rounded-2xl">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-emerald-400 text-lg flex items-center justify-between">
@@ -2101,18 +1394,6 @@ const GestionInstitutoPage: React.FC = () => {
                           <GraduationCap className="w-5 h-5" />
                           Notas Subidas por Docentes
                         </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setModoVerNotasDocentes(false);
-                            setNotasDocentes([]);
-                            setFiltroDocente('');
-                          }}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -2387,709 +1668,873 @@ const GestionInstitutoPage: React.FC = () => {
                   </Card>
                 )}
 
-                {modoCrearNomina && (
-                  <Card className="bg-emerald-500/5 border-emerald-500/30 rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-emerald-400 text-lg flex items-center justify-between">
-                        <span className="flex items-center gap-2">
-                          <Plus className="w-5 h-5" />
-                          Nueva Nómina de Notas
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setModoCrearNomina(false);
-                            setCrearGrado('');
-                            setCrearSeccion('');
-                            setCrearMateria('');
-                            setCrearNotas({});
-                          }}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Nivel</Label>
-                          <Select value={crearNivel} onValueChange={(v) => {
-                            if (v) {
-                              setCrearNivel(v);
-                              setCrearGrado('');
-                              setCrearSeccion('');
-                              setCrearMateria('');
-                              setCrearNotas({});
-                            }
-                          }}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {niveles.map((n) => (
-                                <SelectItem key={n.id} value={n.id}>{n.nombre.replace('Educacion ', '')}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Grado / Año</Label>
-                          <Select value={crearGrado || 'none'} onValueChange={(v) => {
-                            if (v && v !== 'none') {
-                              setCrearGrado(v);
-                              setCrearSeccion('');
-                              setCrearNotas({});
-                            }
-                          }}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Seleccionar</SelectItem>
-                              {gradosCrear.map((g) => (
-                                <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Sección</Label>
-                          <Select value={crearSeccion || 'none'} onValueChange={(v) => {
-                            if (v && v !== 'none') {
-                              setCrearSeccion(v);
-                              setCrearNotas({});
-                            }
-                          }}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Seleccionar</SelectItem>
-                              {secciones.map((s) => (
-                                <SelectItem key={s} value={s}>Sección {s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Materia</Label>
-                          <Select value={crearMateria || 'none'} onValueChange={(v) => {
-                            if (v && v !== 'none') setCrearMateria(v);
-                          }}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Seleccionar</SelectItem>
-                              {materiasCrear.map((m) => (
-                                <SelectItem key={m} value={m}>{m}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Período</Label>
-                          <Select value={crearPeriodo} onValueChange={(v) => {
-                            if (v) setCrearPeriodo(v);
-                          }}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {periodos.map((p) => (
-                                <SelectItem key={p} value={p}>{p}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {estudiantesCrear.length > 0 ? (
-                        <>
-                          <div className="rounded-xl border border-white/10 overflow-auto max-h-[400px]">
-                            <Table>
-                              <TableHeader className="sticky top-0 bg-black/40 backdrop-blur">
-                                <TableRow className="bg-black/30 hover:bg-black/30">
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Cédula</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Estudiante</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center w-32">Nota (0-20)</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase w-64">Observación</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {estudiantesCrear.map((est) => {
-                                  const valor = crearNotas[est.id] || { nota: '', observacion: '' };
-                                  return (
-                                    <TableRow key={est.id} className="border-white/5">
-                                      <TableCell className="font-mono text-emerald-400 text-sm">{est.cedulaIdentidad}</TableCell>
-                                      <TableCell className="text-white">
-                                        {est.apellidos}, {est.nombres}
-                                      </TableCell>
-                                      <TableCell>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          max={20}
-                                          step={0.01}
-                                          value={valor.nota}
-                                          onChange={(e) => setCrearNotas(prev => ({
-                                            ...prev,
-                                            [est.id]: { nota: e.target.value, observacion: prev[est.id]?.observacion || '' }
-                                          }))}
-                                          placeholder="-"
-                                          className="bg-black/40 border-white/10 text-white text-center h-10 font-bold"
-                                        />
-                                      </TableCell>
-                                      <TableCell>
-                                        <Input
-                                          type="text"
-                                          value={valor.observacion}
-                                          onChange={(e) => setCrearNotas(prev => ({
-                                            ...prev,
-                                            [est.id]: { nota: prev[est.id]?.nota || '', observacion: e.target.value }
-                                          }))}
-                                          placeholder="Opcional..."
-                                          className="bg-black/40 border-white/10 text-white text-sm h-10"
-                                        />
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
+                {/* ============ TAB NOMINAS ============ */}
+                {tabActiva === 'notas' && (
+                  <div className="space-y-6">
+                    {archivosPrevisualizacion.length > 0 && (
+                      <Card className="bg-emerald-500/5 border-emerald-500/30 rounded-2xl">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-emerald-400 text-lg flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <Layers className="w-5 h-5" />
+                              Importación Masiva ({archivosPrevisualizacion.length} archivo{archivosPrevisualizacion.length === 1 ? '' : 's'})
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={cancelarImportacionMasiva}
+                              className="text-gray-400 hover:text-white"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex flex-wrap gap-3">
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                              {archivosPrevisualizacion.length} archivo(s)
+                            </Badge>
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              {archivosPrevisualizacion.reduce((acc, a) => acc + a.filas.filter((f) => f.valido).length, 0)} notas válidas
+                            </Badge>
+                            {archivosPrevisualizacion.reduce((acc, a) => acc + a.filas.filter((f) => !f.valido).length, 0) > 0 && (
+                              <Badge className="bg-red-500/15 text-red-400 border-red-500/30">
+                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                {archivosPrevisualizacion.reduce((acc, a) => acc + a.filas.filter((f) => !f.valido).length, 0)} errores
+                              </Badge>
+                            )}
                           </div>
 
-                          <div className="flex gap-3 justify-end">
+                          <div className="space-y-3">
+                            {archivosPrevisualizacion.map((archivo) => {
+                              const validas = archivo.filas.filter((f) => f.valido).length;
+                              const invalidas = archivo.filas.filter((f) => !f.valido).length;
+
+                              return (
+                                <Card key={archivo.id} className="bg-black/30 border-white/10 backdrop-blur">
+                                  <CardContent className="p-4 space-y-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <FileSpreadsheet className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                                        <span className="text-white font-medium text-sm truncate">{archivo.nombreArchivo}</span>
+                                        {archivo.error ? (
+                                          <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[0.6rem] flex-shrink-0">
+                                            {archivo.error}
+                                          </Badge>
+                                        ) : (
+                                          <>
+                                            <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[0.6rem] flex-shrink-0">
+                                              {validas} válidas
+                                            </Badge>
+                                            {invalidas > 0 && (
+                                              <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[0.6rem] flex-shrink-0">
+                                                {invalidas} con error
+                                              </Badge>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => eliminarArchivoPrevisualizacion(archivo.id)}
+                                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 flex-shrink-0"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </div>
+
+                                    {!archivo.error && (
+                                      <>
+                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                          <div>
+                                            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Nivel</Label>
+                                            <Select
+                                              value={archivo.nivelDetectado || 'none'}
+                                              onValueChange={(v) => actualizarArchivo(archivo.id, { nivelDetectado: v === 'none' || !v ? '' : v })}
+                                            >
+                                              <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
+                                                <SelectValue placeholder="Seleccionar" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="none">Seleccionar</SelectItem>
+                                                {niveles.map((n) => (
+                                                  <SelectItem key={n.id} value={n.id}>{n.nombre.replace('Educacion ', '')}</SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Grado</Label>
+                                            <Select
+                                              value={archivo.gradoDetectado || 'none'}
+                                              onValueChange={(v) => actualizarArchivo(archivo.id, { gradoDetectado: v === 'none' || !v ? '' : v })}
+                                            >
+                                              <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
+                                                <SelectValue placeholder="Seleccionar" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="none">Seleccionar</SelectItem>
+                                                {archivo.nivelDetectado &&
+                                                  gradosPorNivel[archivo.nivelDetectado as keyof typeof gradosPorNivel]?.map((g) => (
+                                                    <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
+                                                  ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Sección</Label>
+                                            <Select
+                                              value={archivo.seccionDetectada || 'none'}
+                                              onValueChange={(v) => actualizarArchivo(archivo.id, { seccionDetectada: v === 'none' || !v ? '' : v })}
+                                            >
+                                              <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
+                                                <SelectValue placeholder="Seleccionar" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="none">Seleccionar</SelectItem>
+                                                {secciones.map((s) => (
+                                                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Materia</Label>
+                                            <Select
+                                              value={archivo.materiaDetectada || 'none'}
+                                              onValueChange={(v) => actualizarArchivo(archivo.id, { materiaDetectada: v === 'none' || !v ? '' : v })}
+                                            >
+                                              <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
+                                                <SelectValue placeholder="Seleccionar" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="none">Seleccionar</SelectItem>
+                                                {archivo.nivelDetectado &&
+                                                  MATERIAS_POR_NIVEL[archivo.nivelDetectado]?.map((m) => (
+                                                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                                                  ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+
+                                          <div>
+                                            <Label className="text-[0.6rem] uppercase text-emerald-400/80 font-bold mb-1 block">Período</Label>
+                                            <Select
+                                              value={archivo.periodoDetectado}
+                                              onValueChange={(v) => actualizarArchivo(archivo.id, { periodoDetectado: v || '1er Lapso' })}
+                                            >
+                                              <SelectTrigger className="bg-black/40 border-white/10 text-white h-8 text-xs">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {periodos.map((p) => (
+                                                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </div>
+
+                                        {(!archivo.materiaDetectada || !archivo.gradoDetectado || !archivo.seccionDetectada || !archivo.nivelDetectado) && (
+                                          <div className="flex items-center gap-2 text-yellow-400 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded p-2">
+                                            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                                            <span>Faltan datos por detectar. Complétalos manualmente.</span>
+                                          </div>
+                                        )}
+
+                                        <div className="rounded-lg border border-white/10 overflow-auto max-h-[200px]">
+                                          <Table>
+                                            <TableHeader className="sticky top-0 bg-black/60 backdrop-blur">
+                                              <TableRow className="bg-black/40 hover:bg-black/40">
+                                                <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase">Cédula</TableHead>
+                                                <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase">Estudiante</TableHead>
+                                                <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase text-center">Nota</TableHead>
+                                                <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase">Observación</TableHead>
+                                                <TableHead className="text-emerald-400 font-bold text-[0.6rem] uppercase text-center">Estado</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {archivo.filas.map((fila, idx) => (
+                                                <TableRow
+                                                  key={idx}
+                                                  className={`border-white/5 text-xs ${fila.valido ? '' : 'bg-red-500/5'}`}
+                                                >
+                                                  <TableCell className="font-mono text-white py-1.5">{fila.cedula || '-'}</TableCell>
+                                                  <TableCell className="text-white py-1.5">{fila.estudianteNombre || '-'}</TableCell>
+                                                  <TableCell className="text-center py-1.5">
+                                                    <span className={`font-bold ${
+                                                      !fila.valido ? 'text-red-400' :
+                                                      parseFloat(fila.nota) >= 10 ? 'text-emerald-400' : 'text-yellow-400'
+                                                    }`}>
+                                                      {fila.nota || '-'}
+                                                    </span>
+                                                  </TableCell>
+                                                  <TableCell className="text-gray-400 py-1.5">{fila.observacion || '-'}</TableCell>
+                                                  <TableCell className="text-center py-1.5">
+                                                    {fila.valido ? (
+                                                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[0.55rem] px-1.5 py-0">
+                                                        Válida
+                                                      </Badge>
+                                                    ) : (
+                                                      <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[0.55rem] px-1.5 py-0">
+                                                        {fila.error}
+                                                      </Badge>
+                                                    )}
+                                                  </TableCell>
+                                                </TableRow>
+                                              ))}
+                                            </TableBody>
+                                          </Table>
+                                        </div>
+                                      </>
+                                    )}
+                                  </CardContent>
+                                </Card>
+                              );
+                            })}
+                          </div>
+
+                          {verConsolidado && generarConsolidado.estudiantes.length > 0 && (
+                            <Card className="bg-emerald-500/5 border-emerald-500/30 rounded-xl mt-4">
+                              <CardHeader className="pb-3">
+                                <CardTitle className="text-emerald-400 text-base flex items-center justify-between">
+                                  <span className="flex items-center gap-2">
+                                    <Layers className="w-4 h-4" />
+                                    Nómina Consolidada - {generarConsolidado.materias.length} materia(s)
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setVerConsolidado(false)}
+                                    className="text-gray-400 hover:text-white"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="flex flex-wrap gap-2">
+                                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                    {generarConsolidado.estudiantes.length} estudiantes
+                                  </Badge>
+                                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                    {generarConsolidado.materias.length} materias
+                                  </Badge>
+                                  {generarConsolidado.estudiantes[0]?.curso && (
+                                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                      Curso: {generarConsolidado.estudiantes[0].curso.grado} - {generarConsolidado.estudiantes[0].curso.seccion}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <div className="rounded-lg border border-white/10 overflow-auto max-h-[500px]">
+                                  <Table>
+                                    <TableHeader className="sticky top-0 bg-black/60 backdrop-blur z-10">
+                                      <TableRow className="bg-black/40 hover:bg-black/40">
+                                        <TableHead className="text-emerald-400 font-bold text-[0.65rem] uppercase sticky left-0 bg-black/80 z-20">
+                                          Cédula
+                                        </TableHead>
+                                        <TableHead className="text-emerald-400 font-bold text-[0.65rem] uppercase sticky left-20 bg-black/80 z-20 min-w-[180px]">
+                                          Estudiante
+                                        </TableHead>
+                                        {generarConsolidado.materias.map((m) => (
+                                          <TableHead key={m} className="text-emerald-400 font-bold text-[0.65rem] uppercase text-center min-w-[110px]">
+                                            {m}
+                                          </TableHead>
+                                        ))}
+                                        <TableHead className="text-emerald-400 font-bold text-[0.65rem] uppercase text-center bg-emerald-500/10 min-w-[100px]">
+                                          Promedio
+                                        </TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {generarConsolidado.estudiantes.map((est) => {
+                                        const promedio = calcularPromedio(est.notas, generarConsolidado.materias);
+                                        return (
+                                          <TableRow key={est.estudianteId} className="border-white/5 hover:bg-emerald-500/5">
+                                            <TableCell className="font-mono text-emerald-400 text-sm sticky left-0 bg-[#0d1a15]/90 z-10">
+                                              {est.cedula}
+                                            </TableCell>
+                                            <TableCell className="text-white text-sm sticky left-20 bg-[#0d1a15]/90 z-10 min-w-[180px]">
+                                              {est.apellido}, {est.nombre}
+                                            </TableCell>
+                                            {generarConsolidado.materias.map((m) => {
+                                              const nota = est.notas[m];
+                                              const tieneNota = nota !== null && nota !== undefined;
+                                              return (
+                                                <TableCell key={m} className="text-center">
+                                                  {tieneNota ? (
+                                                    <Badge
+                                                      className={
+                                                        nota! >= 10
+                                                          ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-bold'
+                                                          : 'bg-red-500/15 text-red-400 border-red-500/30 font-bold'
+                                                      }
+                                                    >
+                                                      {nota}
+                                                    </Badge>
+                                                  ) : (
+                                                    <span className="text-gray-600 text-xs">-</span>
+                                                  )}
+                                                </TableCell>
+                                              );
+                                            })}
+                                            <TableCell className="text-center bg-emerald-500/10">
+                                              {promedio !== null ? (
+                                                <span className={`font-bold text-sm ${
+                                                  promedio >= 10 ? 'text-emerald-400' : 'text-red-400'
+                                                }`}>
+                                                  {promedio.toFixed(2)}
+                                                </span>
+                                              ) : (
+                                                <span className="text-gray-600 text-xs">-</span>
+                                              )}
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+
+                                <div className="text-xs text-gray-400">
+                                  <p className="m-0">
+                                    Celdas con <span className="text-gray-600">-</span> significan que el estudiante no tiene nota en esa materia.
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 justify-end pt-3 border-t border-white/5">
+                                  <Button
+                                    variant="outline"
+                                    onClick={exportarConsolidado}
+                                    disabled={exportando}
+                                    className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                                  >
+                                    <FileDown className="mr-2 h-4 w-4" />
+                                    {exportando ? 'Exportando...' : 'Descargar Excel consolidado'}
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+
+                          <div className="flex flex-wrap gap-2 justify-end pt-4 border-t border-white/5">
                             <Button
                               variant="outline"
-                              onClick={() => {
-                                setModoCrearNomina(false);
-                                setCrearNotas({});
-                              }}
+                              onClick={cancelarImportacionMasiva}
                               className="border-white/20 text-white hover:bg-white/10"
                             >
-                              Cancelar
+                              <X className="mr-2 h-4 w-4" />
+                              Cancelar todo
                             </Button>
+
                             <Button
-                              onClick={crearNomina}
-                              disabled={guardandoNotas}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+                              onClick={() => setVerConsolidado(true)}
+                              disabled={archivosPrevisualizacion.every((a) => a.error || !a.materiaDetectada || a.filas.filter((f) => f.valido).length === 0)}
+                              className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold disabled:opacity-40"
                             >
-                              <Save className="mr-2 h-4 w-4" />
-                              {guardandoNotas ? 'Guardando...' : 'Guardar Nómina'}
+                              <Layers className="mr-2 h-4 w-4" />
+                              Ver nómina consolidada
                             </Button>
                           </div>
-                        </>
-                      ) : (
-                        <div className="text-center py-8 text-gray-400 text-sm">
-                          Selecciona nivel, grado y sección para ver los estudiantes
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {!modoCrearNomina && !modoVerNotasDocentes && archivosPrevisualizacion.length === 0 && (
-                  <Card className="bg-black/30 border-white/10 backdrop-blur">
-                    <CardContent className="p-5">
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-[0.7rem] font-bold text-emerald-400 uppercase tracking-wider">
-                          Filtros de Nóminas
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Nivel</Label>
-                          <Select value={filtroNivel || 'none'} onValueChange={(v) => {
-                            setFiltroNivel(v === 'none' || !v ? '' : v);
-                            setFiltroGrado('');
-                            setFiltroSeccion('');
-                            setFiltroMateria('');
-                          }}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Seleccionar</SelectItem>
-                              {niveles.map((n) => (
-                                <SelectItem key={n.id} value={n.id}>{n.nombre.replace('Educacion ', '')}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Grado / Año</Label>
-                          <Select value={filtroGrado || 'none'} onValueChange={(v) => {
-                            setFiltroGrado(v === 'none' || !v ? '' : v);
-                            setFiltroSeccion('');
-                          }} disabled={!filtroNivel}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Seleccionar</SelectItem>
-                              {filtroNivel && gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.map((g) => (
-                                <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Sección</Label>
-                          <Select value={filtroSeccion || 'none'} onValueChange={(v) => {
-                            setFiltroSeccion(v === 'none' || !v ? '' : v);
-                          }} disabled={!filtroGrado}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none" disabled>Seleccionar</SelectItem>
-                              {secciones.map((s) => (
-                                <SelectItem key={s} value={s}>Sección {s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Materia</Label>
-                          <Select value={filtroMateria || 'all'} onValueChange={(v) => setFiltroMateria(v === 'all' || !v ? '' : v)}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue placeholder="Todas" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">Todas</SelectItem>
-                              {filtroNivel && MATERIAS_POR_NIVEL[filtroNivel]?.map((m) => (
-                                <SelectItem key={m} value={m}>{m}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Período</Label>
-                          <Select value={filtroPeriodo} onValueChange={(v) => v && setFiltroPeriodo(v)}>
-                            <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {periodos.map((p) => (
-                                <SelectItem key={p} value={p}>{p}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {filtroNivel && filtroGrado && filtroSeccion && (
-                        <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-2 justify-end">
-                          <Button
-                            variant="outline"
-                            onClick={exportarAExcel}
-                            disabled={exportando}
-                            className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
-                          >
-                            <FileDown className="mr-2 h-4 w-4" />
-                            {exportando ? 'Exportando...' : 'Exportar Excel'}
-                          </Button>
-                          <Button
-                            onClick={guardarNotasMasivo}
-                            disabled={Object.keys(notasEnEdicion).length === 0 || guardandoNotas}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold disabled:opacity-40"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {guardandoNotas ? 'Guardando...' : `Guardar cambios (${Object.keys(notasEnEdicion).length})`}
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {!modoCrearNomina && !modoVerNotasDocentes && archivosPrevisualizacion.length === 0 && (
-                  <>
-                    {!filtroNivel || !filtroGrado || !filtroSeccion ? (
-                      <Card className="bg-black/30 border-white/10 backdrop-blur">
-                        <CardContent className="p-12 text-center">
-                          <ClipboardList className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
-                          <p className="text-gray-400 text-lg">
-                            Selecciona nivel, grado y sección para ver las nóminas
-                          </p>
                         </CardContent>
                       </Card>
-                    ) : cargandoNotas ? (
-                      <div className="text-center py-12 text-gray-400">
-                        <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
-                        <p>Cargando notas...</p>
-                      </div>
-                    ) : (
+                    )}
+
+                    {archivosPrevisualizacion.length === 0 && (
+                      <Card className="bg-black/30 border-white/10 backdrop-blur">
+                        <CardContent className="p-5">
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[0.7rem] font-bold text-emerald-400 uppercase tracking-wider">
+                              Filtros de Nóminas
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                            <div>
+                              <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Nivel</Label>
+                              <Select value={filtroNivel || 'none'} onValueChange={(v) => {
+                                setFiltroNivel(v === 'none' || !v ? '' : v);
+                                setFiltroGrado('');
+                                setFiltroSeccion('');
+                                setFiltroMateria('');
+                              }}>
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none" disabled>Seleccionar</SelectItem>
+                                  {niveles.map((n) => (
+                                    <SelectItem key={n.id} value={n.id}>{n.nombre.replace('Educacion ', '')}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Grado / Año</Label>
+                              <Select value={filtroGrado || 'none'} onValueChange={(v) => {
+                                setFiltroGrado(v === 'none' || !v ? '' : v);
+                                setFiltroSeccion('');
+                              }} disabled={!filtroNivel}>
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none" disabled>Seleccionar</SelectItem>
+                                  {filtroNivel && gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.map((g) => (
+                                    <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Sección</Label>
+                              <Select value={filtroSeccion || 'none'} onValueChange={(v) => {
+                                setFiltroSeccion(v === 'none' || !v ? '' : v);
+                              }} disabled={!filtroGrado}>
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
+                                  <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none" disabled>Seleccionar</SelectItem>
+                                  {secciones.map((s) => (
+                                    <SelectItem key={s} value={s}>Sección {s}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Materia</Label>
+                              <Select value={filtroMateria || 'all'} onValueChange={(v) => setFiltroMateria(v === 'all' || !v ? '' : v)}>
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
+                                  <SelectValue placeholder="Todas" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">Todas</SelectItem>
+                                  {filtroNivel && MATERIAS_POR_NIVEL[filtroNivel]?.map((m) => (
+                                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold mb-1.5 block">Período</Label>
+                              <Select value={filtroPeriodo} onValueChange={(v) => v && setFiltroPeriodo(v)}>
+                                <SelectTrigger className="bg-black/40 border-white/10 text-white h-10 text-sm">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {periodos.map((p) => (
+                                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          {filtroNivel && filtroGrado && filtroSeccion && (
+                            <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-2 justify-end">
+                              <Button
+                                variant="outline"
+                                onClick={exportarAExcel}
+                                disabled={exportando}
+                                className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                              >
+                                <FileDown className="mr-2 h-4 w-4" />
+                                {exportando ? 'Exportando...' : 'Exportar Excel'}
+                              </Button>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {archivosPrevisualizacion.length === 0 && (
                       <>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                            {notas.length} nota{notas.length === 1 ? '' : 's'} en esta nómina
-                          </Badge>
-                          {Object.keys(notasEnEdicion).length > 0 && (
-                            <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30">
-                              {Object.keys(notasEnEdicion).length} sin guardar
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="relative">
-                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
-                          <Input
-                            placeholder="Buscar por cédula o nombre..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="bg-black/30 border-white/10 text-white pl-11 pr-11 h-11"
-                          />
-                          {searchTerm && (
-                            <button onClick={() => setSearchTerm('')}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-
-                        {notasFiltradas.length === 0 ? (
+                        {!filtroNivel || !filtroGrado || !filtroSeccion ? (
                           <Card className="bg-black/30 border-white/10 backdrop-blur">
                             <CardContent className="p-12 text-center">
                               <ClipboardList className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
-                              <p className="text-gray-400 text-lg mb-4">
-                                No hay notas para los filtros seleccionados
+                              <p className="text-gray-400 text-lg">
+                                Selecciona nivel, grado y sección para ver las nóminas
                               </p>
-                              <Button
-                                onClick={() => setModoCrearNomina(true)}
-                                className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
-                              >
-                                <Plus className="mr-2 h-4 w-4" />
-                                Crear Nómina
-                              </Button>
                             </CardContent>
                           </Card>
-                        ) : (
-                          <div className="rounded-xl border border-white/10 overflow-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Cédula</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Estudiante</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Materia</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Período</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center w-32">Nota</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Observación</TableHead>
-                                  <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center w-24">Acciones</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {notasFiltradas.map((n) => {
-                                  const enEdicion = notasEnEdicion[n.id];
-                                  const notaMostrar = enEdicion ? enEdicion.nota : n.nota;
-                                  const obsMostrar = enEdicion ? enEdicion.observacion : (n.observacion || '');
-                                  const esAprobado = notaMostrar >= 10;
-
-                                  return (
-                                    <TableRow key={n.id} className="border-white/5 hover:bg-white/5">
-                                      <TableCell className="font-mono text-emerald-400 text-sm">{n.cedulaIdentidad || '-'}</TableCell>
-                                      <TableCell className="text-white">
-                                        {n.apellidos}, {n.nombres}
-                                      </TableCell>
-                                      <TableCell className="text-gray-300 text-sm">{n.materia}</TableCell>
-                                      <TableCell className="text-gray-300 text-sm">{n.periodo}</TableCell>
-                                      <TableCell>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          max={20}
-                                          step={0.01}
-                                          value={notaMostrar}
-                                          onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
-                                            if (!isNaN(val) && val >= 0 && val <= 20) {
-                                              setNotasEnEdicion(prev => ({
-                                                ...prev,
-                                                [n.id]: { nota: val, observacion: obsMostrar }
-                                              }));
-                                            }
-                                          }}
-                                          className={`bg-black/40 border-white/10 text-center h-10 font-bold ${
-                                            esAprobado ? 'text-emerald-400' : 'text-red-400'
-                                          }`}
-                                        />
-                                      </TableCell>
-                                      <TableCell>
-                                        <Input
-                                          type="text"
-                                          value={obsMostrar}
-                                          onChange={(e) => {
-                                            setNotasEnEdicion(prev => ({
-                                              ...prev,
-                                              [n.id]: { nota: notaMostrar, observacion: e.target.value }
-                                            }));
-                                          }}
-                                          placeholder="Opcional..."
-                                          className="bg-black/40 border-white/10 text-white text-sm h-10"
-                                        />
-                                      </TableCell>
-                                      <TableCell className="text-center">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => eliminarNota(n.id)}
-                                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 w-8"
-                                          title="Eliminar nota"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
+                        ) : cargandoNotas ? (
+                          <div className="text-center py-12 text-gray-400">
+                            <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+                            <p>Cargando notas...</p>
                           </div>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap items-center gap-3">
+                              <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                {notas.length} nota{notas.length === 1 ? '' : 's'} en esta nómina
+                              </Badge>
+                            </div>
+
+                            <div className="relative">
+                              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                              <Input
+                                placeholder="Buscar por cédula o nombre..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="bg-black/30 border-white/10 text-white pl-11 pr-11 h-11"
+                              />
+                              {searchTerm && (
+                                <button onClick={() => setSearchTerm('')}
+                                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {notasFiltradas.length === 0 ? (
+                              <Card className="bg-black/30 border-white/10 backdrop-blur">
+                                <CardContent className="p-12 text-center">
+                                  <ClipboardList className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
+                                  <p className="text-gray-400 text-lg">
+                                    No hay notas para los filtros seleccionados
+                                  </p>
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              <div className="rounded-xl border border-white/10 overflow-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-emerald-500/15 hover:bg-emerald-500/15">
+                                      <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Cédula</TableHead>
+                                      <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Estudiante</TableHead>
+                                      <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Materia</TableHead>
+                                      <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Período</TableHead>
+                                      <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase text-center w-32">Nota</TableHead>
+                                      <TableHead className="text-emerald-400 font-bold text-[0.7rem] uppercase">Observación</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {notasFiltradas.map((n) => {
+                                      const esAprobado = n.nota >= 10;
+                                      return (
+                                        <TableRow key={n.id} className="border-white/5 hover:bg-white/5">
+                                          <TableCell className="font-mono text-emerald-400 text-sm">{n.cedulaIdentidad || '-'}</TableCell>
+                                          <TableCell className="text-white">
+                                            {n.apellidos}, {n.nombres}
+                                          </TableCell>
+                                          <TableCell className="text-gray-300 text-sm">{n.materia}</TableCell>
+                                          <TableCell className="text-gray-300 text-sm">{n.periodo}</TableCell>
+                                          <TableCell className="text-center">
+                                            <Badge
+                                              className={
+                                                esAprobado
+                                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 font-bold'
+                                                  : 'bg-red-500/15 text-red-400 border-red-500/30 font-bold'
+                                              }
+                                            >
+                                              {n.nota}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-gray-400 text-sm">
+                                            {n.observacion || '-'}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+                          </>
                         )}
                       </>
                     )}
-                  </>
+                  </div>
                 )}
-              </div>
-            )}
 
-            {tabActiva === 'estudiantes' && (
-              <div className="rounded-xl border border-white/5 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-black/20 hover:bg-black/20">
-                      {['Cedula', 'Nombres', 'Apellidos', 'Fecha Nac.', 'Nivel', 'Grado', 'Seccion', 'Telefono', 'Correo'].map((h) => (
-                        <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">
-                          {h}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {estudiantesFiltrados.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12 text-gray-400">
-                          No se encontraron estudiantes
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      estudiantesFiltrados.map((e) => (
-                        <TableRow key={e.id} className="border-white/5 hover:bg-white/5">
-                          <TableCell>
-                            <span className="font-mono font-semibold text-emerald-400">{e.cedulaIdentidad}</span>
-                          </TableCell>
-                          <TableCell className="text-white">{e.nombres}</TableCell>
-                          <TableCell className="text-white">{e.apellidos}</TableCell>
-                          <TableCell className="text-white">{formatFecha(e.fechaNacimiento)}</TableCell>
-                          <TableCell className="text-white">{niveles.find(n => n.id === e.nivel)?.nombre || '-'}</TableCell>
-                          <TableCell className="text-white">{e.grado}</TableCell>
-                          <TableCell>
-                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                              {e.seccion}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-white">{e.numeroTelefonoCelular || '-'}</TableCell>
-                          <TableCell className="text-gray-400 text-sm">{e.correoElectronico}</TableCell>
+                {tabActiva === 'estudiantes' && (
+                  <div className="rounded-xl border border-white/5 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-black/20 hover:bg-black/20">
+                          {['Cedula', 'Nombres', 'Apellidos', 'Fecha Nac.', 'Nivel', 'Grado', 'Seccion', 'Telefono', 'Correo'].map((h) => (
+                            <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">
+                              {h}
+                            </TableHead>
+                          ))}
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {tabActiva === 'docentes' && (
-              <div className="rounded-xl border border-white/5 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-black/20 hover:bg-black/20">
-                      {['Cedula', 'Nombres', 'Apellidos', 'Email', 'Telefono', 'Nivel', 'Seccion', 'Contratacion', 'Estado'].map((h) => (
-                        <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">
-                          {h}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {docentesFiltrados.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12 text-gray-400">
-                          No se encontraron docentes
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      docentesFiltrados.map((d) => (
-                        <TableRow key={d.id} className="border-white/5 hover:bg-white/5">
-                          <TableCell>
-                            <span className="font-mono font-semibold text-emerald-400">{d.cedulaIdentidad}</span>
-                          </TableCell>
-                          <TableCell className="text-white">{d.nombres}</TableCell>
-                          <TableCell className="text-white">{d.apellidos}</TableCell>
-                          <TableCell className="text-gray-400 text-sm">{d.email}</TableCell>
-                          <TableCell className="text-white">{d.telefono || '-'}</TableCell>
-                          <TableCell className="text-white">{niveles.find(n => n.id === d.nivel)?.nombre || '-'}</TableCell>
-                          <TableCell>
-                            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                              {d.seccion || '-'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-white">{formatFecha(d.fechaContratacion)}</TableCell>
-                          <TableCell>
-                            <Badge
-                              className={
-                                d.activo
-                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                  : 'bg-gray-500/10 text-gray-400 border-gray-500/30'
-                              }
-                            >
-                              {d.activo ? 'Activo' : 'Inactivo'}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {tabActiva === 'actualizar' && (
-              <div className="space-y-6">
-                <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
-                  <p className="text-gray-300 text-sm m-0">
-                    Seleccione los estudiantes que desea actualizar y luego elija el nuevo nivel, grado o seccion
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-white/5 overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-black/20 hover:bg-black/20">
-                        <TableHead className="w-12.5 text-center">
-                          <input
-                            type="checkbox"
-                            onChange={(e) => {
-                              const checkboxes = document.querySelectorAll('input[type="checkbox"][data-estudiante]');
-                              checkboxes.forEach((cb: any) => cb.checked = e.target.checked);
-                            }}
-                            className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                          />
-                        </TableHead>
-                        {['Cedula', 'Nombres', 'Apellidos', 'Nivel', 'Grado', 'Seccion'].map((h) => (
-                          <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">
-                            {h}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {estudiantesFiltrados.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-12 text-gray-400">
-                            No se encontraron estudiantes
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        estudiantesFiltrados.map((e) => (
-                          <TableRow key={e.id} className="border-white/5 hover:bg-white/5">
-                            <TableCell className="text-center">
-                              <input
-                                type="checkbox"
-                                data-estudiante={e.id}
-                                className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <span className="font-mono font-semibold text-emerald-400">{e.cedulaIdentidad}</span>
-                            </TableCell>
-                            <TableCell className="text-white">{e.nombres}</TableCell>
-                            <TableCell className="text-white">{e.apellidos}</TableCell>
-                            <TableCell className="text-white">{niveles.find(n => n.id === e.nivel)?.nombre || '-'}</TableCell>
-                            <TableCell className="text-white">{e.grado}</TableCell>
-                            <TableCell>
-                              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                                {e.seccion}
-                              </Badge>
+                      </TableHeader>
+                      <TableBody>
+                        {estudiantesFiltrados.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-12 text-gray-400">
+                              No se encontraron estudiantes
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                        ) : (
+                          estudiantesFiltrados.map((e) => (
+                            <TableRow key={e.id} className="border-white/5 hover:bg-white/5">
+                              <TableCell>
+                                <span className="font-mono font-semibold text-emerald-400">{e.cedulaIdentidad}</span>
+                              </TableCell>
+                              <TableCell className="text-white">{e.nombres}</TableCell>
+                              <TableCell className="text-white">{e.apellidos}</TableCell>
+                              <TableCell className="text-white">{formatFecha(e.fechaNacimiento)}</TableCell>
+                              <TableCell className="text-white">{niveles.find(n => n.id === e.nivel)?.nombre || '-'}</TableCell>
+                              <TableCell className="text-white">{e.grado}</TableCell>
+                              <TableCell>
+                                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                  {e.seccion}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-white">{e.numeroTelefonoCelular || '-'}</TableCell>
+                              <TableCell className="text-gray-400 text-sm">{e.correoElectronico}</TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
 
-                <div className="flex flex-wrap gap-4 p-6 bg-white/3 rounded-xl items-center justify-center border border-white/5">
-                  <select
-                    id="nuevoNivel"
-                    defaultValue=""
-                    className="bg-black/30 border border-white/10 rounded-lg text-white min-w-45 h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
-                  >
-                    <option value="" className="text-black">Mantener nivel</option>
-                    {niveles.map((n) => (
-                      <option key={n.id} value={n.id} className="text-black">{n.nombre}</option>
-                    ))}
-                  </select>
+                {tabActiva === 'docentes' && (
+                  <div className="rounded-xl border border-white/5 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-black/20 hover:bg-black/20">
+                          {['Cedula', 'Nombres', 'Apellidos', 'Email', 'Telefono', 'Nivel', 'Seccion', 'Contratacion', 'Estado'].map((h) => (
+                            <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">
+                              {h}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {docentesFiltrados.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-12 text-gray-400">
+                              No se encontraron docentes
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          docentesFiltrados.map((d) => (
+                            <TableRow key={d.id} className="border-white/5 hover:bg-white/5">
+                              <TableCell>
+                                <span className="font-mono font-semibold text-emerald-400">{d.cedulaIdentidad}</span>
+                              </TableCell>
+                              <TableCell className="text-white">{d.nombres}</TableCell>
+                              <TableCell className="text-white">{d.apellidos}</TableCell>
+                              <TableCell className="text-gray-400 text-sm">{d.email}</TableCell>
+                              <TableCell className="text-white">{d.telefono || '-'}</TableCell>
+                              <TableCell className="text-white">{niveles.find(n => n.id === d.nivel)?.nombre || '-'}</TableCell>
+                              <TableCell>
+                                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                  {d.seccion || '-'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-white">{formatFecha(d.fechaContratacion)}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={
+                                    d.activo
+                                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                      : 'bg-gray-500/10 text-gray-400 border-gray-500/30'
+                                  }
+                                >
+                                  {d.activo ? 'Activo' : 'Inactivo'}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
 
-                  <select
-                    id="nuevoGrado"
-                    defaultValue=""
-                    className="bg-black/30 border border-white/10 rounded-lg text-white min-w-45 h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
-                  >
-                    <option value="" className="text-black">Mantener grado</option>
-                    {filtroNivel && gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.map((g) => (
-                      <option key={g.id} value={g.id} className="text-black">{g.nombre}</option>
-                    ))}
-                  </select>
+                {/* ============ TAB ACTUALIZAR DATOS (REFACTORIZADO) ============ */}
+                {tabActiva === 'actualizar' && (
+                  <div className="space-y-6">
+                    <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 flex justify-between items-center flex-wrap gap-4">
+                      <div>
+                        <p className="text-gray-300 text-sm m-0">
+                          Seleccione los estudiantes que desea actualizar y luego elija el nuevo nivel, grado o sección.
+                        </p>
+                        <p className="text-emerald-400 text-xs font-bold mt-1 m-0">
+                          {seleccionados.length} estudiante(s) seleccionado(s)
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSeleccionados(estudiantesFiltrados.map(e => e.id))}
+                          className="border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 text-xs h-8"
+                        >
+                          Seleccionar todos los visibles
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSeleccionados([])}
+                          className="border-white/10 text-gray-400 hover:bg-white/5 text-xs h-8"
+                        >
+                          Limpiar selección
+                        </Button>
+                      </div>
+                    </div>
 
-                  <select
-                    id="nuevaSeccion"
-                    defaultValue=""
-                    className="bg-black/30 border border-white/10 rounded-lg text-white min-w-45 h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
-                  >
-                    <option value="" className="text-black">Mantener seccion</option>
-                    {secciones.map((s) => (
-                      <option key={s} value={s} className="text-black">Seccion {s}</option>
-                    ))}
-                  </select>
+                    <div className="rounded-xl border border-white/5 overflow-auto max-h-[500px]">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-black/80 backdrop-blur z-10">
+                          <TableRow className="bg-black/40 hover:bg-black/40">
+                            <TableHead className="w-12.5 text-center">
+                              <input
+                                type="checkbox"
+                                checked={estudiantesFiltrados.length > 0 && seleccionados.length === estudiantesFiltrados.length}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSeleccionados(estudiantesFiltrados.map(est => est.id));
+                                  } else {
+                                    setSeleccionados([]);
+                                  }
+                                }}
+                                className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                              />
+                            </TableHead>
+                            {['Cedula', 'Nombres', 'Apellidos', 'Nivel', 'Grado', 'Seccion'].map((h) => (
+                              <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">
+                                {h}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {estudiantesFiltrados.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center py-12 text-gray-400">
+                                No se encontraron estudiantes
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            estudiantesFiltrados.map((e) => (
+                              <TableRow 
+                                key={e.id} 
+                                className={`border-white/5 hover:bg-white/5 ${seleccionados.includes(e.id) ? 'bg-emerald-500/5' : ''}`}
+                              >
+                                <TableCell className="text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={seleccionados.includes(e.id)}
+                                    onChange={(ev) => {
+                                      if (ev.target.checked) {
+                                        setSeleccionados(prev => [...prev, e.id]);
+                                      } else {
+                                        setSeleccionados(prev => prev.filter(id => id !== e.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <span className="font-mono font-semibold text-emerald-400">{e.cedulaIdentidad}</span>
+                                </TableCell>
+                                <TableCell className="text-white">{e.nombres}</TableCell>
+                                <TableCell className="text-white">{e.apellidos}</TableCell>
+                                <TableCell className="text-white">{niveles.find(n => n.id === e.nivel)?.nombre || '-'}</TableCell>
+                                <TableCell className="text-white">{e.grado}</TableCell>
+                                <TableCell>
+                                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                    {e.seccion}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
 
-                  <Button
-                    onClick={() => {
-                      const checkboxes = document.querySelectorAll('input[type="checkbox"][data-estudiante]:checked');
-                      const ids = Array.from(checkboxes).map((cb: any) => cb.dataset.estudiante);
-                      if (ids.length === 0) {
-                        sileo.warning({ title: 'Sin selección', description: 'Seleccione al menos un estudiante' });
-                        return;
-                      }
-                      const nuevoNivel = (document.getElementById('nuevoNivel') as HTMLSelectElement)?.value;
-                      const nuevoGrado = (document.getElementById('nuevoGrado') as HTMLSelectElement)?.value;
-                      const nuevaSeccion = (document.getElementById('nuevaSeccion') as HTMLSelectElement)?.value;
-                      if (!nuevoNivel && !nuevoGrado && !nuevaSeccion) {
-                        sileo.warning({ title: 'Sin cambios', description: 'Seleccione al menos un campo para actualizar' });
-                        return;
-                      }
-                      handleEdicionMasiva(ids, nuevoNivel, nuevoGrado, nuevaSeccion);
-                    }}
-                    className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
-                  >
-                    Actualizar Seleccionados
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
+                    <div className="flex flex-wrap gap-4 p-6 bg-white/3 rounded-xl items-center justify-center border border-white/5">
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold">Nuevo Nivel</Label>
+                        <select
+                          value={nuevoNivel}
+                          onChange={(e) => {
+                            setNuevoNivel(e.target.value);
+                            setNuevoGrado('');
+                          }}
+                          className="bg-black/30 border border-white/10 rounded-lg text-white min-w-[180px] h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
+                        >
+                          <option value="">Mantener nivel</option>
+                          {niveles.map((n) => (
+                            <option key={n.id} value={n.id} className="text-black">{n.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold">Nuevo Grado</Label>
+                        <select
+                          value={nuevoGrado}
+                          onChange={(e) => setNuevoGrado(e.target.value)}
+                          disabled={!nuevoNivel && !filtroNivel}
+                          className="bg-black/30 border border-white/10 rounded-lg text-white min-w-[180px] h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60 disabled:opacity-50"
+                        >
+                          <option value="">Mantener grado</option>
+                          {((nuevoNivel || filtroNivel) && gradosPorNivel[(nuevoNivel || filtroNivel) as keyof typeof gradosPorNivel]?.map((g) => (
+                            <option key={g.id} value={g.id} className="text-black">{g.nombre}</option>
+                          )))}
+                        </select>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold">Nueva Sección</Label>
+                        <select
+                          value={nuevaSeccion}
+                          onChange={(e) => setNuevaSeccion(e.target.value)}
+                          className="bg-black/30 border border-white/10 rounded-lg text-white min-w-[180px] h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
+                        >
+                          <option value="">Mantener sección</option>
+                          {secciones.map((s) => (
+                            <option key={s} value={s} className="text-black">Sección {s}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex items-end h-full pt-5">
+                        <Button
+                          onClick={handleEdicionMasiva}
+                          disabled={actualizandoMasivo || seleccionados.length === 0}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold h-11 px-8 disabled:opacity-50"
+                        >
+                          {actualizandoMasivo ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              Actualizando...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Actualizar {seleccionados.length > 0 ? `(${seleccionados.length})` : ''}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </div>
+          </div>
         </Card>
       </main>
 

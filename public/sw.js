@@ -3,7 +3,7 @@
 // Service Worker para notificaciones push
 // ============================================
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   console.log('[SW] Instalado');
   self.skipWaiting();
 });

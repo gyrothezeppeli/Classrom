@@ -1,13 +1,14 @@
 // app/Notas/editar/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { sileo } from 'sileo';
 
 // ============ COMPONENTES PROPIOS ============
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Grade } from "@/lib/domain/grades/Grade";
 
 // ============ SHADCN UI ============
 import { Button } from "@/components/ui/button";
@@ -37,14 +38,11 @@ import {
   X,
   Save,
   LogOut,
-  Users,
-  GraduationCap,
   Check,
   AlertCircle,
   BookOpen,
   Pencil,
   Trash2,
-  Eye,
 } from "lucide-react";
 
 const PALETTE = {
@@ -92,6 +90,28 @@ interface DocenteInfo {
   email: string;
 }
 
+interface NotaApi {
+  id: string;
+  estudianteId: string;
+  materia: string;
+  nivel: string;
+  grado: string;
+  seccion: string;
+  periodo: string;
+  nota: number;
+  observacion?: string;
+  docenteId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface EstudianteApi {
+  id: string;
+  nombres: string;
+  apellidos: string;
+  cedulaIdentidad: string;
+}
+
 const EditarNotasPage: React.FC = () => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -124,14 +144,6 @@ const EditarNotasPage: React.FC = () => {
     descripcion: string;
     onConfirm: () => void;
   } | null>(null);
-
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // ============ CONFIGURACIÓN ============
   const niveles = [
@@ -181,9 +193,8 @@ const EditarNotasPage: React.FC = () => {
   }, [session, status]);
 
   // ============ CARGA DE NOTAS ============
-  const cargarNotas = async () => {
+  const cargarNotas = useCallback(async () => {
     try {
-      setCargandoNotas(true);
       const params = new URLSearchParams();
       if (filtroNivel) params.append('nivel', filtroNivel);
       if (filtroGrado) params.append('grado', filtroGrado);
@@ -195,14 +206,16 @@ const EditarNotasPage: React.FC = () => {
       const response = await fetch(url);
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as NotaApi[];
 
         // Cargar estudiantes para enriquecer las notas
         const estudiantesRes = await fetch('/api/estudiantes');
-        const estudiantes = estudiantesRes.ok ? await estudiantesRes.json() : [];
+        const estudiantes: EstudianteApi[] = estudiantesRes.ok
+          ? await estudiantesRes.json()
+          : [];
 
-        const notasConEstudiante = data.map((nota: any) => {
-          const est = estudiantes.find((e: any) => e.id === nota.estudianteId);
+        const notasConEstudiante = data.map((nota) => {
+          const est = estudiantes.find((e) => e.id === nota.estudianteId);
           return {
             ...nota,
             estudiante: est ? {
@@ -225,12 +238,17 @@ const EditarNotasPage: React.FC = () => {
     } finally {
       setCargandoNotas(false);
     }
-  };
+  }, [filtroNivel, filtroGrado, filtroSeccion, filtroMateria, filtroPeriodo]);
 
   useEffect(() => {
-    cargarNotas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroNivel, filtroGrado, filtroSeccion, filtroMateria, filtroPeriodo]);
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) return cargarNotas();
+    });
+    return () => {
+      active = false;
+    };
+  }, [cargarNotas]);
 
   // ============ FILTRADO LOCAL ============
   const notasFiltradas = useMemo(() => {
@@ -266,8 +284,8 @@ const EditarNotasPage: React.FC = () => {
   };
 
   const guardarEdicion = async (nota: Nota) => {
-    const numNota = parseFloat(notaEditada.replace(',', '.'));
-    if (isNaN(numNota) || numNota < 0 || numNota > 20) {
+    const numNota = Grade.parse(notaEditada);
+    if (!Grade.isValid(numNota)) {
       sileo.warning({ title: 'Nota inválida', description: 'Debe estar entre 0 y 20' });
       return;
     }
@@ -348,16 +366,12 @@ const EditarNotasPage: React.FC = () => {
 
   // ============ ESTADÍSTICAS ============
   const estadisticas = useMemo(() => {
-    if (notasFiltradas.length === 0) {
-      return { promedio: 0, aprobados: 0, reprobados: 0, total: 0 };
-    }
-    const valores = notasFiltradas.map(n => n.nota);
-    const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
+    const resumen = Grade.summarize(notasFiltradas.map(n => n.nota));
     return {
-      promedio: promedio.toFixed(2),
-      aprobados: valores.filter(v => v >= 10).length,
-      reprobados: valores.filter(v => v < 10).length,
-      total: valores.length
+      promedio: resumen.average,
+      aprobados: resumen.passing,
+      reprobados: resumen.failing,
+      total: resumen.total
     };
   }, [notasFiltradas]);
 
@@ -663,8 +677,8 @@ const EditarNotasPage: React.FC = () => {
                   <TableBody>
                     {notasFiltradas.map((nota) => {
                       const estaEditando = editandoId === nota.id;
-                      const numNota = estaEditando ? parseFloat(notaEditada) : nota.nota;
-                      const aprobado = !isNaN(numNota) && numNota >= 10;
+                      const numNota = estaEditando ? Grade.parse(notaEditada) : nota.nota;
+                      const aprobado = Number.isFinite(numNota) && Grade.isPassing(numNota);
                       const reprobado = !isNaN(numNota) && numNota < 10;
 
                       return (
