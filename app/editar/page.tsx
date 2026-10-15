@@ -71,7 +71,6 @@ const TIPOS_CONTENIDO = [
   { id: 'notas', nombre: 'Notas', icon: GraduationCap },
 ];
 
-// ✅ MATERIAS ACTUALIZADAS
 const MATERIAS_POR_NIVEL = {
   inicial: [
     'Lenguaje y Comunicación',
@@ -166,14 +165,89 @@ interface Estudiante {
   correoElectronico?: string;
 }
 
-// ✅ Utilidad: convierte "A,B,C" a ["A", "B", "C"]
+// ============ UTILIDADES ============
+
+// ✅ Extrae el número de un grado: "4to Año" → "4", "1er Grado" → "1"
+const extraerNumeroGrado = (grado: string): string => {
+  if (!grado) return '';
+  const match = grado.match(/\d/);
+  return match ? match[0] : '';
+};
+
+// ✅ Normaliza un grado para comparación tolerante
+const normalizarParaComparar = (grado: string): string => {
+  if (!grado) return '';
+  return grado
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[°º]/g, '')
+    .replace(/\s+/g, ' ');
+};
+
+// ✅ Convierte un ID de grado del formulario a valor canónico de BD
+const normalizarGradoParaBD = (gradoId: string, nivel: string): string => {
+  if (!gradoId) return '';
+
+  // Mapa completo: ID del formulario → valor canónico
+  const mapa: Record<string, Record<string, string>> = {
+    inicial: {
+      'Pre-Kinder': 'Pre-Kinder',
+      'Kinder': 'Kinder',
+      'Preparatorio': 'Preparatorio',
+    },
+    primaria: {
+      '1er Grado': '1er Grado',
+      '2do Grado': '2do Grado',
+      '3er Grado': '3er Grado',
+      '4to Grado': '4to Grado',
+      '5to Grado': '5to Grado',
+      '6to Grado': '6to Grado',
+    },
+    media: {
+      '1er Año': '1er Año',
+      '2do Año': '2do Año',
+      '3er Año': '3er Año',
+      '4to Año': '4to Año',
+      '5to Año': '5to Año',
+    },
+  };
+
+  const nivelNorm = (nivel || '').toLowerCase().trim();
+
+  // Si ya es canónico, devolverlo
+  if (mapa[nivelNorm]?.[gradoId]) {
+    return mapa[nivelNorm][gradoId];
+  }
+
+  // Fallback: extraer número y construir
+  const num = extraerNumeroGrado(gradoId);
+  if (!num) return gradoId;
+
+  const ordinales: Record<string, string> = {
+    '1': '1er', '2': '2do', '3': '3er', '4': '4to', '5': '5to', '6': '6to',
+  };
+  const ordinal = ordinales[num];
+  if (!ordinal) return gradoId;
+
+  if (nivelNorm === 'inicial') {
+    const iniciales: Record<string, string> = {
+      '1': 'Pre-Kinder', '2': 'Kinder', '3': 'Preparatorio',
+    };
+    return iniciales[num] || gradoId;
+  }
+
+  const sufijo = nivelNorm === 'primaria' ? 'Grado' : 'Año';
+  return `${ordinal} ${sufijo}`;
+};
+
 const parsearSecciones = (secciones: string | string[] | null | undefined): string[] => {
   if (!secciones) return [];
   if (Array.isArray(secciones)) return secciones.filter(Boolean);
   return secciones.split(',').map(s => s.trim()).filter(Boolean);
 };
 
-// ✅ Utilidad: convierte ["A", "B"] a "A,B"
 const serializarSecciones = (secciones: string[]): string => {
   return secciones.filter(Boolean).join(',');
 };
@@ -202,7 +276,6 @@ const EditTasksPage: React.FC = () => {
     enlaces: ''
   });
 
-  // ✅ Estados para la Lista de Estudiantes
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
   const [cargandoEstudiantes, setCargandoEstudiantes] = useState(false);
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
@@ -243,7 +316,6 @@ const EditTasksPage: React.FC = () => {
   });
 
   const [planSeccionesSeleccionadas, setPlanSeccionesSeleccionadas] = useState<string[]>([]);
-
   const [planesGuardados, setPlanesGuardados] = useState<PlanEvaluacion[]>([]);
 
   const niveles = [
@@ -252,26 +324,27 @@ const EditTasksPage: React.FC = () => {
     { id: 'media', nombre: 'Educación Media' }
   ];
 
+  // ✅ CORRECCIÓN #1: gradosPorNivel con IDs canónicos
   const gradosPorNivel = {
     inicial: [
-      { id: '1er nivel', nombre: '1er Nivel', secciones: [] as string[] },
-      { id: '2do nivel', nombre: '2do Nivel', secciones: [] as string[] },
-      { id: '3er nivel', nombre: '3er Nivel', secciones: [] as string[] }
+      { id: 'Pre-Kinder', nombre: '1er Nivel', secciones: [] as string[] },
+      { id: 'Kinder', nombre: '2do Nivel', secciones: [] as string[] },
+      { id: 'Preparatorio', nombre: '3er Nivel', secciones: [] as string[] }
     ],
     primaria: [
-      { id: '1ro', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '2do', nombre: '2do Grado', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '3ro', nombre: '3er Grado', secciones: ['A', 'B', 'C'] },
-      { id: '4to', nombre: '4to Grado', secciones: ['A', 'B', 'C'] },
-      { id: '5to', nombre: '5to Grado', secciones: ['A', 'B', 'C'] },
-      { id: '6to', nombre: '6to Grado', secciones: ['A', 'B', 'C'] }
+      { id: '1er Grado', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '2do Grado', nombre: '2do Grado', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '3er Grado', nombre: '3er Grado', secciones: ['A', 'B', 'C'] },
+      { id: '4to Grado', nombre: '4to Grado', secciones: ['A', 'B', 'C'] },
+      { id: '5to Grado', nombre: '5to Grado', secciones: ['A', 'B', 'C'] },
+      { id: '6to Grado', nombre: '6to Grado', secciones: ['A', 'B', 'C'] }
     ],
     media: [
-      { id: '1ro', nombre: '1er Año', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '2do', nombre: '2do Año', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '3ro', nombre: '3er Año', secciones: ['A', 'B', 'C'] },
-      { id: '4to', nombre: '4to Año', secciones: ['A', 'B', 'C'] },
-      { id: '5to', nombre: '5to Año', secciones: ['A', 'B'] }
+      { id: '1er Año', nombre: '1er Año', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '2do Año', nombre: '2do Año', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '3er Año', nombre: '3er Año', secciones: ['A', 'B', 'C'] },
+      { id: '4to Año', nombre: '4to Año', secciones: ['A', 'B', 'C'] },
+      { id: '5to Año', nombre: '5to Año', secciones: ['A', 'B'] }
     ]
   };
 
@@ -361,7 +434,7 @@ const EditTasksPage: React.FC = () => {
           areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
           docente: plan.docente || 'Docente',
           docenteId: plan.docenteId,
-          ano: plan.ano || plan.grado || '1ro',
+          ano: plan.ano || plan.grado || '1er Año',
           secciones: plan.secciones || plan.seccion || 'A',
           filas: Array.isArray(plan.filas)
             ? plan.filas.map((f) => ({
@@ -452,40 +525,16 @@ const EditTasksPage: React.FC = () => {
     };
   }, [tipoContenido, estudiantes.length, cargarEstudiantes]);
 
-  const normalizarGrado = (grado: string): string => {
-    if (!grado) return '';
-    return grado
-      .toLowerCase()
-      .trim()
-      .replace(/[°º]/g, '')
-      .replace(/\s+/g, ' ')
-      .replace(/^1ro\b/, '1er')
-      .replace(/^2do\b/, '2do')
-      .replace(/^3ro\b/, '3er')
-      .replace(/^4to\b/, '4to')
-      .replace(/^5to\b/, '5to')
-      .replace(/^6to\b/, '6to');
-  };
-
-  const gradoCoincide = (gradoEstudiante: string, filtroGradoId: string, filtroNivel: string): boolean => {
+  // ✅ CORRECCIÓN #6: gradoCoincide reescrita con extracción de número
+  const gradoCoincide = (gradoEstudiante: string, filtroGradoId: string): boolean => {
     if (!gradoEstudiante || !filtroGradoId) return false;
 
-    const gradoEst = normalizarGrado(gradoEstudiante);
-    const idFiltro = normalizarGrado(filtroGradoId);
+    const numEstudiante = extraerNumeroGrado(gradoEstudiante);
+    const numFiltro = extraerNumeroGrado(filtroGradoId);
 
-    const gradoObj = gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel]?.find(
-      (g) => g.id === filtroGradoId
-    );
-    const nombreFiltro = normalizarGrado(gradoObj?.nombre || '');
+    if (!numEstudiante || !numFiltro) return false;
 
-    return (
-      gradoEst === idFiltro ||
-      gradoEst === nombreFiltro ||
-      gradoEst.includes(idFiltro) ||
-      idFiltro.includes(gradoEst) ||
-      gradoEst.includes(nombreFiltro) ||
-      nombreFiltro.includes(gradoEst)
-    );
+    return numEstudiante === numFiltro;
   };
 
   const estudiantesFiltrados = (() => {
@@ -508,7 +557,7 @@ const EditTasksPage: React.FC = () => {
 
     if (filtroEstudianteGrado) {
       filtrados = filtrados.filter((e) =>
-        gradoCoincide(e.grado, filtroEstudianteGrado, filtroEstudianteNivel)
+        gradoCoincide(e.grado, filtroEstudianteGrado)
       );
     }
 
@@ -528,13 +577,19 @@ const EditTasksPage: React.FC = () => {
 
   // ============ FIN CARGA DE ESTUDIANTES ============
 
+  // ✅ CORRECCIÓN #5: planesFiltrados con comparación tolerante
   const planesFiltrados = planesGuardados.filter(plan => {
     let coincide = true;
 
     if (!plan) return false;
 
     if (nivelSeleccionado && plan.nivel !== nivelSeleccionado) coincide = false;
-    if (gradoSeleccionado && plan.grado !== gradoSeleccionado) coincide = false;
+
+    if (gradoSeleccionado) {
+      const numPlan = extraerNumeroGrado(plan.grado);
+      const numFiltro = extraerNumeroGrado(gradoSeleccionado);
+      if (numPlan !== numFiltro) coincide = false;
+    }
 
     if (seccionesSeleccionadas.length > 0) {
       const seccionesPlan = parsearSecciones(plan.secciones || plan.seccion || '');
@@ -570,6 +625,7 @@ const EditTasksPage: React.FC = () => {
     setSeccionesSeleccionadas([]);
   };
 
+  // ✅ CORRECCIÓN #3: Normalizar grado antes de enviar a la API
   const handlePublicar = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -608,6 +664,9 @@ const EditTasksPage: React.FC = () => {
         ? serializarSecciones(seccionesSeleccionadas)
         : 'Única';
 
+      // ✅ NORMALIZAR GRADO a valor canónico
+      const gradoNormalizado = normalizarGradoParaBD(gradoSeleccionado, nivelSeleccionado);
+
       let endpoint = '/api/tareas';
       let payload: Record<string, unknown> = {};
 
@@ -618,7 +677,7 @@ const EditTasksPage: React.FC = () => {
           descripcion: contenido.descripcion || '',
           fecha: fechaFinal,
           nivel: nivelSeleccionado,
-          grado: gradoSeleccionado,
+          grado: gradoNormalizado,  // ✅ Canónico
           seccion: seccionesString,
           materia,
           docenteId: docenteInfo.id,
@@ -631,7 +690,7 @@ const EditTasksPage: React.FC = () => {
           enlace: contenido.enlaces || '',
           fecha: fechaFinal,
           nivel: nivelSeleccionado,
-          grado: gradoSeleccionado,
+          grado: gradoNormalizado,  // ✅ Canónico
           seccion: seccionesString,
           materia,
           docenteId: docenteInfo.id,
@@ -646,7 +705,7 @@ const EditTasksPage: React.FC = () => {
           objetivos: contenido.objetivos || '',
           ponderacion: contenido.ponderacion || '',
           nivel: nivelSeleccionado,
-          grado: gradoSeleccionado,
+          grado: gradoNormalizado,  // ✅ Canónico
           seccion: seccionesString,
           materia,
           docenteId: docenteInfo.id,
@@ -839,6 +898,7 @@ const EditTasksPage: React.FC = () => {
     }
   };
 
+  // ✅ CORRECCIÓN #4: Normalizar grado antes de guardar plan
   const guardarPlanConDocente = async (docenteId: string) => {
     try {
       if (!docenteId) {
@@ -850,11 +910,17 @@ const EditTasksPage: React.FC = () => {
         ? serializarSecciones(planSeccionesSeleccionadas)
         : 'Única';
 
+      // ✅ NORMALIZAR GRADO a valor canónico
+      const gradoNormalizado = normalizarGradoParaBD(
+        gradoSeleccionado || planActual.ano,
+        nivelSeleccionado
+      );
+
       const planData = {
         titulo: planActual.areaFormacion.trim() || 'Plan de Evaluación',
         descripcion: `Plan de evaluación de ${planActual.areaFormacion}`,
         nivel: nivelSeleccionado || 'media',
-        grado: gradoSeleccionado || '1ro',
+        grado: gradoNormalizado,  // ✅ Canónico
         seccion: seccionesString,
         materia: (materia || planActual.materia || planActual.areaFormacion || '').trim(),
         docenteId: docenteId,
