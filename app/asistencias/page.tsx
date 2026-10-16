@@ -52,26 +52,27 @@ const MATERIAS_POR_NIVEL = {
   media: ['Castellano', 'Matemáticas', 'Historia', 'Geografía', 'Biología', 'Química', 'Física', 'Inglés', 'G.H.C', 'Ciencias de la Tierra', 'Educación Física', 'Arte y Patrimonio', 'Informática'],
 };
 
+// ✅ CORRECCIÓN #1: IDs canónicos
 const gradosPorNivel = {
   inicial: [
-    { id: '1er nivel', nombre: '1er Nivel', secciones: [] as string[] },
-    { id: '2do nivel', nombre: '2do Nivel', secciones: [] as string[] },
-    { id: '3er nivel', nombre: '3er Nivel', secciones: [] as string[] },
+    { id: 'Pre-Kinder', nombre: '1er Nivel', secciones: [] as string[] },
+    { id: 'Kinder', nombre: '2do Nivel', secciones: [] as string[] },
+    { id: 'Preparatorio', nombre: '3er Nivel', secciones: [] as string[] },
   ],
   primaria: [
-    { id: '1ro', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
-    { id: '2do', nombre: '2do Grado', secciones: ['A', 'B', 'C', 'D'] },
-    { id: '3ro', nombre: '3er Grado', secciones: ['A', 'B', 'C'] },
-    { id: '4to', nombre: '4to Grado', secciones: ['A', 'B', 'C'] },
-    { id: '5to', nombre: '5to Grado', secciones: ['A', 'B', 'C'] },
-    { id: '6to', nombre: '6to Grado', secciones: ['A', 'B', 'C'] },
+    { id: '1er Grado', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
+    { id: '2do Grado', nombre: '2do Grado', secciones: ['A', 'B', 'C', 'D'] },
+    { id: '3er Grado', nombre: '3er Grado', secciones: ['A', 'B', 'C'] },
+    { id: '4to Grado', nombre: '4to Grado', secciones: ['A', 'B', 'C'] },
+    { id: '5to Grado', nombre: '5to Grado', secciones: ['A', 'B', 'C'] },
+    { id: '6to Grado', nombre: '6to Grado', secciones: ['A', 'B', 'C'] },
   ],
   media: [
-    { id: '1ro', nombre: '1er Año', secciones: ['A', 'B', 'C', 'D'] },
-    { id: '2do', nombre: '2do Año', secciones: ['A', 'B', 'C', 'D'] },
-    { id: '3ro', nombre: '3er Año', secciones: ['A', 'B', 'C'] },
-    { id: '4to', nombre: '4to Año', secciones: ['A', 'B', 'C'] },
-    { id: '5to', nombre: '5to Año', secciones: ['A', 'B'] },
+    { id: '1er Año', nombre: '1er Año', secciones: ['A', 'B', 'C', 'D'] },
+    { id: '2do Año', nombre: '2do Año', secciones: ['A', 'B', 'C', 'D'] },
+    { id: '3er Año', nombre: '3er Año', secciones: ['A', 'B', 'C'] },
+    { id: '4to Año', nombre: '4to Año', secciones: ['A', 'B', 'C'] },
+    { id: '5to Año', nombre: '5to Año', secciones: ['A', 'B'] },
   ],
 };
 
@@ -131,13 +132,11 @@ export default function AsistenciaPage() {
 
   const [vista, setVista] = useState<Vista>('pasar-lista');
 
-  // Filtros comunes
   const [nivel, setNivel] = useState('media');
   const [grado, setGrado] = useState('');
   const [seccion, setSeccion] = useState('');
   const [materia, setMateria] = useState('');
 
-  // Pasar lista
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
   const [asistencia, setAsistencia] = useState<Record<string, boolean>>({});
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
@@ -148,12 +147,10 @@ export default function AsistenciaPage() {
   const [guardando, setGuardando] = useState(false);
   const [asistenciaExistente, setAsistenciaExistente] = useState(false);
 
-  // Reporte
   const [mes, setMes] = useState(new Date().toISOString().slice(0, 7));
   const [reporte, setReporte] = useState<{ mes: string; totalSesiones: number; totalEstudiantes: number; reporte: ReporteItem[] } | null>(null);
   const [cargandoReporte, setCargandoReporte] = useState(false);
 
-  // Historial
   const [historial, setHistorial] = useState<Asistencia[]>([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
@@ -164,7 +161,6 @@ export default function AsistenciaPage() {
     onConfirm: () => void;
   } | null>(null);
 
-  // ============ Cargar docente ============
   useEffect(() => {
     if (status !== 'authenticated') return;
     const cargar = async () => {
@@ -193,17 +189,17 @@ export default function AsistenciaPage() {
   const seccionesActuales = grado ? gradosActuales.find(g => g.id === grado)?.secciones || [] : [];
   const materiasDisponibles = MATERIAS_POR_NIVEL[nivel as keyof typeof MATERIAS_POR_NIVEL] || [];
 
-  // ============ Cargar estudiantes + asistencia existente del día ============
+  // ✅ CORRECCIÓN #2: Agregar setCargandoEstudiantes(true)
   const cargarEstudiantes = useCallback(async () => {
     if (!nivel || !grado || !seccion) return;
     try {
-      // 1. Cargar estudiantes del curso
+      setCargandoEstudiantes(true);  // ✅ AGREGADO
+
       const res = await fetch(`/api/asistencia/estudiantes?nivel=${nivel}&grado=${grado}&seccion=${seccion}`);
       if (!res.ok) return;
       const data: Estudiante[] = await res.json();
       setEstudiantes(data);
 
-      // 2. Buscar si ya hay asistencia guardada para ese día
       const asistenciasExistentes: Record<string, boolean> = {};
       let existeRegistro = false;
 
@@ -234,7 +230,6 @@ export default function AsistenciaPage() {
 
       setAsistenciaExistente(existeRegistro);
 
-      // 3. Inicializar estado: si había registro previo, usarlo; si no, todos presentes
       const iniciales: Record<string, boolean> = {};
       data.forEach((e) => {
         iniciales[e.id] = asistenciasExistentes[e.id] ?? true;
@@ -260,10 +255,10 @@ export default function AsistenciaPage() {
     };
   }, [vista, nivel, grado, seccion, cargarEstudiantes]);
 
-  // ============ Cargar historial ============
   const cargarHistorial = useCallback(async () => {
     if (!docenteInfo?.id) return;
     try {
+      setCargandoHistorial(true);  // ✅ AGREGADO
       const params = new URLSearchParams({ docenteId: docenteInfo.id });
       if (nivel) params.set('nivel', nivel);
       if (grado) params.set('grado', grado);
@@ -291,10 +286,10 @@ export default function AsistenciaPage() {
     };
   }, [vista, cargarHistorial]);
 
-  // ============ Cargar reporte ============
   const cargarReporte = useCallback(async () => {
     if (!nivel || !grado || !seccion || !mes) return;
     try {
+      setCargandoReporte(true);  // ✅ AGREGADO
       const params = new URLSearchParams({ nivel, grado, seccion, mes });
       if (materia) params.set('materia', materia);
 
@@ -319,7 +314,6 @@ export default function AsistenciaPage() {
     };
   }, [vista, nivel, grado, seccion, cargarReporte]);
 
-  // ============ Acciones ============
   const toggleAsistencia = (id: string) => {
     setAsistencia(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -360,7 +354,6 @@ export default function AsistenciaPage() {
 
       const data = await res.json();
 
-      // ✅ Mensaje diferenciado según si fue creada o actualizada
       sileo.success({
         title: data.actualizada ? 'Asistencia actualizada' : 'Asistencia guardada',
         description: `${data.presentes} presentes, ${data.ausentes} ausentes`,
@@ -425,7 +418,6 @@ export default function AsistenciaPage() {
     });
   };
 
-  // ============ Cálculos ============
   const totales = useMemo(() => {
     const values = Object.values(asistencia);
     return {
@@ -445,7 +437,6 @@ export default function AsistenciaPage() {
     );
   }, [estudiantes, busqueda]);
 
-  // ============ Loader ============
   if (status === 'loading' || cargandoDocente) {
     return (
       <div className="min-h-screen bg-[#1a2e26] flex items-center justify-center text-white">
@@ -459,7 +450,6 @@ export default function AsistenciaPage() {
 
   if (status === 'unauthenticated') return null;
 
-  // ============ Render ============
   return (
     <div
       className="min-h-screen relative text-white overflow-x-hidden"
@@ -469,7 +459,6 @@ export default function AsistenciaPage() {
            style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }} />
       <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
 
-      {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
           <Button
@@ -513,7 +502,6 @@ export default function AsistenciaPage() {
           </p>
         </header>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 justify-center flex-wrap">
           {[
             { id: 'pasar-lista' as const, label: 'Pasar Lista', icon: CalendarCheck },
@@ -539,7 +527,6 @@ export default function AsistenciaPage() {
           })}
         </div>
 
-        {/* Filtros comunes */}
         <Card className="bg-black/30 border-white/10 backdrop-blur mb-6">
           <CardContent className="p-5">
             <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4">
@@ -630,7 +617,6 @@ export default function AsistenciaPage() {
               </Card>
             ) : (
               <>
-                {/* Aviso: asistencia ya guardada */}
                 {asistenciaExistente && (
                   <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4 flex items-center gap-3">
                     <RefreshCw className="w-5 h-5 text-amber-400 shrink-0" />
@@ -645,7 +631,6 @@ export default function AsistenciaPage() {
                   </div>
                 )}
 
-                {/* Datos de la sesión */}
                 <Card className="bg-black/30 border-white/10 backdrop-blur mb-4">
                   <CardContent className="p-5">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -688,7 +673,6 @@ export default function AsistenciaPage() {
                   </CardContent>
                 </Card>
 
-                {/* Estadísticas */}
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 text-center">
                     <div className="text-emerald-400 text-2xl font-bold">{totales.presentes}</div>
@@ -704,7 +688,6 @@ export default function AsistenciaPage() {
                   </div>
                 </div>
 
-                {/* Acciones rápidas y búsqueda */}
                 <div className="flex flex-wrap gap-2 items-center mb-4">
                   <Button
                     size="sm"
@@ -734,7 +717,6 @@ export default function AsistenciaPage() {
                   </div>
                 </div>
 
-                {/* Lista de estudiantes */}
                 <Card className="bg-black/30 border-white/10 backdrop-blur overflow-hidden mb-4">
                   <CardContent className="p-0">
                     {cargandoEstudiantes ? (
@@ -803,7 +785,6 @@ export default function AsistenciaPage() {
                   </CardContent>
                 </Card>
 
-                {/* Botón guardar */}
                 {estudiantes.length > 0 && (
                   <Button
                     onClick={guardar}
