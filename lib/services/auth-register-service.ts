@@ -1,232 +1,192 @@
-import { NextResponse } from "next/server"
+import { Role, type PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
-import { prisma } from "@/lib/prisma"
+import { prisma } from '@/lib/prisma';
+import { StudentAssignmentService } from '@/lib/asignar';
 
-import bcrypt from "bcryptjs"
+interface RegistrationPayload {
+  email: string;
+  password: string;
+  nombre: string;
+  apellido?: string;
+  telefono?: string;
+  cedulaIdentidad?: string;
+  role?: string;
+  especialidad?: string;
+  nivel?: string;
+  grado?: string;
+  seccion?: string;
+}
 
-import { Role } from "@prisma/client"
+interface RegisteredUser {
+  id: string;
+  email: string;
+  nombre: string;
+  role: Role;
+}
 
-import { coincideNivel, coincideGrado, coincideSeccion } from "@/lib/coincidencias"
+export type RegistrationResult =
+  | { success: true; message: string; user: RegisteredUser }
+  | { success: false; error: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readOptionalString(
+  payload: Record<string, unknown>,
+  field: keyof RegistrationPayload,
+): string | undefined {
+  const value = payload[field];
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string') throw new TypeError(`Invalid registration field: ${field}`);
+  return value;
+}
+
+function parsePayload(value: unknown): RegistrationPayload | null {
+  if (!isRecord(value)) return null;
+
+  const { email, password, nombre } = value;
+  if (
+    typeof email !== 'string' ||
+    typeof password !== 'string' ||
+    typeof nombre !== 'string' ||
+    !email ||
+    !password ||
+    !nombre
+  ) {
+    return null;
+  }
+
+  const optionalFields = [
+    'apellido',
+    'telefono',
+    'cedulaIdentidad',
+    'role',
+    'especialidad',
+    'nivel',
+    'grado',
+    'seccion',
+  ] as const;
+  if (
+    optionalFields.some((field) => {
+      const fieldValue = value[field];
+      return fieldValue !== undefined
+        && fieldValue !== null
+        && fieldValue !== ''
+        && typeof fieldValue !== 'string';
+    })
+  ) {
+    return null;
+  }
+
+  return {
+    email,
+    password,
+    nombre,
+    apellido: readOptionalString(value, 'apellido'),
+    telefono: readOptionalString(value, 'telefono'),
+    cedulaIdentidad: readOptionalString(value, 'cedulaIdentidad'),
+    role: readOptionalString(value, 'role'),
+    especialidad: readOptionalString(value, 'especialidad'),
+    nivel: readOptionalString(value, 'nivel'),
+    grado: readOptionalString(value, 'grado'),
+    seccion: readOptionalString(value, 'seccion'),
+  };
+}
 
 export class AuthRegisterService {
-  constructor(private readonly prismaClient: typeof prisma = prisma) {}
+  constructor(
+    private readonly prismaClient: PrismaClient = prisma,
+    private readonly contentAssignmentService: StudentAssignmentService =
+      new StudentAssignmentService(prismaClient),
+  ) {}
 
-
-  async POST(req: Request) {
-  try {
-    const body = await req.json()
-    const {
-      email,
-      password,
-      nombre,
-      apellido,
-      telefono,
-      cedulaIdentidad,
-      role,
-      especialidad,
-      nivel,
-      grado,
-      seccion
-    } = body
-
-    // Validaciones básicas
-    if (!email || !password || !nombre) {
-      return NextResponse.json(
-        { error: "Faltan campos requeridos: email, password y nombre" },
-        { status: 400 }
-      )
+  async register(input: unknown): Promise<RegistrationResult> {
+    const payload = parsePayload(input);
+    if (!payload) {
+      return {
+        success: false,
+        error: 'Faltan campos requeridos: email, password y nombre',
+      };
     }
 
-    // ✅ Validar que el rol sea uno de los permitidos
     const rolesValidos: Role[] = [
       Role.ESTUDIANTE,
       Role.DOCENTE,
       Role.ADMIN,
       Role.COORDINACION,
-    ]
+    ];
+    const rolFinal = rolesValidos.find((role) => role === payload.role) ?? Role.ESTUDIANTE;
 
-    const rolFinal: Role = rolesValidos.includes(role as Role)
-      ? (role as Role)
-      : Role.ESTUDIANTE
-
-    // Verificar si el email ya existe
     const existingUser = await this.prismaClient.user.findUnique({
-      where: { email }
-    })
-
+      where: { email: payload.email },
+    });
     if (existingUser) {
-      return NextResponse.json(
-        { error: "El email ya está registrado" },
-        { status: 400 }
-      )
+      return { success: false, error: 'El email ya está registrado' };
     }
 
-    // ✅ Verificar si la cédula ya existe (solo para estudiantes)
-    if (cedulaIdentidad && rolFinal === Role.ESTUDIANTE) {
+    if (payload.cedulaIdentidad && rolFinal === Role.ESTUDIANTE) {
       const existingCedula = await this.prismaClient.estudiante.findUnique({
-        where: { cedulaIdentidad }
-      })
-
+        where: { cedulaIdentidad: payload.cedulaIdentidad },
+      });
       if (existingCedula) {
-        return NextResponse.json(
-          { error: "La cédula ya está registrada" },
-          { status: 400 }
-        )
+        return { success: false, error: 'La cédula ya está registrada' };
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    // ✅ 1. Crear usuario y perfil en transacción
+    const hashedPassword = await bcrypt.hash(payload.password, 10);
     const result = await this.prismaClient.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
-          email,
+          email: payload.email,
           password: hashedPassword,
-          nombre,
-          apellido: apellido || null,
-          telefono: telefono || null,
+          nombre: payload.nombre,
+          apellido: payload.apellido || null,
+          telefono: payload.telefono || null,
           role: rolFinal,
-        }
-      })
+        },
+      });
 
+      let estudiante;
       if (rolFinal === Role.DOCENTE) {
         await tx.docente.create({
           data: {
             userId: user.id,
-            especialidad: especialidad || null,
-          }
-        })
+            especialidad: payload.especialidad || null,
+          },
+        });
       } else if (rolFinal === Role.ESTUDIANTE) {
-        await tx.estudiante.create({
+        estudiante = await tx.estudiante.create({
           data: {
             userId: user.id,
-            cedulaIdentidad: cedulaIdentidad || null,
-            nivel: nivel || "",
-            grado: grado || "",
-            seccion: seccion || "",
-          }
-        })
+            cedulaIdentidad: payload.cedulaIdentidad || null,
+            nivel: payload.nivel || '',
+            grado: payload.grado || '',
+            seccion: payload.seccion || '',
+          },
+          select: { id: true, nivel: true, grado: true, seccion: true },
+        });
       }
 
-      return user
-    })
+      return { user, estudiante };
+    });
 
-    // ✅ 2. Si es ESTUDIANTE, asignar contenido existente automáticamente
-    if (rolFinal === Role.ESTUDIANTE) {
-      const estudiante = await this.prismaClient.estudiante.findUnique({
-        where: { userId: result.id },
-        include: { user: true }
-      })
-
-      if (estudiante) {
-        console.log(`👨‍🎓 Nuevo estudiante: ${estudiante.user.nombre} ${estudiante.user.apellido} | ${estudiante.nivel} ${estudiante.grado} ${estudiante.seccion}`)
-
-        // Asignar planes de evaluación existentes
-        const planesExistentes = await this.prismaClient.planEvaluacion.findMany()
-        const planesAsignados = planesExistentes.filter((plan) =>
-          coincideNivel(plan.nivel, estudiante.nivel) &&
-          coincideGrado(plan.grado, estudiante.grado) &&
-          coincideSeccion(plan.seccion, estudiante.seccion)
-        )
-
-        if (planesAsignados.length > 0) {
-          await this.prismaClient.estudiantePlanEvaluacion.createMany({
-            data: planesAsignados.map((plan) => ({
-              estudianteId: estudiante.id,
-              planEvaluacionId: plan.id,
-              visto: false,
-            })),
-            skipDuplicates: true,
-          })
-          console.log(`   → ${planesAsignados.length} planes asignados`)
-        }
-
-        // Asignar tareas existentes
-        const tareasExistentes = await this.prismaClient.tarea.findMany()
-        const tareasAsignadas = tareasExistentes.filter((tarea) =>
-          coincideNivel(tarea.nivel, estudiante.nivel) &&
-          coincideGrado(tarea.grado, estudiante.grado) &&
-          coincideSeccion(tarea.seccion, estudiante.seccion)
-        )
-
-        if (tareasAsignadas.length > 0) {
-          await this.prismaClient.estudianteTarea.createMany({
-            data: tareasAsignadas.map((tarea) => ({
-              estudianteId: estudiante.id,
-              tareaId: tarea.id,
-              visto: false,
-              entregado: false,
-            })),
-            skipDuplicates: true,
-          })
-          console.log(`   → ${tareasAsignadas.length} tareas asignadas`)
-        }
-
-        // Asignar avisos existentes
-        const avisosExistentes = await this.prismaClient.aviso.findMany()
-        const avisosAsignados = avisosExistentes.filter((aviso) =>
-          coincideNivel(aviso.nivel, estudiante.nivel) &&
-          coincideGrado(aviso.grado, estudiante.grado) &&
-          coincideSeccion(aviso.seccion, estudiante.seccion)
-        )
-
-        if (avisosAsignados.length > 0) {
-          await this.prismaClient.estudianteAviso.createMany({
-            data: avisosAsignados.map((aviso) => ({
-              estudianteId: estudiante.id,
-              avisoId: aviso.id,
-              visto: false,
-            })),
-            skipDuplicates: true,
-          })
-          console.log(`   → ${avisosAsignados.length} avisos asignados`)
-        }
-
-        // Asignar materiales existentes
-        const materialesExistentes = await this.prismaClient.material.findMany()
-        const materialesAsignados = materialesExistentes.filter((material) =>
-          coincideNivel(material.nivel, estudiante.nivel) &&
-          coincideGrado(material.grado, estudiante.grado) &&
-          coincideSeccion(material.seccion, estudiante.seccion)
-        )
-
-        if (materialesAsignados.length > 0) {
-          await this.prismaClient.estudianteMaterial.createMany({
-            data: materialesAsignados.map((material) => ({
-              estudianteId: estudiante.id,
-              materialId: material.id,
-              visto: false,
-            })),
-            skipDuplicates: true,
-          })
-          console.log(`   → ${materialesAsignados.length} materiales asignados`)
-        }
-
-        console.log(`🎉 Total asignado a ${estudiante.user.nombre}: ${planesAsignados.length} planes, ${tareasAsignadas.length} tareas, ${avisosAsignados.length} avisos, ${materialesAsignados.length} materiales`)
-      }
+    if (result.estudiante) {
+      await this.contentAssignmentService.assignExistingContent(result.estudiante);
     }
 
-    return NextResponse.json({
+    return {
       success: true,
-      message: "Usuario registrado exitosamente",
+      message: 'Usuario registrado exitosamente',
       user: {
-        id: result.id,
-        email: result.email,
-        nombre: result.nombre,
-        role: result.role
-      }
-    })
-
-  } catch (error) {
-    console.error("Error en registro:", error)
-    return NextResponse.json(
-      { error: "Error al registrar usuario" },
-      { status: 500 }
-    )
+        id: result.user.id,
+        email: result.user.email,
+        nombre: result.user.nombre,
+        role: result.user.role,
+      },
+    };
   }
-}
-
 }
 
 export const authRegisterService = new AuthRegisterService();

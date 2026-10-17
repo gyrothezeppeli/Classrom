@@ -148,26 +148,27 @@ const HorariosPage: React.FC = () => {
     { id: 'media', nombre: 'Educación Media' },
   ];
 
+  // ✅ CORRECCIÓN: IDs canónicos
   const gradosPorNivel = {
     inicial: [
-      { id: '1er nivel', nombre: '1er Nivel' },
-      { id: '2do nivel', nombre: '2do Nivel' },
-      { id: '3er nivel', nombre: '3er Nivel' },
+      { id: 'Pre-Kinder', nombre: '1er Nivel' },
+      { id: 'Kinder', nombre: '2do Nivel' },
+      { id: 'Preparatorio', nombre: '3er Nivel' },
     ],
     primaria: [
-      { id: '1ro', nombre: '1er Grado' },
-      { id: '2do', nombre: '2do Grado' },
-      { id: '3ro', nombre: '3er Grado' },
-      { id: '4to', nombre: '4to Grado' },
-      { id: '5to', nombre: '5to Grado' },
-      { id: '6to', nombre: '6to Grado' },
+      { id: '1er Grado', nombre: '1er Grado' },
+      { id: '2do Grado', nombre: '2do Grado' },
+      { id: '3er Grado', nombre: '3er Grado' },
+      { id: '4to Grado', nombre: '4to Grado' },
+      { id: '5to Grado', nombre: '5to Grado' },
+      { id: '6to Grado', nombre: '6to Grado' },
     ],
     media: [
-      { id: '1ro', nombre: '1er Año' },
-      { id: '2do', nombre: '2do Año' },
-      { id: '3ro', nombre: '3er Año' },
-      { id: '4to', nombre: '4to Año' },
-      { id: '5to', nombre: '5to Año' },
+      { id: '1er Año', nombre: '1er Año' },
+      { id: '2do Año', nombre: '2do Año' },
+      { id: '3er Año', nombre: '3er Año' },
+      { id: '4to Año', nombre: '4to Año' },
+      { id: '5to Año', nombre: '5to Año' },
     ],
   };
 
@@ -1180,7 +1181,7 @@ const HorarioModal: React.FC<HorarioModalProps> = ({
         materia: h.materia,
         docenteId: h.docenteId,
         nivel: contexto.nivel,
-        grado: contexto.grado,
+        grado: contexto.grado,  // ✅ Ahora es canónico
         seccion: contexto.seccion,
         aula: h.aula,
         anioAcademico: '2024-2025',

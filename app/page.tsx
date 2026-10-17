@@ -254,7 +254,8 @@ const AuthPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="relative flex gap-2 mb-6 p-1 rounded-2xl bg-black/25 backdrop-blur-md">
+            {!isLogin && (
+              <div className="relative flex gap-2 mb-6 p-1 rounded-2xl bg-black/25 backdrop-blur-md">
               <div
                 className="absolute top-1 bottom-1 rounded-xl transition-all duration-500 pointer-events-none"
                 style={{
@@ -275,7 +276,6 @@ const AuthPage: React.FC = () => {
                   key={rol.id}
                   onClick={() => {
                     setUserRole(rol.id);
-                    setIsLogin(true);
                     resetFormData();
                   }}
                   disabled={loading}
@@ -294,7 +294,8 @@ const AuthPage: React.FC = () => {
                   </span>
                 </button>
               ))}
-            </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 

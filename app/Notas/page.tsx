@@ -151,26 +151,27 @@ const NotasPage: React.FC = () => {
 
   const periodos = ['1er Lapso', '2do Lapso', '3er Lapso'];
 
+  // ✅ CORRECCIÓN: IDs canónicos
   const gradosPorNivel = {
     inicial: [
-      { id: '1er nivel', nombre: '1er Nivel', secciones: [] as string[] },
-      { id: '2do nivel', nombre: '2do Nivel', secciones: [] as string[] },
-      { id: '3er nivel', nombre: '3er Nivel', secciones: [] as string[] }
+      { id: 'Pre-Kinder', nombre: '1er Nivel', secciones: [] as string[] },
+      { id: 'Kinder', nombre: '2do Nivel', secciones: [] as string[] },
+      { id: 'Preparatorio', nombre: '3er Nivel', secciones: [] as string[] }
     ],
     primaria: [
-      { id: '1ro', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '2do', nombre: '2do Grado', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '3ro', nombre: '3er Grado', secciones: ['A', 'B', 'C'] },
-      { id: '4to', nombre: '4to Grado', secciones: ['A', 'B', 'C'] },
-      { id: '5to', nombre: '5to Grado', secciones: ['A', 'B', 'C'] },
-      { id: '6to', nombre: '6to Grado', secciones: ['A', 'B', 'C'] }
+      { id: '1er Grado', nombre: '1er Grado', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '2do Grado', nombre: '2do Grado', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '3er Grado', nombre: '3er Grado', secciones: ['A', 'B', 'C'] },
+      { id: '4to Grado', nombre: '4to Grado', secciones: ['A', 'B', 'C'] },
+      { id: '5to Grado', nombre: '5to Grado', secciones: ['A', 'B', 'C'] },
+      { id: '6to Grado', nombre: '6to Grado', secciones: ['A', 'B', 'C'] }
     ],
     media: [
-      { id: '1ro', nombre: '1er Año', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '2do', nombre: '2do Año', secciones: ['A', 'B', 'C', 'D'] },
-      { id: '3ro', nombre: '3er Año', secciones: ['A', 'B', 'C'] },
-      { id: '4to', nombre: '4to Año', secciones: ['A', 'B', 'C'] },
-      { id: '5to', nombre: '5to Año', secciones: ['A', 'B'] }
+      { id: '1er Año', nombre: '1er Año', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '2do Año', nombre: '2do Año', secciones: ['A', 'B', 'C', 'D'] },
+      { id: '3er Año', nombre: '3er Año', secciones: ['A', 'B', 'C'] },
+      { id: '4to Año', nombre: '4to Año', secciones: ['A', 'B', 'C'] },
+      { id: '5to Año', nombre: '5to Año', secciones: ['A', 'B'] }
     ]
   };
 

@@ -13,7 +13,14 @@ export class Grade {
   readonly value: number;
 
   constructor(value: number) {
+    if (!Grade.isValid(value)) {
+      throw new RangeError(`La nota debe estar entre ${Grade.minimum} y ${Grade.maximum}`);
+    }
     this.value = value;
+  }
+
+  get isPassing(): boolean {
+    return this.value >= Grade.passingMark;
   }
 
   static parse(value: string | number): number {

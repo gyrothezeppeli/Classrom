@@ -152,10 +152,28 @@ const EditarNotasPage: React.FC = () => {
     { id: 'media', nombre: 'Educación Media' }
   ];
 
+  // ✅ CORRECCIÓN: IDs canónicos
   const gradosPorNivel = {
-    inicial: ['1er nivel', '2do nivel', '3er nivel'],
-    primaria: ['1ro', '2do', '3ro', '4to', '5to', '6to'],
-    media: ['1ro', '2do', '3ro', '4to', '5to']
+    inicial: [
+      'Pre-Kinder',
+      'Kinder',
+      'Preparatorio'
+    ],
+    primaria: [
+      '1er Grado',
+      '2do Grado',
+      '3er Grado',
+      '4to Grado',
+      '5to Grado',
+      '6to Grado'
+    ],
+    media: [
+      '1er Año',
+      '2do Año',
+      '3er Año',
+      '4to Año',
+      '5to Año'
+    ]
   };
 
   const gradosDisponibles = filtroNivel ? gradosPorNivel[filtroNivel as keyof typeof gradosPorNivel] || [] : [];
