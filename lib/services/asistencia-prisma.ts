@@ -56,9 +56,12 @@ export interface AsistenciaCreateData {
   estudiantes: { create: AsistenciaEstudianteCreate[] };
 }
 
+export type AsistenciaUpdateData = Prisma.AsistenciaUncheckedUpdateInput;
+
 interface AsistenciaInclude {
   docente?: { include: { user: { select: { nombre: true; apellido: true } } } };
   estudiantes?: true | {
+    select?: { estudianteId: true; asistio: true };
     include?: {
       estudiante?: {
         include: { user: { select: { nombre: true; apellido: true } } };
@@ -85,7 +88,7 @@ interface AsistenciaPrismaClient {
     }): Promise<AsistenciaRecord>;
     update(args: {
       where: { id: string };
-      data: Omit<AsistenciaCreateData, 'fecha' | 'nivel' | 'grado' | 'seccion' | 'materia'>;
+      data: AsistenciaUpdateData;
       include: { estudiantes: true };
     }): Promise<AsistenciaRecord>;
     delete(args: { where: { id: string } }): Promise<AsistenciaRecord>;

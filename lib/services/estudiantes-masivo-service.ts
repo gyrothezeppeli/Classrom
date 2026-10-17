@@ -32,6 +32,20 @@ export class EstudiantesMasivoService {
     }
 
     const resultados = [];
+    const [planes, tareas, avisos, materiales] = await Promise.all([
+      this.prismaClient.planEvaluacion.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true }
+      }),
+      this.prismaClient.tarea.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true }
+      }),
+      this.prismaClient.aviso.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true }
+      }),
+      this.prismaClient.material.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true }
+      })
+    ]);
 
     // Procesamos cada estudiante uno por uno para manejar la lógica de reasignación
     for (const act of actualizaciones) {
@@ -40,7 +54,11 @@ export class EstudiantesMasivoService {
       // 1. Obtener el estudiante actual con sus datos
       const estudianteActual = await this.prismaClient.estudiante.findUnique({
         where: { id },
-        include: { user: true }
+        include: {
+          user: {
+            select: { nombre: true, apellido: true }
+          }
+        }
       });
 
       if (!estudianteActual) {
@@ -90,6 +108,27 @@ export class EstudiantesMasivoService {
         console.log(`   → Salón creado: ${salon.nombre}`);
       }
 
+      const planesFiltrados = planes.filter(p =>
+        coincideNivel(p.nivel, nuevoNivel) &&
+        coincideGrado(p.grado, nuevoGrado) &&
+        coincideSeccion(p.seccion, nuevaSeccion)
+      );
+      const tareasFiltradas = tareas.filter(t =>
+        coincideNivel(t.nivel, nuevoNivel) &&
+        coincideGrado(t.grado, nuevoGrado) &&
+        coincideSeccion(t.seccion, nuevaSeccion)
+      );
+      const avisosFiltrados = avisos.filter(a =>
+        coincideNivel(a.nivel, nuevoNivel) &&
+        coincideGrado(a.grado, nuevoGrado) &&
+        coincideSeccion(a.seccion, nuevaSeccion)
+      );
+      const materialesFiltrados = materiales.filter(m =>
+        coincideNivel(m.nivel, nuevoNivel) &&
+        coincideGrado(m.grado, nuevoGrado) &&
+        coincideSeccion(m.seccion, nuevaSeccion)
+      );
+
       // 3. Ejecutar toda la actualización en una transacción
       await this.prismaClient.$transaction(async (tx) => {
         // 3.1 Actualizar el estudiante (incluyendo salonId)
@@ -103,54 +142,42 @@ export class EstudiantesMasivoService {
           }
         });
 
-        // 3.2 Limpiar asignaciones antiguas (del curso anterior)
+        // 3.2 Eliminar asignaciones que no corresponden al nuevo curso.
+        // Las que siguen vigentes se conservan para no perder su estado.
         await tx.estudiantePlanEvaluacion.deleteMany({
-          where: { estudianteId: id }
+          where: {
+            estudianteId: id,
+            ...(planesFiltrados.length > 0
+              ? { planEvaluacionId: { notIn: planesFiltrados.map(({ id: planId }) => planId) } }
+              : {})
+          }
         });
         await tx.estudianteTarea.deleteMany({
-          where: { estudianteId: id }
+          where: {
+            estudianteId: id,
+            ...(tareasFiltradas.length > 0
+              ? { tareaId: { notIn: tareasFiltradas.map(({ id: tareaId }) => tareaId) } }
+              : {})
+          }
         });
         await tx.estudianteAviso.deleteMany({
-          where: { estudianteId: id }
+          where: {
+            estudianteId: id,
+            ...(avisosFiltrados.length > 0
+              ? { avisoId: { notIn: avisosFiltrados.map(({ id: avisoId }) => avisoId) } }
+              : {})
+          }
         });
         await tx.estudianteMaterial.deleteMany({
-          where: { estudianteId: id }
+          where: {
+            estudianteId: id,
+            ...(materialesFiltrados.length > 0
+              ? { materialId: { notIn: materialesFiltrados.map(({ id: materialId }) => materialId) } }
+              : {})
+          }
         });
 
-        // 3.3 Obtener nuevas entidades para el nuevo curso
-        const [planes, tareas, avisos, materiales] = await Promise.all([
-          tx.planEvaluacion.findMany(),
-          tx.tarea.findMany(),
-          tx.aviso.findMany(),
-          tx.material.findMany()
-        ]);
-
-        // Filtrar por coincidencia de curso
-        const planesFiltrados = planes.filter(p =>
-          coincideNivel(p.nivel, nuevoNivel) &&
-          coincideGrado(p.grado, nuevoGrado) &&
-          coincideSeccion(p.seccion, nuevaSeccion)
-        );
-
-        const tareasFiltradas = tareas.filter(t =>
-          coincideNivel(t.nivel, nuevoNivel) &&
-          coincideGrado(t.grado, nuevoGrado) &&
-          coincideSeccion(t.seccion, nuevaSeccion)
-        );
-
-        const avisosFiltrados = avisos.filter(a =>
-          coincideNivel(a.nivel, nuevoNivel) &&
-          coincideGrado(a.grado, nuevoGrado) &&
-          coincideSeccion(a.seccion, nuevaSeccion)
-        );
-
-        const materialesFiltrados = materiales.filter(m =>
-          coincideNivel(m.nivel, nuevoNivel) &&
-          coincideGrado(m.grado, nuevoGrado) &&
-          coincideSeccion(m.seccion, nuevaSeccion)
-        );
-
-        // 3.4 Crear las nuevas asignaciones
+        // 3.3 Crear solo las asignaciones que todavía no existen
         if (planesFiltrados.length > 0) {
           await tx.estudiantePlanEvaluacion.createMany({
             data: planesFiltrados.map(p => ({

@@ -195,36 +195,38 @@ export default function AsistenciaPage() {
     try {
       setCargandoEstudiantes(true);  // ✅ AGREGADO
 
-      const res = await fetch(`/api/asistencia/estudiantes?nivel=${nivel}&grado=${grado}&seccion=${seccion}`);
-      if (!res.ok) return;
+      const params = materia && fecha
+        ? new URLSearchParams({
+            nivel, grado, seccion, materia,
+            fechaDesde: fecha,
+            fechaHasta: fecha,
+            incluirEstudiantes: 'true',
+          })
+        : null;
+      const [res, asistenciaRes] = await Promise.all([
+        fetch(`/api/asistencia/estudiantes?nivel=${nivel}&grado=${grado}&seccion=${seccion}`),
+        params
+          ? fetch(`/api/asistencia?${params}`)
+          : Promise.resolve(null),
+      ]);
+      if (!res.ok) throw new Error('No se pudieron cargar los estudiantes');
       const data: Estudiante[] = await res.json();
       setEstudiantes(data);
 
       const asistenciasExistentes: Record<string, boolean> = {};
       let existeRegistro = false;
 
-      if (materia && fecha) {
-        const params = new URLSearchParams({
-          nivel, grado, seccion, materia,
-          fechaDesde: fecha,
-          fechaHasta: fecha,
-        });
-        const asistenciaRes = await fetch(`/api/asistencia?${params}`);
-
-        if (asistenciaRes.ok) {
-          const asistenciasGuardadas = await asistenciaRes.json();
-          if (asistenciasGuardadas.length > 0) {
-            existeRegistro = true;
-            const asistenciaDelDia = asistenciasGuardadas[0];
-            const detalleRes = await fetch(`/api/asistencia/${asistenciaDelDia.id}`);
-
-            if (detalleRes.ok) {
-              const detalle = await detalleRes.json() as AsistenciaDetalle;
-              detalle.estudiantes?.forEach((ae) => {
-                asistenciasExistentes[ae.estudianteId] = ae.asistio;
-              });
-            }
-          }
+      if (params && !asistenciaRes?.ok) {
+        throw new Error('No se pudo cargar la asistencia guardada');
+      }
+      if (asistenciaRes?.ok) {
+        const asistenciasGuardadas = await asistenciaRes.json();
+        if (asistenciasGuardadas.length > 0) {
+          existeRegistro = true;
+          const asistenciaDelDia = asistenciasGuardadas[0] as AsistenciaDetalle;
+          asistenciaDelDia.estudiantes?.forEach((ae) => {
+            asistenciasExistentes[ae.estudianteId] = ae.asistio;
+          });
         }
       }
 
@@ -237,7 +239,10 @@ export default function AsistenciaPage() {
       setAsistencia(iniciales);
     } catch (error) {
       console.error(error);
-      sileo.error({ title: 'Error al cargar estudiantes' });
+      sileo.error({
+        title: 'Error al cargar la lista',
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setCargandoEstudiantes(false);
     }

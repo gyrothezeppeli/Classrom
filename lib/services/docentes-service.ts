@@ -28,6 +28,7 @@ export class DocentesService {
     const especialidad = searchParams.get("especialidad")
     const search = searchParams.get("search")
     const me = searchParams.get("me")
+    const idsParam = searchParams.get("ids")
 
     // ✅ Si es "me", obtener el docente del usuario actual
     if (me === "true") {
@@ -118,6 +119,12 @@ export class DocentesService {
 
     // ✅ Listar todos los docentes
     const where: Prisma.DocenteWhereInput = {}
+
+    if (idsParam !== null) {
+      const ids = [...new Set(idsParam.split(",").map((id) => id.trim()).filter(Boolean))]
+      if (ids.length === 0) return NextResponse.json([])
+      where.id = { in: ids }
+    }
 
     if (especialidad) {
       where.especialidad = especialidad

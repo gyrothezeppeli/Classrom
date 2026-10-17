@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 
 import bcrypt from 'bcryptjs';
 
-import { coincideNivel, coincideGrado, coincideSeccion } from '@/lib/coincidencias';
+import { StudentAssignmentService } from '@/lib/asignar';
 
 import {
   normalizarGrado,
@@ -208,7 +208,15 @@ export class EstudiantesService {
           seccion: data.seccion,
         },
         include: {
-          user: true
+          user: {
+            select: {
+              nombre: true,
+              apellido: true,
+              email: true,
+              telefono: true,
+              createdAt: true,
+            },
+          },
         }
       });
 
@@ -217,96 +225,13 @@ export class EstudiantesService {
 
     console.log(`✅ Estudiante creado: ${estudiante.user.nombre} ${estudiante.user.apellido} | ${estudiante.nivel} ${estudiante.grado} ${estudiante.seccion}`);
 
-    // ============================================
-    // 9. Asignar planes de evaluación existentes
-    // ============================================
-    const planesExistentes = await this.prismaClient.planEvaluacion.findMany();
-    const planesAsignados = planesExistentes.filter((plan) =>
-      coincideNivel(plan.nivel, estudiante.nivel) &&
-      coincideGrado(plan.grado, estudiante.grado) &&
-      coincideSeccion(plan.seccion, estudiante.seccion)
+    const asignaciones = await new StudentAssignmentService(this.prismaClient)
+      .assignExistingContent(estudiante);
+    console.log(
+      `🎉 Total asignado a ${estudiante.user.nombre}: ${asignaciones.planes} planes, ` +
+      `${asignaciones.tareas} tareas, ${asignaciones.avisos} avisos, ` +
+      `${asignaciones.materiales} materiales`
     );
-
-    if (planesAsignados.length > 0) {
-      await this.prismaClient.estudiantePlanEvaluacion.createMany({
-        data: planesAsignados.map((plan) => ({
-          estudianteId: estudiante.id,
-          planEvaluacionId: plan.id,
-          visto: false,
-        })),
-        skipDuplicates: true,
-      });
-      console.log(`   → ${planesAsignados.length} planes asignados`);
-    }
-
-    // ============================================
-    // 10. Asignar tareas existentes
-    // ============================================
-    const tareasExistentes = await this.prismaClient.tarea.findMany();
-    const tareasAsignadas = tareasExistentes.filter((tarea) =>
-      coincideNivel(tarea.nivel, estudiante.nivel) &&
-      coincideGrado(tarea.grado, estudiante.grado) &&
-      coincideSeccion(tarea.seccion, estudiante.seccion)
-    );
-
-    if (tareasAsignadas.length > 0) {
-      await this.prismaClient.estudianteTarea.createMany({
-        data: tareasAsignadas.map((tarea) => ({
-          estudianteId: estudiante.id,
-          tareaId: tarea.id,
-          visto: false,
-          entregado: false,
-        })),
-        skipDuplicates: true,
-      });
-      console.log(`   → ${tareasAsignadas.length} tareas asignadas`);
-    }
-
-    // ============================================
-    // 11. Asignar avisos existentes
-    // ============================================
-    const avisosExistentes = await this.prismaClient.aviso.findMany();
-    const avisosAsignados = avisosExistentes.filter((aviso) =>
-      coincideNivel(aviso.nivel, estudiante.nivel) &&
-      coincideGrado(aviso.grado, estudiante.grado) &&
-      coincideSeccion(aviso.seccion, estudiante.seccion)
-    );
-
-    if (avisosAsignados.length > 0) {
-      await this.prismaClient.estudianteAviso.createMany({
-        data: avisosAsignados.map((aviso) => ({
-          estudianteId: estudiante.id,
-          avisoId: aviso.id,
-          visto: false,
-        })),
-        skipDuplicates: true,
-      });
-      console.log(`   → ${avisosAsignados.length} avisos asignados`);
-    }
-
-    // ============================================
-    // 12. Asignar materiales existentes
-    // ============================================
-    const materialesExistentes = await this.prismaClient.material.findMany();
-    const materialesAsignados = materialesExistentes.filter((material) =>
-      coincideNivel(material.nivel, estudiante.nivel) &&
-      coincideGrado(material.grado, estudiante.grado) &&
-      coincideSeccion(material.seccion, estudiante.seccion)
-    );
-
-    if (materialesAsignados.length > 0) {
-      await this.prismaClient.estudianteMaterial.createMany({
-        data: materialesAsignados.map((material) => ({
-          estudianteId: estudiante.id,
-          materialId: material.id,
-          visto: false,
-        })),
-        skipDuplicates: true,
-      });
-      console.log(`   → ${materialesAsignados.length} materiales asignados`);
-    }
-
-    console.log(`🎉 Total asignado a ${estudiante.user.nombre}: ${planesAsignados.length} planes, ${tareasAsignadas.length} tareas, ${avisosAsignados.length} avisos, ${materialesAsignados.length} materiales`);
 
     // ============================================
     // 13. Respuesta exitosa
@@ -324,10 +249,7 @@ export class EstudiantesService {
       seccion: estudiante.seccion,
       createdAt: estudiante.user.createdAt,
       asignaciones: {
-        planes: planesAsignados.length,
-        tareas: tareasAsignadas.length,
-        avisos: avisosAsignados.length,
-        materiales: materialesAsignados.length,
+        ...asignaciones,
       }
     }, { status: 201 });
 

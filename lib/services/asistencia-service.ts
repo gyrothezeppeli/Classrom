@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   AsistenciaCreateData,
   AsistenciaEstudianteCreate,
+  AsistenciaUpdateData,
   AsistenciaWhere,
   asistenciaPrisma,
 } from '@/lib/services/asistencia-prisma';
@@ -39,6 +40,7 @@ export class AsistenciaService {
     const grado = searchParams.get('grado');
     const seccion = searchParams.get('seccion');
     const materia = searchParams.get('materia');
+    const incluirEstudiantes = searchParams.get('incluirEstudiantes') === 'true';
     const fechaDesde = searchParams.get('fechaDesde');
     const fechaHasta = searchParams.get('fechaHasta');
 
@@ -69,6 +71,9 @@ export class AsistenciaService {
         docente: {
           include: { user: { select: { nombre: true, apellido: true } } }
         },
+        estudiantes: incluirEstudiantes
+          ? { select: { estudianteId: true, asistio: true } }
+          : undefined,
         _count: { select: { estudiantes: true } }
       },
       orderBy: { fecha: 'desc' }
@@ -87,6 +92,14 @@ export class AsistenciaService {
       docente: `${a.docente!.user.nombre} ${a.docente!.user.apellido || ''}`.trim(),
       totalEstudiantes: a._count!.estudiantes,
       createdAt: a.createdAt,
+      ...(incluirEstudiantes
+        ? {
+            estudiantes: (a.estudiantes ?? []).map(({ estudianteId, asistio }) => ({
+              estudianteId,
+              asistio,
+            })),
+          }
+        : {}),
     }));
 
     return NextResponse.json(formateadas);
@@ -131,6 +144,12 @@ export class AsistenciaService {
         asistio: Boolean(item.asistio),
       };
     });
+    if (new Set(asistenciasNormalizadas.map(({ estudianteId }) => estudianteId)).size !== asistenciasNormalizadas.length) {
+      return NextResponse.json(
+        { error: 'No se puede incluir un estudiante más de una vez' },
+        { status: 400 }
+      );
+    }
 
     const existente = await this.attendanceClient.asistencia.findFirst({
       where: {
@@ -150,23 +169,50 @@ export class AsistenciaService {
     let actualizada = false;
 
     if (existente) {
-      // ✅ Ya existe: actualizar en lugar de crear
-      // 1. Borrar registros de estudiantes anteriores
-      await this.attendanceClient.asistenciaEstudiante.deleteMany({
-        where: { asistenciaId: existente.id }
-      });
+      const estudiantesSolicitados = new Set(
+        asistenciasNormalizadas.map(({ estudianteId }) => estudianteId)
+      );
+      const estudiantesExistentes = new Map(
+        (existente.estudiantes ?? []).map(({ estudianteId, asistio }) => [estudianteId, asistio])
+      );
+      const estudiantesPorActualizar = asistenciasNormalizadas.filter(
+        ({ estudianteId, asistio }) => estudiantesExistentes.get(estudianteId) !== asistio
+      );
+      const estudiantesPorQuitar = [...estudiantesExistentes.keys()].some(
+        (estudianteId) => !estudiantesSolicitados.has(estudianteId)
+      );
 
-      // 2. Actualizar la asistencia con los nuevos datos
+      const updateData: AsistenciaUpdateData = {
+        docenteId: docenteIdTexto,
+        hora: nullableString(hora),
+        observaciones: nullableString(observaciones),
+      };
+      if (estudiantesPorQuitar || estudiantesPorActualizar.length > 0) {
+        updateData.estudiantes = {};
+        if (estudiantesPorQuitar) {
+          updateData.estudiantes.deleteMany = {
+            estudianteId: { notIn: [...estudiantesSolicitados] },
+          };
+        }
+        if (estudiantesPorActualizar.length > 0) {
+          updateData.estudiantes.upsert = estudiantesPorActualizar.map(
+            ({ estudianteId, asistio }) => ({
+              where: {
+                asistenciaId_estudianteId: {
+                  asistenciaId: existente.id,
+                  estudianteId,
+                },
+              },
+              update: { asistio },
+              create: { estudianteId, asistio },
+            })
+          );
+        }
+      }
+
       resultadoAsistencia = await this.attendanceClient.asistencia.update({
         where: { id: existente.id },
-        data: {
-          docenteId: docenteIdTexto,
-          hora: nullableString(hora),
-          observaciones: nullableString(observaciones),
-          estudiantes: {
-            create: asistenciasNormalizadas,
-          }
-        },
+        data: updateData,
         include: { estudiantes: true }
       });
 

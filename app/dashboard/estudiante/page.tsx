@@ -152,6 +152,20 @@ type TareaApi = Partial<Tarea>;
 type AvisoApi = Partial<Aviso>;
 type MaterialApi = Partial<Material>;
 
+async function fetchDashboardList<T>(url: string, label: string): Promise<T[] | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`Error al cargar ${label}: HTTP ${response.status}`);
+      return null;
+    }
+    return await response.json() as T[];
+  } catch (error) {
+    console.error(`Error al cargar ${label}:`, error);
+    return null;
+  }
+}
+
 interface Estudiante {
   id: string;
   nombres: string;
@@ -431,138 +445,112 @@ const EstudianteDashboard: React.FC = () => {
           seccion: estudianteData.seccion,
         });
 
-        const planesResponse = await fetch(`/api/estudiantes/planes?estudianteId=${data.id}`);
-
-        let planesData: PlanEvaluacion[] = [];
-
-        if (planesResponse.ok) {
-          const rawPlanes = await planesResponse.json();
-
-          // ✅ LOG DE DIAGNÓSTICO 2: Planes que llegan del endpoint
-          console.log('📋 [DASHBOARD] Planes recibidos:', rawPlanes);
-
-          planesData = (rawPlanes as PlanApi[]).map((plan) => ({
-            id: plan.id || '',
-            areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
-            docente: plan.docente || 'Docente no asignado',
-            docenteId: plan.docenteId || '',
-            ano: plan.ano || plan.grado || 'N/A',
-            secciones: plan.secciones || plan.seccion || 'A',
-            nivel: plan.nivel || '',
-            grado: plan.grado || '',
-            materia: plan.materia || '',
-            filas: Array.isArray(plan.filas) ? plan.filas.map((fila, index) => ({
-              id: fila.id || `fila-${index}`,
-              fecha: fila.fecha || '',
-              referenteTeorico: fila.referenteTeorico || '',
-              estrategiaEvaluacion: fila.estrategiaEvaluacion || '',
-              tecnicaEvaluacion: fila.tecnicaEvaluacion || '',
-              instrumentoEvaluacion: fila.instrumentoEvaluacion || '',
-              ptos: fila.ptos || '',
-              porcentaje: fila.porcentaje || '',
-              criteriosEvaluacion: typeof fila.criteriosEvaluacion === 'string'
-                ? fila.criteriosEvaluacion
-                : Array.isArray(fila.criteriosEvaluacion)
-                  ? fila.criteriosEvaluacion.join(', ')
-                  : '',
-            })) : [],
-            visto: plan.visto || false,
-            fechaVisto: plan.fechaVisto || null,
-            createdAt: plan.createdAt || new Date().toISOString()
-          }));
+        const estudianteId = encodeURIComponent(data.id);
+        const [rawPlanes, rawTareas, rawAvisos, rawMateriales] = await Promise.all([
+          fetchDashboardList<PlanApi>(`/api/estudiantes/planes?estudianteId=${estudianteId}`, 'planes'),
+          fetchDashboardList<TareaApi>(`/api/tareas?estudianteId=${estudianteId}`, 'tareas'),
+          fetchDashboardList<AvisoApi>(`/api/avisos?estudianteId=${estudianteId}`, 'avisos'),
+          fetchDashboardList<MaterialApi>(`/api/materiales?estudianteId=${estudianteId}`, 'materiales'),
+        ]);
+        if (rawPlanes === null) {
+          throw new Error('No se pudieron cargar los planes del estudiante');
         }
 
-        let tareasData: Tarea[] = [];
-        try {
-          const tareasResponse = await fetch(`/api/tareas?estudianteId=${data.id}`);
-          if (tareasResponse.ok) {
-            const rawTareas = await tareasResponse.json();
-            tareasData = (rawTareas as TareaApi[]).map((t) => ({
-              id: t.id || '',
-              titulo: t.titulo || '',
-              descripcion: t.descripcion || '',
-              fechaEntrega: t.fechaEntrega || '',
-              estado: t.estado || 'pendiente',
-              recursos: t.recursos || '',
-              objetivos: t.objetivos || '',
-              ponderacion: t.ponderacion || '',
-              materia: t.materia || '',
-              docente: t.docente || 'Docente',
-              nivel: t.nivel || '',
-              grado: t.grado || '',
-              seccion: t.seccion || '',
-              visto: t.visto || false,
-              entregado: t.entregado || false,
-              calificacion: t.calificacion ?? null,
-              createdAt: t.createdAt || new Date().toISOString()
-            }));
-          }
-        } catch (error) {
-          console.error('Error al cargar tareas:', error);
-        }
+        const planesData: PlanEvaluacion[] = rawPlanes.map((plan) => ({
+          id: plan.id || '',
+          areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
+          docente: plan.docente || 'Docente no asignado',
+          docenteId: plan.docenteId || '',
+          ano: plan.ano || plan.grado || 'N/A',
+          secciones: plan.secciones || plan.seccion || 'A',
+          nivel: plan.nivel || '',
+          grado: plan.grado || '',
+          materia: plan.materia || '',
+          filas: Array.isArray(plan.filas) ? plan.filas.map((fila, index) => ({
+            id: fila.id || `fila-${index}`,
+            fecha: fila.fecha || '',
+            referenteTeorico: fila.referenteTeorico || '',
+            estrategiaEvaluacion: fila.estrategiaEvaluacion || '',
+            tecnicaEvaluacion: fila.tecnicaEvaluacion || '',
+            instrumentoEvaluacion: fila.instrumentoEvaluacion || '',
+            ptos: fila.ptos || '',
+            porcentaje: fila.porcentaje || '',
+            criteriosEvaluacion: typeof fila.criteriosEvaluacion === 'string'
+              ? fila.criteriosEvaluacion
+              : Array.isArray(fila.criteriosEvaluacion)
+                ? fila.criteriosEvaluacion.join(', ')
+                : '',
+          })) : [],
+          visto: plan.visto || false,
+          fechaVisto: plan.fechaVisto || null,
+          createdAt: plan.createdAt || new Date().toISOString()
+        }));
 
-        let avisosData: Aviso[] = [];
-        try {
-          const avisosResponse = await fetch(`/api/avisos?estudianteId=${data.id}`);
-          if (avisosResponse.ok) {
-            const rawAvisos = await avisosResponse.json();
-            avisosData = (rawAvisos as AvisoApi[]).map((a) => ({
-              id: a.id || '',
-              titulo: a.titulo || '',
-              descripcion: a.descripcion || '',
-              fecha: a.fecha || '',
-              materia: a.materia || '',
-              docente: a.docente || 'Docente',
-              nivel: a.nivel || '',
-              grado: a.grado || '',
-              seccion: a.seccion || '',
-              visto: a.visto || false,
-              fechaVisto: a.fechaVisto || null,
-              createdAt: a.createdAt || new Date().toISOString()
-            }));
-          }
-        } catch (error) {
-          console.error('Error al cargar avisos:', error);
-        }
+        const tareasData: Tarea[] = (rawTareas ?? []).map((t) => ({
+          id: t.id || '',
+          titulo: t.titulo || '',
+          descripcion: t.descripcion || '',
+          fechaEntrega: t.fechaEntrega || '',
+          estado: t.estado || 'pendiente',
+          recursos: t.recursos || '',
+          objetivos: t.objetivos || '',
+          ponderacion: t.ponderacion || '',
+          materia: t.materia || '',
+          docente: t.docente || 'Docente',
+          nivel: t.nivel || '',
+          grado: t.grado || '',
+          seccion: t.seccion || '',
+          visto: t.visto || false,
+          entregado: t.entregado || false,
+          calificacion: t.calificacion ?? null,
+          createdAt: t.createdAt || new Date().toISOString()
+        }));
 
-        let materialesData: Material[] = [];
-        try {
-          const materialesResponse = await fetch(`/api/materiales?estudianteId=${data.id}`);
-          if (materialesResponse.ok) {
-            const rawMateriales = await materialesResponse.json();
-            materialesData = (rawMateriales as MaterialApi[]).map((m) => ({
-              id: m.id || '',
-              titulo: m.titulo || '',
-              descripcion: m.descripcion || '',
-              enlace: m.enlace || '',
-              fecha: m.fecha || '',
-              materia: m.materia || '',
-              docente: m.docente || 'Docente',
-              nivel: m.nivel || '',
-              grado: m.grado || '',
-              seccion: m.seccion || '',
-              visto: m.visto || false,
-              fechaVisto: m.fechaVisto || null,
-              createdAt: m.createdAt || new Date().toISOString()
-            }));
-          }
-        } catch (error) {
-          console.error('Error al cargar materiales:', error);
-        }
+        const avisosData: Aviso[] = (rawAvisos ?? []).map((a) => ({
+          id: a.id || '',
+          titulo: a.titulo || '',
+          descripcion: a.descripcion || '',
+          fecha: a.fecha || '',
+          materia: a.materia || '',
+          docente: a.docente || 'Docente',
+          nivel: a.nivel || '',
+          grado: a.grado || '',
+          seccion: a.seccion || '',
+          visto: a.visto || false,
+          fechaVisto: a.fechaVisto || null,
+          createdAt: a.createdAt || new Date().toISOString()
+        }));
+
+        const materialesData: Material[] = (rawMateriales ?? []).map((m) => ({
+          id: m.id || '',
+          titulo: m.titulo || '',
+          descripcion: m.descripcion || '',
+          enlace: m.enlace || '',
+          fecha: m.fecha || '',
+          materia: m.materia || '',
+          docente: m.docente || 'Docente',
+          nivel: m.nivel || '',
+          grado: m.grado || '',
+          seccion: m.seccion || '',
+          visto: m.visto || false,
+          fechaVisto: m.fechaVisto || null,
+          createdAt: m.createdAt || new Date().toISOString()
+        }));
 
         const docentesMap: Record<string, string> = {};
         const docentesIds = [...new Set(planesData.map(p => p.docenteId).filter(Boolean))];
 
-        for (const docenteId of docentesIds) {
-          try {
-            const docenteRes = await fetch(`/api/docentes?id=${docenteId}`);
-            if (docenteRes.ok) {
-              const docenteData = await docenteRes.json();
-              const nombreCompleto = `${docenteData.nombres || ''} ${docenteData.apellidos || ''}`.trim();
-              docentesMap[docenteId] = nombreCompleto || docenteData.email || 'Docente';
-            }
-          } catch (error) {
-            console.error(`Error al obtener docente ${docenteId}:`, error);
+        if (docentesIds.length > 0) {
+          const params = new URLSearchParams({ ids: docentesIds.join(',') });
+          const docentes = await fetchDashboardList<{
+            id: string;
+            nombres?: string;
+            apellidos?: string;
+            email?: string;
+          }>(`/api/docentes?${params}`, 'docentes');
+          for (const docente of docentes ?? []) {
+            const nombreCompleto = `${docente.nombres || ''} ${docente.apellidos || ''}`.trim();
+            docentesMap[docente.id] = nombreCompleto || docente.email || 'Docente';
           }
         }
 

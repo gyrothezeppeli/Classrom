@@ -25,10 +25,18 @@ export class StudentAssignmentService {
 
   async assignExistingContent(student: StudentClass): Promise<StudentContentAssignmentSummary> {
     const [plans, tasks, notices, materials] = await Promise.all([
-      this.database.planEvaluacion.findMany(),
-      this.database.tarea.findMany(),
-      this.database.aviso.findMany(),
-      this.database.material.findMany(),
+      this.database.planEvaluacion.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true },
+      }),
+      this.database.tarea.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true },
+      }),
+      this.database.aviso.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true },
+      }),
+      this.database.material.findMany({
+        select: { id: true, nivel: true, grado: true, seccion: true },
+      }),
     ]);
     const matchingPlans = plans.filter((plan) => this.matchesClass(plan, student));
     const matchingTasks = tasks.filter((task) => this.matchesClass(task, student));
@@ -96,7 +104,9 @@ export class StudentAssignmentService {
     grade: string,
     section: string
   ): Promise<number> {
-    const students = await this.database.estudiante.findMany();
+    const students = await this.database.estudiante.findMany({
+      select: { id: true, nivel: true, grado: true, seccion: true },
+    });
     const matchingStudents = students.filter(
       (student) => this.matchesClass(
         { nivel: level, grado: grade, seccion: section },
