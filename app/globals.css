@@ -132,6 +132,38 @@
   }
 }
 
+.control-estudios-scrollbar,
+.control-estudios-scrollbar [data-slot="table-container"] {
+  scrollbar-color: rgba(0, 187, 126, 0.55) rgba(255, 255, 255, 0.05);
+  scrollbar-width: thin;
+}
+
+.control-estudios-scrollbar::-webkit-scrollbar,
+.control-estudios-scrollbar [data-slot="table-container"]::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.control-estudios-scrollbar::-webkit-scrollbar-track,
+.control-estudios-scrollbar [data-slot="table-container"]::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+}
+
+.control-estudios-scrollbar::-webkit-scrollbar-thumb,
+.control-estudios-scrollbar [data-slot="table-container"]::-webkit-scrollbar-thumb {
+  background: rgba(0, 187, 126, 0.55);
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+}
+
+.control-estudios-scrollbar::-webkit-scrollbar-thumb:hover,
+.control-estudios-scrollbar [data-slot="table-container"]::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 187, 126, 0.8);
+  background-clip: padding-box;
+}
+
 /* ============================================ */
 /* LIQUID GLASS — LOGIN (iOS 26)                */
 /* ============================================ */

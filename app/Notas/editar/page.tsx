@@ -56,7 +56,7 @@ const PALETTE = {
 const MATERIAS_POR_NIVEL = {
   inicial: ['Lenguaje y Comunicación', 'Matemáticas', 'Expresión Artística', 'Educación Física'],
   primaria: ['Castellano', 'Matemáticas', 'Ciencias Sociales', 'Ciencias Naturales', 'Inglés', 'Educación Artística', 'Educación Física'],
-  media: ['Castellano', 'Matemáticas', 'Historia', 'Geografía', 'Biología', 'Química', 'Física', 'Inglés', 'G.H.C', 'Ciencias de la Tierra', 'Educación Física', 'Arte y Patrimonio', 'Informática']
+  media: ['Castellano', 'Matemáticas', 'G.H.C', 'Biología', 'Química', 'Física', 'Inglés', 'FSN', 'Ciencias de la Tierra', 'Educación Física', 'Arte y Patrimonio', 'Informática']
 };
 
 const PERIODOS = ['1er Lapso', '2do Lapso', '3er Lapso'];

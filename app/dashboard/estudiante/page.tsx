@@ -196,17 +196,16 @@ type FiltroMaterias = 'todas' | 'novedades' | 'tareas' | 'planes_nuevos';
 const MATERIAS_BASE = [
   { id: 'mat-001', nombre: 'Lengua Española', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
   { id: 'mat-002', nombre: 'Matemáticas', profesor: '', horario: '', aula: '', color: '#3b82f6' },
-  { id: 'mat-003', nombre: 'Historia', profesor: '', horario: '', aula: '', color: '#f59e0b' },
-  { id: 'mat-004', nombre: 'Geografía', profesor: '', horario: '', aula: '', color: '#10b981' },
+  { id: 'mat-003', nombre: 'G.H.C', profesor: '', horario: '', aula: '', color: '#f59e0b' },
   { id: 'mat-005', nombre: 'Biología', profesor: '', horario: '', aula: '', color: '#22c55e' },
   { id: 'mat-006', nombre: 'Química', profesor: '', horario: '', aula: '', color: '#06b6d4' },
   { id: 'mat-007', nombre: 'Física', profesor: '', horario: '', aula: '', color: '#6366f1' },
   { id: 'mat-008', nombre: 'Inglés', profesor: '', horario: '', aula: '', color: '#ec4899' },
-  { id: 'mat-009', nombre: 'Francés', profesor: '', horario: '', aula: '', color: '#f472b6' },
-  { id: 'mat-010', nombre: 'Filosofía', profesor: '', horario: '', aula: '', color: '#8b5cf6' },
   { id: 'mat-011', nombre: 'Educación Física', profesor: '', horario: '', aula: '', color: '#14b8a6' },
-  { id: 'mat-012', nombre: 'Arte', profesor: '', horario: '', aula: '', color: '#f43f5e' },
+  { id: 'mat-012', nombre: 'Arte y Patrimonio', profesor: '', horario: '', aula: '', color: '#f43f5e' },
   { id: 'mat-013', nombre: 'Informática', profesor: '', horario: '', aula: '', color: '#0ea5e9' },
+  { id: 'mat-014', nombre: 'FSN', profesor: '', horario: '', aula: '', color: '#f472b6' },
+  { id: 'mat-015', nombre: 'Ciencias de la Tierra', profesor: '', horario: '', aula: '', color: '#10b981' },
 ];
 
 // ============================================
@@ -316,8 +315,9 @@ const coincideMateria = (materiaPlan: string, materiaBase: string): boolean => {
     'castellano': ['lengua espanola', 'lengua', 'espanol'],
     'matematicas': ['matematica'],
     'matematica': ['matematicas'],
-    'ghc': ['g h c', 'geografia historia civica'],
-    'g h c': ['ghc', 'geografia historia civica'],
+    'g.h.c': ['ghc', 'g h c', 'geografia', 'historia', 'ciudadania', 'civica', 'geografia historia ciudadania', 'geografia historia civica'],
+    'ghc': ['g.h.c', 'g h c', 'geografia', 'historia', 'ciudadania', 'civica', 'geografia historia ciudadania', 'geografia historia civica'],
+    'g h c': ['g.h.c', 'ghc', 'geografia', 'historia', 'ciudadania', 'civica', 'geografia historia ciudadania', 'geografia historia civica'],
     'educacion fisica': ['ed fisica', 'edfisica'],
     'informatica': ['computacion'],
   };

@@ -11,6 +11,7 @@ import { Grade } from "@/lib/domain/grades/Grade";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -140,7 +141,7 @@ interface EstudianteConsolidado {
 const MATERIAS_POR_NIVEL: Record<string, string[]> = {
   inicial: ['Lenguaje y Comunicación', 'Matemáticas', 'Expresión Artística', 'Educación Física'],
   primaria: ['Castellano', 'Matemáticas', 'Ciencias Sociales', 'Ciencias Naturales', 'Inglés', 'Educación Artística', 'Educación Física'],
-  media: ['Castellano', 'Matemáticas', 'Historia', 'Geografía', 'Biología', 'Química', 'Física', 'Inglés', 'G.H.C', 'Ciencias de la Tierra', 'Educación Física', 'Arte y Patrimonio', 'Informática']
+  media: ['Castellano', 'Matemáticas', 'G.H.C', 'Biología', 'Química', 'Física', 'Inglés', 'FSN', 'Ciencias de la Tierra', 'Educación Física', 'Arte y Patrimonio', 'Informática']
 };
 
 const GestionInstitutoPage: React.FC = () => {
@@ -541,8 +542,10 @@ const GestionInstitutoPage: React.FC = () => {
       'biolog': 'Biología',
       'quimic': 'Química',
       'fisic': 'Física',
-      'histori': 'Historia',
-      'geograf': 'Geografía',
+      'histori': 'G.H.C',
+      'geograf': 'G.H.C',
+      'ciudadan': 'G.H.C',
+      'civica': 'G.H.C',
       'informatic': 'Informática',
       'arte': 'Arte y Patrimonio',
       'patrimonio': 'Arte y Patrimonio',
@@ -550,6 +553,8 @@ const GestionInstitutoPage: React.FC = () => {
       'ed fisica': 'Educación Física',
       'ed. fisica': 'Educación Física',
       'ghc': 'G.H.C',
+      'g.h.c': 'G.H.C',
+      'fsn': 'FSN',
       'ciencias de la tierra': 'Ciencias de la Tierra',
       'ciencias naturales': 'Ciencias Naturales',
       'ciencias sociales': 'Ciencias Sociales',
@@ -1171,6 +1176,7 @@ const GestionInstitutoPage: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => router.push('/')}
+            type="button"
             className="text-white/70 hover:text-white hover:bg-white/5 rounded-xl"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Volver
@@ -1192,6 +1198,7 @@ const GestionInstitutoPage: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={handleCerrarSesion}
+            type="button"
             className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
           >
             <LogOut className="w-4 h-4" />
@@ -1209,10 +1216,13 @@ const GestionInstitutoPage: React.FC = () => {
             <aside className="w-full lg:w-64 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-white/5 bg-black/10">
               <div className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible p-2 gap-1">
                 {tabs.map((tab) => (
-                  <button
+                  <Button
+                    type="button"
                     key={tab.key}
                     onClick={() => { setTabActiva(tab.key); limpiarFiltros(); }}
-                    className={`px-4 py-3 text-sm font-semibold transition-all rounded-lg whitespace-nowrap flex items-center gap-3 w-full justify-start ${
+                    variant="ghost"
+                    aria-current={tabActiva === tab.key ? 'page' : undefined}
+                    className={`h-auto px-4 py-3 text-sm font-semibold transition-all rounded-lg whitespace-nowrap flex items-center gap-3 w-full justify-start ${
                       tabActiva === tab.key
                         ? 'bg-emerald-500/15 text-emerald-400'
                         : 'text-gray-400 hover:bg-white/5 hover:text-white'
@@ -1220,17 +1230,18 @@ const GestionInstitutoPage: React.FC = () => {
                   >
                     {tab.icon}
                     {tab.label}
-                  </button>
+                  </Button>
                 ))}
                 
                 <div className="hidden lg:block mt-auto pt-4 border-t border-white/5">
-                  <button
+                  <Button
+                    type="button"
                     onClick={() => router.push('/dashboard/horarios')}
-                    className="px-4 py-3 text-sm font-bold transition-all rounded-lg whitespace-nowrap flex items-center gap-3 w-full justify-start bg-emerald-500 text-emerald-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
+                    className="h-auto px-4 py-3 text-sm font-bold transition-all rounded-lg whitespace-nowrap flex items-center gap-3 w-full justify-start bg-emerald-500 text-emerald-950 hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
                   >
                     <CalendarDays className="w-4 h-4" />
                     Horarios
-                  </button>
+                  </Button>
                 </div>
               </div>
             </aside>
@@ -1271,7 +1282,7 @@ const GestionInstitutoPage: React.FC = () => {
                           Importar varias nóminas
                         </>
                       )}
-                      <input
+                      <Input
                         type="file"
                         accept=".xlsx,.xls"
                         multiple
@@ -1302,12 +1313,16 @@ const GestionInstitutoPage: React.FC = () => {
                           className="bg-black/30 border-white/10 text-white pl-12 pr-12 h-14 text-base"
                         />
                         {searchTerm && (
-                          <button
+                          <Button
+                            type="button"
                             onClick={() => setSearchTerm('')}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Limpiar búsqueda"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 size-8 text-gray-400 hover:text-white hover:bg-transparent"
                           >
                             <X className="w-5 h-5" />
-                          </button>
+                          </Button>
                         )}
                       </div>
 
@@ -1557,10 +1572,16 @@ const GestionInstitutoPage: React.FC = () => {
                             className="bg-black/30 border-white/10 text-white pl-11 pr-11 h-11"
                           />
                           {searchTerm && (
-                            <button onClick={() => setSearchTerm('')}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                            <Button
+                              type="button"
+                              onClick={() => setSearchTerm('')}
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Limpiar búsqueda"
+                              className="absolute right-2 top-1/2 -translate-y-1/2 size-8 text-gray-400 hover:text-white hover:bg-transparent"
+                            >
                               <X className="w-4 h-4" />
-                            </button>
+                            </Button>
                           )}
                         </div>
                       )}
@@ -2192,10 +2213,16 @@ const GestionInstitutoPage: React.FC = () => {
                                 className="bg-black/30 border-white/10 text-white pl-11 pr-11 h-11"
                               />
                               {searchTerm && (
-                                <button onClick={() => setSearchTerm('')}
-                                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                                <Button
+                                  type="button"
+                                  onClick={() => setSearchTerm('')}
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="Limpiar búsqueda"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 size-8 text-gray-400 hover:text-white hover:bg-transparent"
+                                >
                                   <X className="w-4 h-4" />
-                                </button>
+                                </Button>
                               )}
                             </div>
 
@@ -2397,17 +2424,17 @@ const GestionInstitutoPage: React.FC = () => {
                         <TableHeader className="sticky top-0 bg-black/80 backdrop-blur z-10">
                           <TableRow className="bg-black/40 hover:bg-black/40">
                             <TableHead className="w-12.5 text-center">
-                              <input
-                                type="checkbox"
-                                checked={estudiantesFiltrados.length > 0 && seleccionados.length === estudiantesFiltrados.length}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
+                              <Checkbox
+                                aria-label="Seleccionar todos los estudiantes visibles"
+                                checked={estudiantesFiltrados.length > 0 && estudiantesFiltrados.every(est => seleccionados.includes(est.id))}
+                                indeterminate={estudiantesFiltrados.some(est => seleccionados.includes(est.id)) && !estudiantesFiltrados.every(est => seleccionados.includes(est.id))}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
                                     setSeleccionados(estudiantesFiltrados.map(est => est.id));
                                   } else {
                                     setSeleccionados([]);
                                   }
                                 }}
-                                className="w-4 h-4 accent-emerald-500 cursor-pointer"
                               />
                             </TableHead>
                             {['Cedula', 'Nombres', 'Apellidos', 'Nivel', 'Grado', 'Seccion'].map((h) => (
@@ -2431,17 +2458,16 @@ const GestionInstitutoPage: React.FC = () => {
                                 className={`border-white/5 hover:bg-white/5 ${seleccionados.includes(e.id) ? 'bg-emerald-500/5' : ''}`}
                               >
                                 <TableCell className="text-center">
-                                  <input
-                                    type="checkbox"
+                                  <Checkbox
+                                    aria-label={`Seleccionar ${e.nombres} ${e.apellidos}`}
                                     checked={seleccionados.includes(e.id)}
-                                    onChange={(ev) => {
-                                      if (ev.target.checked) {
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
                                         setSeleccionados(prev => [...prev, e.id]);
                                       } else {
                                         setSeleccionados(prev => prev.filter(id => id !== e.id));
                                       }
                                     }}
-                                    className="w-4 h-4 accent-emerald-500 cursor-pointer"
                                   />
                                 </TableCell>
                                 <TableCell>
@@ -2466,48 +2492,60 @@ const GestionInstitutoPage: React.FC = () => {
                     <div className="flex flex-wrap gap-4 p-6 bg-white/3 rounded-xl items-center justify-center border border-white/5">
                       <div className="flex flex-col gap-1">
                         <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold">Nuevo Nivel</Label>
-                        <select
-                          value={nuevoNivel}
-                          onChange={(e) => {
-                            setNuevoNivel(e.target.value);
+                        <Select
+                          value={nuevoNivel || 'mantener'}
+                          onValueChange={(value) => {
+                            setNuevoNivel(value === 'mantener' ? '' : value ?? '');
                             setNuevoGrado('');
                           }}
-                          className="bg-black/30 border border-white/10 rounded-lg text-white min-w-[180px] h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
                         >
-                          <option value="">Mantener nivel</option>
-                          {niveles.map((n) => (
-                            <option key={n.id} value={n.id} className="text-black">{n.nombre}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="bg-black/30 border-white/10 text-white min-w-[180px] h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mantener">Mantener nivel</SelectItem>
+                            {niveles.map((n) => (
+                              <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="flex flex-col gap-1">
                         <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold">Nuevo Grado</Label>
-                        <select
-                          value={nuevoGrado}
-                          onChange={(e) => setNuevoGrado(e.target.value)}
+                        <Select
+                          value={nuevoGrado || 'mantener'}
+                          onValueChange={(value) => setNuevoGrado(value === 'mantener' ? '' : value ?? '')}
                           disabled={!nuevoNivel && !filtroNivel}
-                          className="bg-black/30 border border-white/10 rounded-lg text-white min-w-[180px] h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60 disabled:opacity-50"
                         >
-                          <option value="">Mantener grado</option>
-                          {((nuevoNivel || filtroNivel) && gradosPorNivel[(nuevoNivel || filtroNivel) as keyof typeof gradosPorNivel]?.map((g) => (
-                            <option key={g.id} value={g.id} className="text-black">{g.nombre}</option>
-                          )))}
-                        </select>
+                          <SelectTrigger className="bg-black/30 border-white/10 text-white min-w-[180px] h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mantener">Mantener grado</SelectItem>
+                            {((nuevoNivel || filtroNivel) && gradosPorNivel[(nuevoNivel || filtroNivel) as keyof typeof gradosPorNivel]?.map((g) => (
+                              <SelectItem key={g.id} value={g.id}>{g.nombre}</SelectItem>
+                            )))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="flex flex-col gap-1">
                         <Label className="text-[0.65rem] uppercase text-emerald-400/80 font-bold">Nueva Sección</Label>
-                        <select
-                          value={nuevaSeccion}
-                          onChange={(e) => setNuevaSeccion(e.target.value)}
-                          className="bg-black/30 border border-white/10 rounded-lg text-white min-w-[180px] h-11 px-3 outline-none cursor-pointer focus:border-emerald-500/60"
+                        <Select
+                          value={nuevaSeccion || 'mantener'}
+                          onValueChange={(value) => setNuevaSeccion(value === 'mantener' ? '' : value ?? '')}
                         >
-                          <option value="">Mantener sección</option>
-                          {secciones.map((s) => (
-                            <option key={s} value={s} className="text-black">Sección {s}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="bg-black/30 border-white/10 text-white min-w-[180px] h-11">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mantener">Mantener sección</SelectItem>
+                            {secciones.map((s) => (
+                              <SelectItem key={s} value={s}>Sección {s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="flex items-end h-full pt-5">

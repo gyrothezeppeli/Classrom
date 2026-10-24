@@ -76,14 +76,15 @@ const MATERIAS_POR_NIVEL = {
   media: [
     'Lengua Española',
     'Matemáticas',
-    'Historia',
-    'Geografía',
+    'G.H.C',
     'Biología',
     'Química',
     'Física',
     'Inglés',
+    'FSN',
+    'Ciencias de la Tierra',
     'Educación Física',
-    'Arte',
+    'Arte y Patrimonio',
     'Informática',
   ],
 };

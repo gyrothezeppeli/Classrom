@@ -90,13 +90,12 @@ const MATERIAS_POR_NIVEL = {
   media: [
     'Castellano',
     'Matemáticas',
-    'Historia',
-    'Geografía',
+    'G.H.C',
     'Biología',
     'Química',
     'Física',
     'Inglés',
-    'G.H.C',
+    'FSN',
     'Ciencias de la Tierra',
     'Educación Física',
     'Arte y Patrimonio',
@@ -317,6 +316,7 @@ const EditTasksPage: React.FC = () => {
 
   const [planSeccionesSeleccionadas, setPlanSeccionesSeleccionadas] = useState<string[]>([]);
   const [planesGuardados, setPlanesGuardados] = useState<PlanEvaluacion[]>([]);
+  const [errorPlanes, setErrorPlanes] = useState<string | null>(null);
 
   const niveles = [
     { id: 'inicial', nombre: 'Educación Inicial' },
@@ -419,6 +419,7 @@ const EditTasksPage: React.FC = () => {
   const cargarPlanes = useCallback(async () => {
     try {
       setCargandoPlanes(true);
+      setErrorPlanes(null);
       let url = '/api/planes-evaluacion';
 
       if (docenteInfo?.id) {
@@ -426,45 +427,58 @@ const EditTasksPage: React.FC = () => {
       }
 
       const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok) {
+        const responseText = await response.text();
+        let message = response.statusText || 'No se pudieron cargar los planes';
 
-        const planesNormalizados = (data as PlanApi[]).map((plan) => ({
-          id: plan.id || '',
-          areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
-          docente: plan.docente || 'Docente',
-          docenteId: plan.docenteId,
-          ano: plan.ano || plan.grado || '1er Año',
-          secciones: plan.secciones || plan.seccion || 'A',
-          filas: Array.isArray(plan.filas)
-            ? plan.filas.map((f) => ({
-                id: f.id || '',
-                fechaInicio: f.fechaInicio || f.fecha || '',
-                fechaFin: f.fechaFin || '',
-                referenteTeorico: f.referenteTeorico || '',
-                estrategiaEvaluacion: f.estrategiaEvaluacion || '',
-                tecnicaEvaluacion: f.tecnicaEvaluacion || '',
-                instrumentoEvaluacion: f.instrumentoEvaluacion || '',
-                ptos: f.ptos || '',
-                porcentaje: f.porcentaje || '',
-                criteriosEvaluacion: Array.isArray(f.criteriosEvaluacion)
-                  ? f.criteriosEvaluacion.filter(Boolean)
-                  : (f.criteriosEvaluacion ? [f.criteriosEvaluacion] : [''])
-              }))
-            : [],
-          nivel: plan.nivel || '',
-          grado: plan.grado || '',
-          materia: plan.materia || '',
-          createdAt: plan.createdAt,
-        }));
+        if (responseText) {
+          try {
+            const errorData = JSON.parse(responseText) as { error?: string };
+            message = errorData.error || responseText;
+          } catch {
+            message = responseText;
+          }
+        }
 
-        setPlanesGuardados(planesNormalizados);
-      } else {
-        setPlanesGuardados([]);
+        throw new Error(message);
       }
+
+      const data = await response.json() as PlanApi[];
+      const planesNormalizados = data.map((plan) => ({
+        id: plan.id || '',
+        areaFormacion: plan.areaFormacion || plan.titulo || 'Sin título',
+        docente: plan.docente || 'Docente',
+        docenteId: plan.docenteId,
+        ano: plan.ano || plan.grado || '1er Año',
+        secciones: plan.secciones || plan.seccion || 'A',
+        filas: Array.isArray(plan.filas)
+          ? plan.filas.map((f) => ({
+              id: f.id || '',
+              fechaInicio: f.fechaInicio || f.fecha || '',
+              fechaFin: f.fechaFin || '',
+              referenteTeorico: f.referenteTeorico || '',
+              estrategiaEvaluacion: f.estrategiaEvaluacion || '',
+              tecnicaEvaluacion: f.tecnicaEvaluacion || '',
+              instrumentoEvaluacion: f.instrumentoEvaluacion || '',
+              ptos: f.ptos || '',
+              porcentaje: f.porcentaje || '',
+              criteriosEvaluacion: Array.isArray(f.criteriosEvaluacion)
+                ? f.criteriosEvaluacion.filter(Boolean)
+                : (f.criteriosEvaluacion ? [f.criteriosEvaluacion] : [''])
+            }))
+          : [],
+        nivel: plan.nivel || '',
+        grado: plan.grado || '',
+        materia: plan.materia || '',
+        createdAt: plan.createdAt,
+      }));
+
+      setPlanesGuardados(planesNormalizados);
     } catch (error) {
-      console.error('Error:', error);
-      setPlanesGuardados([]);
+      console.error('Error al cargar planes:', error);
+      setErrorPlanes(
+        error instanceof Error ? error.message : 'No se pudieron cargar los planes'
+      );
     } finally {
       setCargandoPlanes(false);
     }
@@ -481,18 +495,6 @@ const EditTasksPage: React.FC = () => {
       active = false;
     };
   }, [status, docenteInfo?.id, cargarPlanes]);
-
-  useEffect(() => {
-    let active = true;
-    if (status === 'authenticated' && docenteInfo?.id) {
-      void Promise.resolve().then(() => {
-        if (active) return cargarPlanes();
-      });
-    }
-    return () => {
-      active = false;
-    };
-  }, [nivelSeleccionado, gradoSeleccionado, seccionesSeleccionadas, docenteInfo?.id, status, cargarPlanes]);
 
   // ============ CARGA DE ESTUDIANTES ============
   const cargarEstudiantes = useCallback(async () => {
@@ -1864,6 +1866,7 @@ const EditTasksPage: React.FC = () => {
           </CardTitle>
         </div>
         <Button
+          type="button"
           onClick={nuevoPlan}
           className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
         >
@@ -1875,6 +1878,19 @@ const EditTasksPage: React.FC = () => {
         {cargandoPlanes ? (
           <div className="text-center py-12 text-gray-400">
             <p>Cargando planes...</p>
+          </div>
+        ) : errorPlanes ? (
+          <div className="text-center py-12 text-red-300" role="alert">
+            <p className="text-lg">No se pudieron cargar los planes.</p>
+            <p className="text-sm mt-2">{errorPlanes}</p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void cargarPlanes()}
+              className="mt-4 border-white/20 text-white hover:bg-white/10"
+            >
+              Reintentar
+            </Button>
           </div>
         ) : planesFiltrados.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
@@ -2545,6 +2561,7 @@ const EditTasksPage: React.FC = () => {
                         Gestiona planes de evaluación en formato de cuadrícula
                       </p>
                       <Button
+                        type="button"
                         onClick={nuevoPlan}
                         className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
                       >
