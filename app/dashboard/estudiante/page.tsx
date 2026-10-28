@@ -44,6 +44,7 @@ import {
   GraduationCap,
   ChevronDown,
   ChevronUp,
+  FileDown,
 } from "lucide-react";
 
 const PALETTE = {
@@ -176,6 +177,20 @@ interface Estudiante {
   correoElectronico: string;
   nivel: string;
   telefono?: string;
+}
+
+interface Horario {
+  id: string;
+  diaSemana: string;
+  horaInicio: string;
+  horaFin: string;
+  materia: string;
+  docente: string;
+  nivel: string;
+  grado: string;
+  seccion: string;
+  aula: string;
+  anioAcademico: string;
 }
 
 interface MateriaConPlanes {
@@ -356,6 +371,8 @@ const EstudianteDashboard: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<PlanEvaluacion | null>(null);
   const [estudiante, setEstudiante] = useState<Estudiante | null>(null);
   const [materias, setMaterias] = useState<MateriaConPlanes[]>([]);
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [errorHorarios, setErrorHorarios] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -446,14 +463,35 @@ const EstudianteDashboard: React.FC = () => {
         });
 
         const estudianteId = encodeURIComponent(data.id);
-        const [rawPlanes, rawTareas, rawAvisos, rawMateriales] = await Promise.all([
+        const parametrosHorario = new URLSearchParams({
+          nivel: estudianteData.nivel.trim(),
+          grado: estudianteData.grado.trim(),
+          seccion: estudianteData.seccion.trim(),
+        });
+        const cargaHorarios = estudianteData.nivel.trim() && estudianteData.grado.trim() && estudianteData.seccion.trim()
+          ? fetchDashboardList<Horario>(`/api/horarios?${parametrosHorario}`, 'horarios')
+          : Promise.resolve([] as Horario[]);
+        const [rawPlanes, rawTareas, rawAvisos, rawMateriales, rawHorarios] = await Promise.all([
           fetchDashboardList<PlanApi>(`/api/estudiantes/planes?estudianteId=${estudianteId}`, 'planes'),
           fetchDashboardList<TareaApi>(`/api/tareas?estudianteId=${estudianteId}`, 'tareas'),
           fetchDashboardList<AvisoApi>(`/api/avisos?estudianteId=${estudianteId}`, 'avisos'),
           fetchDashboardList<MaterialApi>(`/api/materiales?estudianteId=${estudianteId}`, 'materiales'),
+          cargaHorarios,
         ]);
         if (rawPlanes === null) {
           throw new Error('No se pudieron cargar los planes del estudiante');
+        }
+        if (rawHorarios === null) {
+          setErrorHorarios('No se pudo cargar tu horario. Inténtalo de nuevo más tarde.');
+          setHorarios([]);
+        } else {
+          const horariosFiltrados = rawHorarios.filter((horario) =>
+            coincideNivel(horario.nivel, estudianteData.nivel) &&
+            coincideGrado(horario.grado, estudianteData.grado) &&
+            coincideSeccion(horario.seccion, estudianteData.seccion)
+          );
+          setHorarios(horariosFiltrados);
+          setErrorHorarios(null);
         }
 
         const planesData: PlanEvaluacion[] = rawPlanes.map((plan) => ({
@@ -658,6 +696,151 @@ const EstudianteDashboard: React.FC = () => {
     });
   };
 
+  const descargarHorarioPDF = async () => {
+    if (errorHorarios) {
+      sileo.error({ title: 'No se pudo cargar tu horario' });
+      return;
+    }
+    if (horarios.length === 0 || !estudiante) {
+      sileo.warning({ title: 'Aún no tienes un horario asignado' });
+      return;
+    }
+
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const diasBase = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES'];
+      const clavesDiasBase = new Set(diasBase.map(normalizarTexto));
+      const diasHorarioPDF = [
+        ...diasBase,
+        ...diasHorario
+          .map((dia) => dia.toLocaleUpperCase('es-ES'))
+          .filter((dia) => !clavesDiasBase.has(normalizarTexto(dia))),
+      ];
+      const horasBase = Array.from({ length: 10 }, (_, index) =>
+        `${String(index + 7).padStart(2, '0')}:00`
+      );
+      const horasFilas = [...new Set([...horasBase, ...horarios.map((horario) => horario.horaInicio)])]
+        .sort((a, b) => a.localeCompare(b));
+      const marginX = 12;
+      const tableWidth = pageWidth - marginX * 2;
+      const firstColumnWidth = 24;
+      const otherColumnWidth = (tableWidth - firstColumnWidth) / diasHorarioPDF.length;
+      const colWidths = [firstColumnWidth, ...Array(diasHorarioPDF.length).fill(otherColumnWidth)];
+      const startY = 30;
+      const rowHeightHeader = 9;
+      const rowHeightData = Math.min(20, (pageHeight - startY - 24 - rowHeightHeader) / horasFilas.length);
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('HORARIO DE CLASES', pageWidth / 2, 15, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const anioAcademico = horarios[0].anioAcademico || '2024-2025';
+      doc.text(
+        `${estudiante.nivel} | ${estudiante.grado} | Sección ${estudiante.seccion} | Año: ${anioAcademico}`,
+        pageWidth / 2,
+        22,
+        { align: 'center' }
+      );
+
+      const dibujarCelda = (
+        texto: string,
+        x: number,
+        y: number,
+        ancho: number,
+        alto: number,
+        encabezado = false
+      ) => {
+        if (encabezado) {
+          doc.setFillColor(0, 187, 126);
+        } else {
+          doc.setFillColor(255, 255, 255);
+        }
+        doc.rect(x, y, ancho, alto, 'F');
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.4);
+        doc.rect(x, y, ancho, alto, 'S');
+        if (encabezado) {
+          doc.setTextColor(255, 255, 255);
+        } else {
+          doc.setTextColor(0, 0, 0);
+        }
+        doc.setFontSize(encabezado ? 8 : 7);
+        doc.setFont('helvetica', encabezado ? 'bold' : 'normal');
+        doc.text(texto, x + ancho / 2, y + alto / 2 + 1, {
+          align: 'center',
+          maxWidth: ancho - 2,
+        });
+      };
+
+      let x = marginX;
+      dibujarCelda('HORAS', x, startY, colWidths[0], rowHeightHeader, true);
+      x += colWidths[0];
+      diasHorarioPDF.forEach((dia, index) => {
+        dibujarCelda(dia, x, startY, colWidths[index + 1], rowHeightHeader, true);
+        x += colWidths[index + 1];
+      });
+
+      horasFilas.forEach((hora, rowIndex) => {
+        const y = startY + rowHeightHeader + rowIndex * rowHeightData;
+        let currentX = marginX;
+        dibujarCelda(hora, currentX, y, colWidths[0], rowHeightData);
+        currentX += colWidths[0];
+
+        diasHorarioPDF.forEach((dia, dayIndex) => {
+          const bloque = horarios.find((horario) =>
+            normalizarTexto(horario.diaSemana) === normalizarTexto(dia) &&
+            horario.horaInicio === hora
+          );
+          const ancho = colWidths[dayIndex + 1];
+          dibujarCelda('', currentX, y, ancho, rowHeightData);
+          if (bloque) {
+            const lineas = [
+              bloque.materia,
+              bloque.docente,
+              bloque.aula ? `Aula: ${bloque.aula}` : '',
+            ].filter(Boolean);
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            const lineHeight = Math.min(3.5, (rowHeightData - 2) / lineas.length);
+            const startTextY = y + (rowHeightData - lineas.length * lineHeight) / 2 + 2;
+            lineas.forEach((linea, lineIndex) => {
+              doc.text(doc.splitTextToSize(linea, ancho - 2), currentX + ancho / 2, startTextY + lineIndex * lineHeight, {
+                align: 'center',
+              });
+            });
+          }
+          currentX += ancho;
+        });
+      });
+
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Generado el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}`,
+        pageWidth / 2,
+        pageHeight - 8,
+        { align: 'center' }
+      );
+
+      const nombreArchivo = `Horario_${normalizarTexto(estudiante.grado).replace(/\s+/g, '_')}_${estudiante.seccion}.pdf`;
+      doc.save(nombreArchivo);
+      sileo.success({ title: 'Horario descargado', description: nombreArchivo });
+    } catch (error) {
+      console.error('Error al exportar horario del estudiante:', error);
+      sileo.error({ title: 'Error al exportar el horario en PDF' });
+    }
+  };
+
   const planesNoVistos = materias.reduce((sum, m) => sum + m.planEvaluacion.filter(p => !p.visto).length, 0);
   const materiasConPlanes = materias.filter(m => m.planEvaluacion.length > 0 || m.tareasPendientes.length > 0 || m.avisos.length > 0 || m.materiales.length > 0).length;
   const totalTareas = materias.reduce((sum, m) => sum + m.tareasPendientes.length, 0);
@@ -697,6 +880,19 @@ const EstudianteDashboard: React.FC = () => {
 
     return resultado;
   }, [materias, busqueda, filtroActivo]);
+
+  const ordenDias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+  const diasHorario = [...new Map(horarios.map((horario) => [
+    normalizarTexto(horario.diaSemana),
+    horario.diaSemana,
+  ])).values()].sort((a, b) => {
+    const ordenA = ordenDias.indexOf(normalizarTexto(a));
+    const ordenB = ordenDias.indexOf(normalizarTexto(b));
+    if (ordenA === -1 && ordenB === -1) return a.localeCompare(b);
+    if (ordenA === -1) return 1;
+    if (ordenB === -1) return -1;
+    return ordenA - ordenB;
+  });
 
   const proximasEntregas = useMemo(() => {
     const ahora = new Date();
@@ -856,6 +1052,16 @@ const EstudianteDashboard: React.FC = () => {
               <StatCard icon={<FileText className="w-5 h-5" />} label="Tareas" value={totalTareas} color={COLOR_MATERIA_ACTIVA} />
               <StatCard icon={<Bell className="w-5 h-5" />} label="Avisos" value={totalAvisos} color={COLOR_MATERIA_ACTIVA} />
               <StatCard icon={<BookOpen className="w-5 h-5" />} label="Materiales" value={totalMateriales} color={COLOR_MATERIA_ACTIVA} />
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={descargarHorarioPDF}
+                className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+              >
+                <FileDown className="w-4 h-4 mr-2" />
+                Descargar mi horario en PDF
+              </Button>
             </div>
 
             {/* PRÓXIMAS ENTREGAS */}

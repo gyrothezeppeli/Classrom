@@ -3,12 +3,16 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
-import { Geist } from "next/font/google";
+import { Montserrat } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from 'sileo';
 import { RegistrarSW } from '@/components/RegistrarSW';
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-sans',
+});
 
 export const metadata: Metadata = {
   title: 'U.E Ciudad Cuatricentenaria - Start Bootstrap Theme',
@@ -24,17 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={cn("dark font-sans", geist.variable)}>
+    <html lang="es" className={cn("dark font-sans", montserrat.variable)}>
       <head>
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0/css/all.min.css"
-        />
-        {/* El layout raíz aplica estas fuentes a toda la aplicación App Router. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&family=Montserrat:wght@400;700&display=swap"
-          rel="stylesheet"
         />
       </head>
       <body>
