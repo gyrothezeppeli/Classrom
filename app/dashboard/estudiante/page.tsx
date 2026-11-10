@@ -127,10 +127,10 @@ export default function EstudianteDashboard() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {planesNoVistos > 0 && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-red-500/15 rounded-full border border-red-500/30 animate-pulse">
-              <Bell className="w-3.5 h-3.5 text-red-400" />
-              <span className="text-red-400 font-bold text-xs">
+                    {planesNoVistos > 0 && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-500/15 rounded-full border border-emerald-500/30 animate-pulse">
+              <Bell className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-emerald-400 font-bold text-xs">
                 {planesNoVistos} {planesNoVistos === 1 ? 'nuevo' : 'nuevos'}
               </span>
             </div>
@@ -138,12 +138,13 @@ export default function EstudianteDashboard() {
 
           <BotonNotificaciones />
 
-          <Button
+                    <Button
             variant="ghost"
-            size="sm"
+            size="default"
             onClick={handleLogout}
-            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+            className="text-white font-bold bg-white/10 border border-white/20 hover:bg-red-500/20 hover:border-red-500/50 rounded-xl h-10 px-4"
           >
+
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline ml-2">Salir</span>
           </Button>
