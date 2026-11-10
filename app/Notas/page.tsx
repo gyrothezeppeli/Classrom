@@ -657,7 +657,7 @@ const NotasPage: React.FC = () => {
       style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
     >
       <div className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
-        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }} />
+      style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }} />
       <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
 
       {/* NAVBAR */}
