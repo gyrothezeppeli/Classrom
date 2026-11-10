@@ -32,6 +32,10 @@ const AuthPage: React.FC = () => {
   const [errores, setErrores] = useState<ErroresForm>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showCodigo, setShowCodigo] = useState(false);
+    // Estados para el Captcha
+  const [captchaPregunta, setCaptchaPregunta] = useState('');
+  const [captchaRespuesta, setCaptchaRespuesta] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
   const rememberedEmail = useSyncExternalStore(
     rememberedEmailStore.subscribe,
     rememberedEmailStore.getSnapshot,
@@ -61,6 +65,13 @@ const AuthPage: React.FC = () => {
     }
   }, [status, session, router, loginExitoso]);
 
+    // Generar captcha al cargar el componente
+  useEffect(() => {
+    const num1 = Math.floor(Math.random() * 10) + 1;
+    const num2 = Math.floor(Math.random() * 10) + 1;
+    setCaptchaPregunta(`¿Cuánto es ${num1} + ${num2}?`);
+    setCaptchaRespuesta((num1 + num2).toString());
+  }, []);
   const authForm = new AuthForm(datosFormulario, userRole, isLogin);
   const requiereCodigo = authForm.requiresAccessCode;
 
@@ -153,6 +164,15 @@ const AuthPage: React.FC = () => {
 
     try {
       if (!isLogin) {
+                // Validar Captcha
+        if (captchaInput !== captchaRespuesta) {
+          sileo.error({
+            title: 'Error de seguridad',
+            description: 'La respuesta del captcha es incorrecta',
+          });
+          setLoading(false);
+          return;
+        }
         if (authForm.requiresAccessCode && !authForm.hasValidAccessCode()) {
           sileo.error({
             title: 'Código incorrecto',
@@ -559,30 +579,31 @@ const AuthPage: React.FC = () => {
                   </label>
                 </div>
               )}
-
+              {/* === CAPTCHA === */}
+              {!isLogin && (
+                <div className="mt-2 bg-black/20 p-4 rounded-2xl border border-white/10">
+                  <label className="text-white/80 text-sm mb-2 block font-medium">
+                    Verificación de seguridad: {captchaPregunta} *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Escribe tu respuesta"
+                    value={captchaInput}
+                    onChange={(e) => setCaptchaInput(e.target.value)}
+                    disabled={loading}
+                    className="w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-xl h-12 px-4 outline-none focus:border-white/40 transition-all text-sm"
+                  />
+                </div>
+              )}
               <button
                 type="submit"
-                disabled={loading}
                 className="mt-3 w-full h-14 rounded-2xl font-semibold text-base text-[#1a2e26] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                 style={{
                   background: loading
                     ? 'rgba(255,255,255,0.5)'
-                    : 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))',
-                  boxShadow: '0 10px 40px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)'
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, #00BB7E, #00d68f)';
-                    e.currentTarget.style.boxShadow = '0 15px 50px rgba(0,187,126,0.5), inset 0 1px 0 rgba(255,255,255,0.6)';
-                    e.currentTarget.style.color = '#ffffff';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))';
-                    e.currentTarget.style.boxShadow = '0 10px 40px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)';
-                    e.currentTarget.style.color = '#1a2e26';
-                  }
+                    : 'linear-gradient(135deg, #00BB7E, #00d68f)', 
+                  boxShadow: '0 10px 40px rgba(0,187,126,0.3)',
+                  color: '#ffffff' 
                 }}
               >
                 {loading ? 'Procesando...' : (isLogin ? 'Iniciar sesión' : 'Crear cuenta')}
