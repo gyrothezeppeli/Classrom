@@ -108,9 +108,9 @@ export default function EstudianteDashboard() {
     >
       <div
         className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
-        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+        style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }}
       />
-      <div className="fixed inset-0 bg-[#0a1410]/45 z-0 pointer-events-none" />
+      <div className="fixed inset-0 bg-black/30 z-0 pointer-events-none" />
 
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">

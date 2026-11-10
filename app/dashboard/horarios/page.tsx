@@ -621,7 +621,7 @@ const HorariosPage: React.FC = () => {
       </nav>
 
       {/* MAIN */}
-      <main className="relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         <Card className="relative z-10 bg-white/3 backdrop-blur-xl border-white/5 rounded-3xl">
           <CardHeader className="px-4 sm:px-10 py-6 sm:py-8 bg-emerald-500/5 border-b border-white/5 flex flex-row justify-between items-center flex-wrap gap-4">
             <div className="space-y-2">

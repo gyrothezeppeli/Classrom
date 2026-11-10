@@ -1207,7 +1207,7 @@ const GestionInstitutoPage: React.FC = () => {
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         <Card className="bg-white/3 backdrop-blur-xl border-white/5 overflow-hidden rounded-3xl">
           {/* Layout principal: Sidebar y Contenido */}
           <div className="flex flex-col lg:flex-row min-h-[600px]">
