@@ -497,7 +497,7 @@ export default function AsistenciaPage() {
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         <header className="mb-6 text-center">
           <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">
             Control de Asistencia

@@ -1297,10 +1297,10 @@ const mainStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.03)',
-  backdropFilter: 'blur(15px)',
+  background: 'rgba(20,40,30,0.72)',
+  backdropFilter: 'blur(30px) saturate(180%)',
   borderRadius: '30px',
-  border: '1px solid rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.18)',
   overflow: 'hidden'
 };
 

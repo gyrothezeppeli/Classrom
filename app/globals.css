@@ -69,7 +69,7 @@
   --secondary: var(--surface-raised);
   --secondary-foreground: oklch(0.97 0 0);
   --muted: var(--surface-raised);
-  --muted-foreground: oklch(0.65 0 0);
+  --muted-foreground: oklch(0.78 0 0);
   --accent: var(--surface-raised);
   --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.6 0.22 27);
@@ -104,7 +104,7 @@
   --secondary: var(--surface-raised);
   --secondary-foreground: oklch(0.97 0 0);
   --muted: var(--surface-raised);
-  --muted-foreground: oklch(0.65 0 0);
+  --muted-foreground: oklch(0.78 0 0);
   --accent: var(--surface-raised);
   --accent-foreground: oklch(0.97 0 0);
   --destructive: oklch(0.6 0.22 27);
@@ -137,6 +137,30 @@
   html {
     @apply font-sans;
     color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  html.dark .text-gray-400 {
+    color: #c5d0ca;
+  }
+
+  html.dark .text-gray-500 {
+    color: #b4c0b9;
+  }
+
+  html.dark :is(.text-white\/30, .text-white\/40, .text-white\/50) {
+    color: rgb(255 255 255 / 0.8);
+  }
+
+  html.dark .text-white\/60 {
+    color: rgb(255 255 255 / 0.85);
+  }
+
+  html.dark input::placeholder,
+  html.dark textarea::placeholder {
+    color: rgb(255 255 255 / 0.75);
+    opacity: 1;
   }
 }
 
@@ -256,16 +280,33 @@ body [style*="Montserrat"] {
 .liquid-login-card {
   position: relative;
   overflow: hidden;
-  background: rgba(20, 40, 30, 0.35);
+  background: rgba(20, 40, 30, 0.72);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.04) inset,
     0 40px 100px rgba(0, 0, 0, 0.5),
     0 0 80px rgba(0, 187, 126, 0.08);
   animation: liquidLoginIn 0.9s cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
   will-change: transform, filter, opacity;
+}
+
+.page-glass-container {
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 3rem);
+  background: rgba(20, 40, 30, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 35px;
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 40px 100px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(0, 187, 126, 0.1);
 }
 
 /* ✨ BRILLO VERDE — más claro y más lento */

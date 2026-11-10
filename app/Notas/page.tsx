@@ -688,7 +688,7 @@ const NotasPage: React.FC = () => {
         </div>
       </nav>
 
-      <main className="relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         {/* HEADER */}
         <header className="mb-8 text-center">
           <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight flex items-center justify-center gap-3">

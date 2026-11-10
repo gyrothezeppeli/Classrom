@@ -239,10 +239,10 @@ const AuthPage: React.FC = () => {
     setErrores({});
   };
 
-  const inputClass = "w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-2xl h-14 pl-5 pr-14 outline-none focus:border-white/40 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
-  const inputNoIconClass = "w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-2xl h-14 px-5 outline-none focus:border-white/40 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
-  const inputErrorClass = "w-full bg-white/10 border border-red-400/60 text-white placeholder:text-white/50 rounded-2xl h-14 pl-5 pr-14 outline-none focus:border-red-400 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
-  const inputNoIconErrorClass = "w-full bg-white/10 border border-red-400/60 text-white placeholder:text-white/50 rounded-2xl h-14 px-5 outline-none focus:border-red-400 focus:bg-white/15 transition-all backdrop-blur-md text-sm";
+  const inputClass = "w-full bg-white/15 border border-white/30 text-white placeholder:text-white/75 rounded-2xl h-14 pl-5 pr-14 outline-none focus:border-white/60 focus:bg-white/20 transition-all backdrop-blur-md text-base";
+  const inputNoIconClass = "w-full bg-white/15 border border-white/30 text-white placeholder:text-white/75 rounded-2xl h-14 px-5 outline-none focus:border-white/60 focus:bg-white/20 transition-all backdrop-blur-md text-base";
+  const inputErrorClass = "w-full bg-white/15 border border-red-400/70 text-white placeholder:text-white/75 rounded-2xl h-14 pl-5 pr-14 outline-none focus:border-red-400 focus:bg-white/20 transition-all backdrop-blur-md text-base";
+  const inputNoIconErrorClass = "w-full bg-white/15 border border-red-400/70 text-white placeholder:text-white/75 rounded-2xl h-14 px-5 outline-none focus:border-red-400 focus:bg-white/20 transition-all backdrop-blur-md text-base";
 
   const roleIndex = userRole === 'teacher' ? 0 : userRole === 'student' ? 1 : 2;
 
@@ -254,7 +254,7 @@ const AuthPage: React.FC = () => {
       <div className="absolute inset-0 z-0">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+          style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }}
         />
         <div className="absolute inset-0 bg-black/30" />
       </div>
@@ -267,7 +267,7 @@ const AuthPage: React.FC = () => {
               <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
                 {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
               </h1>
-              <p className="text-white/60 text-sm">
+              <p className="text-white/90 text-sm font-medium">
                 {isLogin
                   ? 'Bienvenido de nuevo, ingresa a tu cuenta'
                   : 'Completa tus datos para registrarte'}
@@ -276,44 +276,44 @@ const AuthPage: React.FC = () => {
 
             {!isLogin && (
               <div className="relative flex gap-2 mb-6 p-1 rounded-2xl bg-black/25 backdrop-blur-md">
-              <div
-                className="absolute top-1 bottom-1 rounded-xl transition-all duration-500 pointer-events-none"
-                style={{
-                  width: 'calc((100% - 0.5rem - 1rem) / 3)',
-                  left: `calc(0.25rem + ${roleIndex} * ((100% - 0.5rem - 1rem) / 3) + ${roleIndex * 0.5}rem)`,
-                  background: 'linear-gradient(135deg, rgba(0, 187, 126, 0.95), rgba(0, 187, 126, 0.75))',
-                  boxShadow: '0 4px 20px rgba(0, 187, 126, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
-                  transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-                }}
-              />
-
-              {[
-                { id: 'teacher' as const, label: 'Docente' },
-                { id: 'student' as const, label: 'Estudiante' },
-                { id: 'control' as const, label: 'Control' }
-              ].map((rol) => (
-                <button
-                  key={rol.id}
-                  onClick={() => {
-                    setUserRole(rol.id);
-                    resetFormData();
-                  }}
-                  disabled={loading}
-                  className="relative flex-1 py-2 rounded-xl text-[11px] font-semibold transition-colors duration-300 z-10 disabled:cursor-not-allowed"
+                <div
+                  className="absolute top-1 bottom-1 rounded-xl transition-all duration-500 pointer-events-none"
                   style={{
-                    color: userRole === rol.id ? '#0a1f15' : 'rgba(255,255,255,0.6)',
+                    width: 'calc((100% - 0.5rem - 1rem) / 3)',
+                    left: `calc(0.25rem + ${roleIndex} * ((100% - 0.5rem - 1rem) / 3) + ${roleIndex * 0.5}rem)`,
+                    background: 'linear-gradient(135deg, rgba(0, 187, 126, 0.95), rgba(0, 187, 126, 0.75))',
+                    boxShadow: '0 4px 20px rgba(0, 187, 126, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
+                    transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
                   }}
-                >
-                  <span
-                    className="block transition-transform duration-300"
+                />
+
+                {[
+                  { id: 'teacher' as const, label: 'Docente' },
+                  { id: 'student' as const, label: 'Estudiante' },
+                  { id: 'control' as const, label: 'Control' }
+                ].map((rol) => (
+                  <button
+                    key={rol.id}
+                    onClick={() => {
+                      setUserRole(rol.id);
+                      resetFormData();
+                    }}
+                    disabled={loading}
+                    className="relative flex-1 py-2 rounded-xl text-[11px] font-semibold transition-colors duration-300 z-10 disabled:cursor-not-allowed"
                     style={{
-                      transform: userRole === rol.id ? 'scale(1.08)' : 'scale(1)'
+                      color: userRole === rol.id ? '#0a1f15' : 'rgba(255,255,255,0.6)',
                     }}
                   >
-                    {rol.label}
-                  </span>
-                </button>
-              ))}
+                    <span
+                      className="block transition-transform duration-300"
+                      style={{
+                        transform: userRole === rol.id ? 'scale(1.08)' : 'scale(1)'
+                      }}
+                    >
+                      {rol.label}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
 
@@ -385,7 +385,7 @@ const AuthPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setShowCodigo(!showCodigo)}
-                          className="absolute right-5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+                          className="absolute right-5 top-1/2 -translate-y-1/2 text-white/75 hover:text-white transition-colors"
                           tabIndex={-1}
                         >
                           {showCodigo ? (
@@ -398,7 +398,7 @@ const AuthPage: React.FC = () => {
                       {errores.codigoAcceso && (
                         <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.codigoAcceso}</p>
                       )}
-                      <p className="text-[11px] text-white/50 mt-1 pl-2">
+                      <p className="text-xs text-white/75 mt-1 pl-2">
                         Requerido para docentes y personal de control
                       </p>
                     </div>
@@ -511,7 +511,7 @@ const AuthPage: React.FC = () => {
                     disabled={loading}
                     className={errores.email ? inputErrorClass : inputClass}
                   />
-                  <User className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50 pointer-events-none" />
+                  <User className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-white/75 pointer-events-none" />
                 </div>
                 {errores.email && (
                   <p className="text-xs text-red-300 mt-1 font-medium pl-2">{errores.email}</p>
@@ -532,7 +532,7 @@ const AuthPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-white/75 hover:text-white transition-colors"
                     tabIndex={-1}
                   >
                     {showPassword ? (
@@ -573,7 +573,7 @@ const AuthPage: React.FC = () => {
                         )}
                       </span>
                     </span>
-                    <span className="text-white/70 text-sm group-hover:text-white/90 transition-colors">
+                    <span className="text-white/90 text-sm font-medium group-hover:text-white transition-colors">
                       Recordarme
                     </span>
                   </label>
@@ -609,7 +609,7 @@ const AuthPage: React.FC = () => {
                 {loading ? 'Procesando...' : (isLogin ? 'Iniciar sesión' : 'Crear cuenta')}
               </button>
 
-              <p className="text-center text-white/60 text-sm mt-2">
+              <p className="text-center text-white/90 text-sm mt-2 font-medium">
                 {isLogin ? '¿No tienes una cuenta? ' : '¿Ya tienes una cuenta? '}
                 <button
                   type="button"
