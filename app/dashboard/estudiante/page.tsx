@@ -62,7 +62,7 @@ export default function EstudianteDashboard() {
       <div className="min-h-screen flex items-center justify-center text-white p-5 relative">
         <div
           className="absolute inset-0 bg-cover bg-center z-0"
-          style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+          style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }}
         />
         <div className="absolute inset-0 bg-[#0a1410]/40 z-0" />
 

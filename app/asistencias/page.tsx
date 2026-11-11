@@ -461,7 +461,7 @@ export default function AsistenciaPage() {
       style={{ fontFamily: "'Montserrat', sans-serif", background: PALETTE.deepBg }}
     >
       <div className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
-       style={{ backgroundImage: 'url("/assets/img/pc1.jpg")' }}/>
+       style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }}/>
       <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
 
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
