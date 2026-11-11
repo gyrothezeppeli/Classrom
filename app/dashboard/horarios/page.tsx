@@ -593,11 +593,11 @@ const HorariosPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
-            size="sm"
+            size="default"
             onClick={() => router.push('/control_estudios')}
-            className="text-white/70 hover:text-white hover:bg-white/5 rounded-xl"
+            className="text-white font-bold bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/40 rounded-xl h-10 px-4"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" /> Volver
+           <ArrowLeft className="w-5 h-5 mr-2" /> Volver
           </Button>
           <div className="hidden sm:block text-emerald-400 font-extrabold tracking-widest text-xs">
             GESTIÓN DE HORARIOS
