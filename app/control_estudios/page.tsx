@@ -1173,11 +1173,11 @@ const GestionInstitutoPage: React.FC = () => {
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push('/')}
-            type="button"
-            className="text-white/70 hover:text-white hover:bg-white/5 rounded-xl"
+           variant="ghost"
+           size="default"
+           onClick={() => router.push('/')}
+           type="button"
+           className="text-white font-bold bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/40 rounded-xl h-10 px-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" /> Volver
           </Button>
@@ -1195,11 +1195,11 @@ const GestionInstitutoPage: React.FC = () => {
             {tabActiva === 'actualizar' && 'Actualizar'}
           </Badge>
           <Button
-            variant="ghost"
-            size="sm"
+           variant="ghost"
+           size="default"
             onClick={handleCerrarSesion}
             type="button"
-            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+           className="text-white font-bold bg-white/10 border border-white/20 hover:bg-red-500/20 hover:border-red-500/50 rounded-xl h-10 px-4"
           >
             <LogOut className="w-4 h-4" />
             <span className="hidden sm:inline ml-2">Salir</span>
