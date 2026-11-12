@@ -588,6 +588,7 @@ const HorariosPage: React.FC = () => {
       />
       <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
 
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -620,8 +621,6 @@ const HorariosPage: React.FC = () => {
         </div>
       </nav>
 
-      {/* MAIN */}
-      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         <Card className="relative z-10 bg-white/3 backdrop-blur-xl border-white/5 rounded-3xl">
           <CardHeader className="px-4 sm:px-10 py-6 sm:py-8 bg-emerald-500/5 border-b border-white/5 flex flex-row justify-between items-center flex-wrap gap-4">
             <div className="space-y-2">

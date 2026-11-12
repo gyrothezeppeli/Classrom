@@ -283,6 +283,7 @@ const GestionInstitutoPage: React.FC = () => {
     <div style={containerStyle}>
       <div style={overlayStyle} />
 
+      <main style={mainStyle}>
       <nav style={navStyle}>
         <button onClick={() => router.push('/inicio')} style={backButtonStyle}>Volver al Inicio</button>
         <div style={navTitleStyle}>GESTION INSTITUTO</div>
@@ -294,7 +295,6 @@ const GestionInstitutoPage: React.FC = () => {
         </div>
       </nav>
 
-      <main style={mainStyle}>
         <div style={cardStyle}>
           {/* Tabs */}
           <div style={tabsContainerStyle}>

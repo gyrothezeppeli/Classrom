@@ -660,6 +660,7 @@ const NotasPage: React.FC = () => {
       style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }} />
       <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
 
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -688,7 +689,6 @@ const NotasPage: React.FC = () => {
         </div>
       </nav>
 
-      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
         {/* HEADER */}
         <header className="mb-8 text-center">
           <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight flex items-center justify-center gap-3">

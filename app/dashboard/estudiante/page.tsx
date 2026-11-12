@@ -112,6 +112,7 @@ export default function EstudianteDashboard() {
       />
       <div className="fixed inset-0 bg-black/30 z-0 pointer-events-none" />
 
+      <main className="relative z-10 px-4 sm:px-[8%] py-6">
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -151,8 +152,6 @@ export default function EstudianteDashboard() {
         </div>
       </nav>
 
-      {/* CONTENEDOR PRINCIPAL */}
-      <main className="relative z-10 px-4 sm:px-[8%] py-6">
         <div className="liquid-login-card rounded-[35px] p-6 sm:p-8">
           <div className="liquid-login-content space-y-6">
 
