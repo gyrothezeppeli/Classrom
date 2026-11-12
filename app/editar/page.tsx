@@ -1064,17 +1064,20 @@ const EditTasksPage: React.FC = () => {
               {docenteInfo?.nombres || session?.user?.name || 'Docente'}
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCerrarSesion}
-            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Salir</span>
-          </Button>
         </div>
       </nav>
+
+      <div className="mb-6 flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCerrarSesion}
+          className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="ml-2">Cerrar sesión</span>
+        </Button>
+      </div>
 
         <header className="mb-8 text-center">
           <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">

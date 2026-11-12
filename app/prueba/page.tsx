@@ -285,7 +285,6 @@ const GestionInstitutoPage: React.FC = () => {
 
       <main style={mainStyle}>
       <nav style={navStyle}>
-        <button onClick={() => router.push('/inicio')} style={backButtonStyle}>Volver al Inicio</button>
         <div style={navTitleStyle}>GESTION INSTITUTO</div>
         <div style={navBadgeStyle}>
           {tabActiva === 'estudiantes' && `${estudiantes.length} estudiantes`}
@@ -294,6 +293,12 @@ const GestionInstitutoPage: React.FC = () => {
           {tabActiva === 'actualizar' && 'Actualizar Datos'}
         </div>
       </nav>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+          <button onClick={() => router.push('/inicio')} style={backButtonStyle}>
+            Volver al Inicio
+          </button>
+        </div>
 
         <div style={cardStyle}>
           {/* Tabs */}

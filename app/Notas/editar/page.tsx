@@ -433,14 +433,7 @@ const EditarNotasPage: React.FC = () => {
       <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => router.push('/Notas')}
-            className="border-white/20 text-white hover:bg-emerald-500/20 hover:border-emerald-500/50 rounded-xl h-9 w-9 transition-all"
-            title="Volver a gestión de notas">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="text-emerald-400 font-extrabold tracking-widest text-xs">EDITAR NOTAS</div>
-        </div>
+        <div className="text-emerald-400 font-extrabold tracking-widest text-xs">EDITAR NOTAS</div>
 
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-3 bg-white/5 px-4 py-1.5 rounded-full">
@@ -451,13 +444,29 @@ const EditarNotasPage: React.FC = () => {
               {docenteInfo?.nombres || session?.user?.name || 'Docente'}
             </span>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleCerrarSesion}
-            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl">
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Salir</span>
-          </Button>
         </div>
       </nav>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push('/Notas')}
+          className="border-white/20 text-white hover:bg-emerald-500/20 hover:border-emerald-500/50 rounded-xl h-9 w-9 transition-all"
+          title="Volver a gestión de notas"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCerrarSesion}
+          className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline ml-2">Salir</span>
+        </Button>
+      </div>
 
         {/* HEADER */}
         <header className="mb-8 text-center">

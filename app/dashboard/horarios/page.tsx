@@ -591,35 +591,36 @@ const HorariosPage: React.FC = () => {
       <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="default"
-            onClick={() => router.push('/control_estudios')}
-            className="text-white font-bold bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/40 rounded-xl h-10 px-4"
-          >
-           <ArrowLeft className="w-5 h-5 mr-2" /> Volver
-          </Button>
-          <div className="hidden sm:block text-emerald-400 font-extrabold tracking-widest text-xs">
-            GESTIÓN DE HORARIOS
-          </div>
+        <div className="text-emerald-400 font-extrabold tracking-widest text-xs">
+          GESTIÓN DE HORARIOS
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
           <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 px-3 py-1.5 text-xs font-semibold">
             {horarios.length} bloques
           </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleCerrarSesion}
-            className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
-          >
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Salir</span>
-          </Button>
         </div>
       </nav>
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Button
+          variant="ghost"
+          size="default"
+          onClick={() => router.push('/control_estudios')}
+          className="text-white font-bold bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/40 rounded-xl h-10 px-4"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" /> Volver
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCerrarSesion}
+          className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline ml-2">Salir</span>
+        </Button>
+      </div>
 
         <Card className="relative z-10 bg-white/3 backdrop-blur-xl border-white/5 rounded-3xl">
           <CardHeader className="px-4 sm:px-10 py-6 sm:py-8 bg-emerald-500/5 border-b border-white/5 flex flex-row justify-between items-center flex-wrap gap-4">

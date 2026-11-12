@@ -466,19 +466,8 @@ export default function AsistenciaPage() {
 
       <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => router.push('/editar')}
-            className="border-white/20 text-white hover:bg-emerald-500/20 h-9 w-9 rounded-xl"
-            title="Volver al editor"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="text-emerald-400 font-extrabold tracking-widest text-xs">
-            ASISTENCIA
-          </div>
+        <div className="text-emerald-400 font-extrabold tracking-widest text-xs">
+          ASISTENCIA
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -490,13 +479,29 @@ export default function AsistenciaPage() {
               {docenteInfo?.nombres || 'Docente'}
             </span>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleCerrarSesion}
-                  className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl">
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Salir</span>
-          </Button>
         </div>
       </nav>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => router.push('/editar')}
+          className="border-white/20 text-white hover:bg-emerald-500/20 h-9 w-9 rounded-xl"
+          title="Volver al editor"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCerrarSesion}
+          className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+        >
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline ml-2">Salir</span>
+        </Button>
+      </div>
 
         <header className="mb-6 text-center">
           <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">

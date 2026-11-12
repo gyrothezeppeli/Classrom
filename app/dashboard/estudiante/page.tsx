@@ -137,23 +137,24 @@ export default function EstudianteDashboard() {
             </div>
           )}
 
-          <BotonNotificaciones />
-
-                    <Button
-            variant="ghost"
-            size="default"
-            onClick={handleLogout}
-            className="text-white font-bold bg-white/10 border border-white/20 hover:bg-red-500/20 hover:border-red-500/50 rounded-xl h-10 px-4"
-          >
-
-            <LogOut className="w-4 h-4" />
-            <span className="hidden sm:inline ml-2">Salir</span>
-          </Button>
         </div>
       </nav>
 
         <div className="liquid-login-card rounded-[35px] p-6 sm:p-8">
           <div className="liquid-login-content space-y-6">
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <BotonNotificaciones />
+              <Button
+                variant="ghost"
+                size="default"
+                onClick={handleLogout}
+                className="text-white font-bold bg-white/10 border border-white/20 hover:bg-red-500/20 hover:border-red-500/50 rounded-xl h-10 px-4"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline ml-2">Salir</span>
+              </Button>
+            </div>
 
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white m-0 tracking-tight">
