@@ -1069,10 +1069,8 @@ const EditTasksPage: React.FC = () => {
 
       <div className="mb-6 flex justify-end">
         <Button
-          variant="ghost"
-          size="sm"
           onClick={handleCerrarSesion}
-          className="text-white/70 hover:text-white hover:bg-red-500/20 rounded-xl"
+          className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold rounded-xl h-10 px-4"
         >
           <LogOut className="w-4 h-4" />
           <span className="ml-2">Cerrar sesión</span>
