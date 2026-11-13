@@ -22,6 +22,23 @@ type ErroresForm = AuthFormErrors;
 const authService = new AuthService();
 const rememberedEmailStore = new RememberedEmailStore();
 
+const generarCaptchaSuma = (preguntaAnterior = '') => {
+  let numero1: number;
+  let numero2: number;
+  let pregunta: string;
+
+  do {
+    numero1 = Math.floor(Math.random() * 10) + 1;
+    numero2 = Math.floor(Math.random() * 10) + 1;
+    pregunta = `¿Cuánto es ${numero1} + ${numero2}?`;
+  } while (pregunta === preguntaAnterior);
+
+  return {
+    pregunta,
+    respuesta: (numero1 + numero2).toString(),
+  };
+};
+
 const AuthPage: React.FC = () => {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -36,6 +53,7 @@ const AuthPage: React.FC = () => {
   const [captchaPregunta, setCaptchaPregunta] = useState('');
   const [captchaRespuesta, setCaptchaRespuesta] = useState('');
   const [captchaInput, setCaptchaInput] = useState('');
+  const [captchaError, setCaptchaError] = useState('');
   const rememberedEmail = useSyncExternalStore(
     rememberedEmailStore.subscribe,
     rememberedEmailStore.getSnapshot,
@@ -65,12 +83,11 @@ const AuthPage: React.FC = () => {
     }
   }, [status, session, router, loginExitoso]);
 
-    // Generar captcha al cargar el componente
+  // Generar una suma matemática al cargar el componente
   useEffect(() => {
-    const num1 = Math.floor(Math.random() * 10) + 1;
-    const num2 = Math.floor(Math.random() * 10) + 1;
-    setCaptchaPregunta(`¿Cuánto es ${num1} + ${num2}?`);
-    setCaptchaRespuesta((num1 + num2).toString());
+    const captcha = generarCaptchaSuma();
+    setCaptchaPregunta(captcha.pregunta);
+    setCaptchaRespuesta(captcha.respuesta);
   }, []);
   const authForm = new AuthForm(datosFormulario, userRole, isLogin);
   const requiereCodigo = authForm.requiresAccessCode;
@@ -164,15 +181,20 @@ const AuthPage: React.FC = () => {
 
     try {
       if (!isLogin) {
-                // Validar Captcha
-        if (captchaInput !== captchaRespuesta) {
+        if (captchaInput.trim() !== captchaRespuesta) {
+          const nuevoCaptcha = generarCaptchaSuma(captchaPregunta);
+          setCaptchaPregunta(nuevoCaptcha.pregunta);
+          setCaptchaRespuesta(nuevoCaptcha.respuesta);
+          setCaptchaInput('');
+          setCaptchaError('La respuesta no coincide. Se generó una nueva suma; inténtalo nuevamente.');
           sileo.error({
             title: 'Error de seguridad',
-            description: 'La respuesta del captcha es incorrecta',
+            description: 'La respuesta no coincide. Se generó una nueva suma matemática.',
           });
           setLoading(false);
           return;
         }
+        setCaptchaError('');
         if (authForm.requiresAccessCode && !authForm.hasValidAccessCode()) {
           sileo.error({
             title: 'Código incorrecto',
@@ -589,10 +611,18 @@ const AuthPage: React.FC = () => {
                     type="text"
                     placeholder="Escribe tu respuesta"
                     value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value)}
+                    onChange={(e) => {
+                      setCaptchaInput(e.target.value);
+                      if (captchaError) setCaptchaError('');
+                    }}
                     disabled={loading}
                     className="w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-xl h-12 px-4 outline-none focus:border-white/40 transition-all text-sm"
                   />
+                  {captchaError && (
+                    <p className="mt-2 text-sm text-red-300" role="alert">
+                      {captchaError}
+                    </p>
+                  )}
                 </div>
               )}
               <button

@@ -4,6 +4,9 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { StudentAssignmentService } from '@/lib/asignar';
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/;
+
 interface RegistrationPayload {
   email: string;
   password: string;
@@ -43,20 +46,34 @@ function readOptionalString(
   return value;
 }
 
+function getRegistrationValidationError(value: unknown): string | undefined {
+  if (!isRecord(value)) return 'Faltan campos requeridos: email, password y nombre';
+
+  const email = value.email;
+  const password = value.password;
+  const nombre = value.nombre;
+
+  if (typeof email !== 'string' || !email.trim()) return 'El correo es obligatorio';
+  if (!EMAIL_REGEX.test(email.trim().toLowerCase())) return 'Ingresa un correo válido';
+
+  if (typeof password !== 'string' || !password.trim()) return 'La contraseña es obligatoria';
+  if (!PASSWORD_REGEX.test(password.trim())) {
+    return 'La contraseña debe tener mínimo 6 caracteres, con al menos 1 letra y 1 número';
+  }
+
+  if (typeof nombre !== 'string' || !nombre.trim()) return 'El nombre es obligatorio';
+
+  return undefined;
+}
+
 function parsePayload(value: unknown): RegistrationPayload | null {
   if (!isRecord(value)) return null;
 
-  const { email, password, nombre } = value;
-  if (
-    typeof email !== 'string' ||
-    typeof password !== 'string' ||
-    typeof nombre !== 'string' ||
-    !email ||
-    !password ||
-    !nombre
-  ) {
-    return null;
-  }
+  if (getRegistrationValidationError(value)) return null;
+
+  const email = value.email as string;
+  const password = value.password as string;
+  const nombre = value.nombre as string;
 
   const optionalFields = [
     'apellido',
@@ -81,9 +98,9 @@ function parsePayload(value: unknown): RegistrationPayload | null {
   }
 
   return {
-    email,
-    password,
-    nombre,
+    email: email.trim().toLowerCase(),
+    password: password.trim(),
+    nombre: nombre.trim(),
     apellido: readOptionalString(value, 'apellido'),
     telefono: readOptionalString(value, 'telefono'),
     cedulaIdentidad: readOptionalString(value, 'cedulaIdentidad'),
@@ -103,11 +120,12 @@ export class AuthRegisterService {
   ) {}
 
   async register(input: unknown): Promise<RegistrationResult> {
+    const validationError = getRegistrationValidationError(input);
     const payload = parsePayload(input);
     if (!payload) {
       return {
         success: false,
-        error: 'Faltan campos requeridos: email, password y nombre',
+        error: validationError ?? 'Faltan campos requeridos o el formato es inválido: email, password y nombre',
       };
     }
 
@@ -117,7 +135,9 @@ export class AuthRegisterService {
       Role.ADMIN,
       Role.COORDINACION,
     ];
-    const rolFinal = rolesValidos.find((role) => role === payload.role) ?? Role.ESTUDIANTE;
+    const rolFinal = (payload.role && rolesValidos.includes(payload.role as Role))
+      ? (payload.role as Role)
+      : Role.ESTUDIANTE;
 
     const existingUser = await this.prismaClient.user.findUnique({
       where: { email: payload.email },
