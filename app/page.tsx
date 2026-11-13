@@ -83,6 +83,26 @@ const AuthPage: React.FC = () => {
     }
   }, [status, session, router, loginExitoso]);
 
+  useEffect(() => {
+    const verificationStatus = new URLSearchParams(window.location.search)
+      .get('emailVerification');
+    if (!verificationStatus) return;
+
+    if (verificationStatus === 'success') {
+      sileo.success({
+        title: 'Correo confirmado',
+        description: 'Tu cuenta está activa. Ya puedes iniciar sesión.',
+      });
+    } else {
+      sileo.error({
+        title: 'Enlace inválido o vencido',
+        description: 'Vuelve a registrarte con el mismo correo para solicitar otro enlace.',
+      });
+    }
+
+    router.replace('/');
+  }, [router]);
+
   // Generar una suma matemática al cargar el componente
   useEffect(() => {
     const captcha = generarCaptchaSuma();
@@ -206,8 +226,6 @@ const AuthPage: React.FC = () => {
 
         const userData = authForm.toRegistrationPayload();
 
-        console.log('📤 Enviando al registro:', userData);
-
         const result = await authService.register(userData);
         if (result.error) {
           sileo.error({
@@ -219,8 +237,8 @@ const AuthPage: React.FC = () => {
         }
 
         sileo.success({
-          title: '¡Cuenta creada!',
-          description: `Bienvenido ${formData.nombre}`,
+          title: 'Revisa tu correo',
+          description: `Enviamos un enlace de confirmación a ${emailActual}. Ábrelo para activar tu cuenta.`,
         });
 
         setIsLogin(true);
@@ -235,7 +253,7 @@ const AuthPage: React.FC = () => {
       if (result?.error) {
         sileo.error({
           title: 'Credenciales incorrectas',
-          description: 'Verifica tu correo y contraseña',
+          description: 'Verifica tus credenciales y confirma tu correo antes de iniciar sesión.',
         });
         setLoading(false);
         return;

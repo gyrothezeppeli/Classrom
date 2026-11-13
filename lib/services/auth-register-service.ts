@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 
 import { prisma } from '@/lib/prisma';
 import { StudentAssignmentService } from '@/lib/asignar';
+import { EmailVerificationService } from '@/lib/services/email-verification-service';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_REGEX = /^(?=.*[a-zA-Z])(?=.*\d).{6,}$/;
@@ -117,7 +118,19 @@ export class AuthRegisterService {
     private readonly prismaClient: PrismaClient = prisma,
     private readonly contentAssignmentService: StudentAssignmentService =
       new StudentAssignmentService(prismaClient),
+    private readonly emailVerificationService: EmailVerificationService =
+      new EmailVerificationService(prismaClient),
   ) {}
+
+  private async sendConfirmationEmail(user: RegisteredUser): Promise<string | undefined> {
+    try {
+      await this.emailVerificationService.sendVerification(user.id, user.email);
+      return undefined;
+    } catch (error) {
+      console.error('Error al enviar el correo de verificación:', error);
+      return 'La cuenta quedó pendiente de verificación, pero no se pudo enviar el correo. Revisa la configuración del servicio e inténtalo de nuevo.';
+    }
+  }
 
   async register(input: unknown): Promise<RegistrationResult> {
     const validationError = getRegistrationValidationError(input);
@@ -143,7 +156,23 @@ export class AuthRegisterService {
       where: { email: payload.email },
     });
     if (existingUser) {
-      return { success: false, error: 'El email ya está registrado' };
+      if (existingUser.emailVerified) {
+        return { success: false, error: 'El email ya está registrado' };
+      }
+
+      const emailError = await this.sendConfirmationEmail(existingUser);
+      if (emailError) return { success: false, error: emailError };
+
+      return {
+        success: true,
+        message: 'Se envió el enlace de verificación',
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          nombre: existingUser.nombre,
+          role: existingUser.role,
+        },
+      };
     }
 
     if (payload.cedulaIdentidad && rolFinal === Role.ESTUDIANTE) {
@@ -196,15 +225,19 @@ export class AuthRegisterService {
       await this.contentAssignmentService.assignExistingContent(result.estudiante);
     }
 
+    const registeredUser = {
+      id: result.user.id,
+      email: result.user.email,
+      nombre: result.user.nombre,
+      role: result.user.role,
+    };
+    const emailError = await this.sendConfirmationEmail(registeredUser);
+    if (emailError) return { success: false, error: emailError };
+
     return {
       success: true,
-      message: 'Usuario registrado exitosamente',
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        nombre: result.user.nombre,
-        role: result.user.role,
-      },
+      message: 'Usuario registrado. Confirma tu correo para activar la cuenta.',
+      user: registeredUser,
     };
   }
 }

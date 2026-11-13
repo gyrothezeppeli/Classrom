@@ -131,8 +131,8 @@ const AuthPage: React.FC = () => {
         }
 
         sileo.success({
-          title: '¡Cuenta creada!',
-          description: `Bienvenido ${formData.nombre}`,
+          title: 'Revisa tu correo',
+          description: `Enviamos un enlace de confirmación a ${emailActual}. Ábrelo para activar tu cuenta.`,
         });
 
         setIsLogin(true);
@@ -147,7 +147,7 @@ const AuthPage: React.FC = () => {
       if (result?.error) {
         sileo.error({
           title: 'Credenciales incorrectas',
-          description: 'Verifica tu correo y contraseña',
+          description: 'Verifica tus credenciales y confirma tu correo antes de iniciar sesión.',
         });
         setLoading(false);
         return;

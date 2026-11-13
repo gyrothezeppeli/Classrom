@@ -20,6 +20,26 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Verificación y autenticación de correo
+
+Las cuentas nuevas quedan pendientes hasta que el usuario abra el enlace de verificación enviado por correo. El enlace vence en 24 horas. Para enviar mensajes, configura estas variables en el entorno del servidor:
+
+- `APP_URL`: URL pública de la aplicación (usa HTTPS en producción). Si no está definida, se usa `NEXTAUTH_URL`.
+- `SMTP_HOST`, `SMTP_PORT` y `SMTP_SECURE`: datos del servidor SMTP; `SMTP_SECURE` puede ser `true` o `false`.
+- `SMTP_USER` y `SMTP_PASSWORD`: credenciales SMTP, ambas o ninguna, según el proveedor.
+- `EMAIL_FROM`: dirección remitente autorizada por el proveedor.
+
+Aplica la migración de base de datos antes de desplegar:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Para autenticar los correos salientes con SPF, DKIM y DMARC, publica en el DNS del dominio remitente los registros exactos que proporcione tu servicio de correo. No copies el SPF de otro proveedor ni publiques más de un registro SPF para el mismo dominio. Configura primero DMARC en modo de monitorización (`p=none`), revisa los informes y endurece la política cuando SPF y DKIM estén alineados. La configuración exacta requiere conocer el dominio y proveedor usados.
+
+Referencia: [Autenticación de correo electrónico — Proofpoint](https://www.proofpoint.com/es/threat-reference/email-authentication).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

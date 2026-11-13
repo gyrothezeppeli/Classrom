@@ -44,11 +44,22 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  docente    Docente?
-  estudiante Estudiante?
+  docente                Docente?
+  estudiante             Estudiante?
+  emailVerificationToken EmailVerificationToken?
 
   @@index([email])
   @@index([role])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 // ----- MODELO DOCENTE -----
@@ -93,13 +104,13 @@ model Estudiante {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  tareas           EstudianteTarea[]
-  planesEvaluacion EstudiantePlanEvaluacion[]
-  avisos           EstudianteAviso[]
-  materiales       EstudianteMaterial[]
+  tareas            EstudianteTarea[]
+  planesEvaluacion  EstudiantePlanEvaluacion[]
+  avisos            EstudianteAviso[]
+  materiales        EstudianteMaterial[]
   pushSubscriptions PushSubscription[]
-  asistencias      AsistenciaEstudiante[]
-  notas            Nota[]
+  asistencias       AsistenciaEstudiante[]
+  notas             Nota[]
 
   @@index([userId])
   @@index([cedulaIdentidad])
