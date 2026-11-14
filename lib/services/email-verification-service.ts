@@ -68,7 +68,7 @@ export class EmailVerificationService {
 
       await transaction.user.update({
         where: { id: verification.userId },
-        data: { emailVerified: now },
+        data: { emailVerified: now, isVerified: true },
       });
       return true;
     });

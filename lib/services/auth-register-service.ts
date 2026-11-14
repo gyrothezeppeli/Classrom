@@ -194,6 +194,7 @@ export class AuthRegisterService {
           apellido: payload.apellido || null,
           telefono: payload.telefono || null,
           role: rolFinal,
+          isVerified: false,
         },
       });
 

@@ -139,13 +139,26 @@ function normalizarGrado(gradoOriginal: string, nivel: string): string {
 // ============================================
 // Normalizar una tabla genérica
 // ============================================
+type TablaRegistro = {
+  id: string;
+  grado?: string | null;
+  nivel?: string | null;
+};
+
+type TablaModelo = {
+  findMany: (args: {
+    select: { id: true; grado: true; nivel: true };
+  }) => Promise<TablaRegistro[]>;
+  update: (args: { where: { id: string }; data: { grado: string } }) => Promise<unknown>;
+};
+
 async function normalizarTabla(
   nombre: string,
-  modelo: any
+  modelo: TablaModelo
 ): Promise<{ actualizados: number; sinCambios: number; errores: number }> {
   console.log(`\n📋 Normalizando ${nombre}...`);
 
-  let registros: any[] = [];
+  let registros: TablaRegistro[] = [];
   try {
     registros = await modelo.findMany({
       select: { id: true, grado: true, nivel: true },
