@@ -29,6 +29,20 @@ Las cuentas nuevas quedan pendientes hasta que el usuario abra el enlace de veri
 - `SMTP_USER` y `SMTP_PASSWORD`: credenciales SMTP, ambas o ninguna, según el proveedor.
 - `EMAIL_FROM`: dirección remitente autorizada por el proveedor.
 
+Para Gmail, genera una contraseña de aplicación con la verificación en dos pasos habilitada y usa esta configuración:
+
+```env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=tu-correo@gmail.com
+SMTP_PASSWORD=tu-contraseña-de-aplicación
+EMAIL_FROM=tu-correo@gmail.com
+APP_URL=http://localhost:3000
+```
+
+No uses la contraseña normal de Gmail ni compartas o subas la contraseña de aplicación a Git. En producción, configura estas variables como secretos del proveedor de despliegue y establece `APP_URL` con la URL pública HTTPS.
+
 Aplica la migración de base de datos antes de desplegar:
 
 ```bash
