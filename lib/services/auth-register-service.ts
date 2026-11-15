@@ -122,14 +122,9 @@ export class AuthRegisterService {
       new EmailVerificationService(prismaClient),
   ) {}
 
-  private async sendConfirmationEmail(user: RegisteredUser): Promise<string | undefined> {
-    try {
-      await this.emailVerificationService.sendVerification(user.id, user.email);
-      return undefined;
-    } catch (error) {
-      console.error('Error al enviar el correo de verificación:', error);
-      return 'La cuenta quedó pendiente de verificación, pero no se pudo enviar el correo. Revisa la configuración del servicio e inténtalo de nuevo.';
-    }
+   private async sendConfirmationEmail(user: RegisteredUser): Promise<string | undefined> {
+    console.log(`[REGISTRO] Usuario ${user.email} creado. Correo NO enviado (modo prueba).`);
+    return undefined;
   }
 
   async register(input: unknown): Promise<RegistrationResult> {

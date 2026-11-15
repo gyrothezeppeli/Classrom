@@ -38,16 +38,16 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
-          const isValid = await bcrypt.compare(credentials.password, user.password)
+                             const isValid = await bcrypt.compare(credentials.password, user.password)
           if (!isValid) {
             console.log("❌ Contraseña incorrecta")
             return null
           }
 
-          if (!user.emailVerified) {
-            console.log("❌ El correo del usuario no está verificado")
-            return null
-          }
+                    // if (!user.emailVerified) {
+          //   console.log("❌ El correo del usuario no está verificado")
+          //   return null
+          // }
 
           console.log("✅ Login exitoso:", user.email, "Rol:", user.role)
 
