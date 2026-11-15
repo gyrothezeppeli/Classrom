@@ -658,7 +658,7 @@ const NotasPage: React.FC = () => {
     >
       <div className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
       style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }} />
-      <div className="fixed inset-0 bg-[#0a1410]/50 z-0 pointer-events-none" />
+      <div className="fixed inset-0 bg-white/20 z-0 pointer-events-none" />
 
       <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
       {/* NAVBAR */}
