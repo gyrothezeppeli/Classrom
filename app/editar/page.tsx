@@ -362,11 +362,12 @@ const EditTasksPage: React.FC = () => {
               </span>
             </div>
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
               onClick={() => eliminarPlan(vistaPreviaPlan.id)}
+              className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+             <Trash2 className="mr-2 h-4 w-4" /> Eliminar
             </Button>
           </div>
         </CardContent>
@@ -385,16 +386,17 @@ const EditTasksPage: React.FC = () => {
             {modoEdicionPlan ? "Editar Plan de Evaluación" : "Nuevo Plan de Evaluación"}
           </CardTitle>
           <Button
-            variant="destructive"
-            onClick={() => {
-              setMostrarGestorPlan(false);
-              setModoEdicionPlan(false);
-              setPlanEditandoId(null);
-              setPlanSeccionesSeleccionadas([]);
-            }}
-          >
-            <X className="mr-2 h-4 w-4" /> Cerrar Editor
-          </Button>
+  variant="outline"
+  onClick={() => {
+    setMostrarGestorPlan(false);
+    setModoEdicionPlan(false);
+    setPlanEditandoId(null);
+    setPlanSeccionesSeleccionadas([]);
+  }}
+  className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+>
+  <X className="mr-2 h-4 w-4" /> Cerrar Editor
+</Button>
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -793,10 +795,11 @@ const EditTasksPage: React.FC = () => {
                     >
                       <Pencil className="mr-2 h-4 w-4" /> Editar
                     </Button>
-                    <Button
-                      variant="destructive"
+                      <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => eliminarPlan(plan.id)}
+                      className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
                     >
                       <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                     </Button>
@@ -807,11 +810,11 @@ const EditTasksPage: React.FC = () => {
           </div>
         )}
 
-        <div className="mt-4 p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-          <p className="text-xs text-yellow-400 leading-relaxed m-0">
-            <strong>Nota:</strong> Solo puedes ver, editar y eliminar los planes que tú has creado.
-          </p>
-        </div>
+        <div className="mt-4 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+  <p className="text-xs text-blue-400 leading-relaxed m-0">
+    <strong>Nota:</strong> Solo puedes ver, editar y eliminar los planes que tú has creado.
+  </p>
+</div>
       </CardContent>
     </Card>
   );
