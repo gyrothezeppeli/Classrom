@@ -112,9 +112,7 @@ export default function EstudianteDashboard() {
       />
       <div className="fixed inset-0 bg-black/30 z-0 pointer-events-none" />
 
-      <main className="relative z-10 px-4 sm:px-[8%] py-6">
-      {/* NAVBAR */}
-      <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
+       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-emerald-400 flex items-center justify-center text-[#081a14] font-bold text-sm shadow-[0_0_20px_rgba(0,187,126,0.35)]">
             {getInitials()}
@@ -139,6 +137,8 @@ export default function EstudianteDashboard() {
 
         </div>
       </nav>
+      <main className="relative z-10 px-4 sm:px-[8%] py-6">
+      {/* NAVBAR */}
 
         <div className="liquid-login-card rounded-[35px] p-6 sm:p-8">
           <div className="liquid-login-content space-y-6">

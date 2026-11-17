@@ -660,8 +660,6 @@ const NotasPage: React.FC = () => {
       style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }} />
       <div className="fixed inset-0 bg-white/20 z-0 pointer-events-none" />
 
-      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
-      {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="text-emerald-400 font-extrabold tracking-widest text-xs">GESTIÓN DE NOTAS</div>
 
@@ -677,6 +675,9 @@ const NotasPage: React.FC = () => {
         </div>
       </nav>
 
+      <main className="page-glass-container relative z-10 max-w-350 mx-auto px-4 sm:px-[8%] py-6">
+      {/* NAVBAR */}
+      
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Button
           variant="outline"
