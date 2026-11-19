@@ -40,7 +40,8 @@ model User {
   telefono      String?
   role          Role      @default(ESTUDIANTE)
   imagen        String?
-  emailVerified DateTime?
+  emailVerified DateTime? 
+  aprobado      Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

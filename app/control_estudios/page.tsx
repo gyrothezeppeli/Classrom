@@ -48,6 +48,8 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Save,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 
 const PALETTE = {
@@ -103,7 +105,18 @@ interface Nota {
   docente?: string | null;
 }
 
-type TabType = 'estudiantes' | 'docentes' | 'notas' | 'notasDocentes' | 'actualizar';
+interface UsuarioPendiente {
+  id: string;
+  email: string;
+  nombre: string;
+  apellido?: string;
+  telefono?: string;
+  role: string;
+  createdAt: string;
+  emailVerified: string | null;
+}
+
+type TabType = 'estudiantes' | 'docentes' | 'notas' | 'notasDocentes' | 'actualizar' | 'aprobacion';
 
 interface FilaPrevisualizacion {
   cedula: string;
@@ -162,6 +175,8 @@ const GestionInstitutoPage: React.FC = () => {
 
   const [estudiantes, setEstudiantes] = useState<Estudiante[]>([]);
   const [docentes, setDocentes] = useState<Docente[]>([]);
+  const [usuariosPendientes, setUsuariosPendientes] = useState<UsuarioPendiente[]>([]);
+  const [cargandoPendientes, setCargandoPendientes] = useState(false);
 
   const [notas, setNotas] = useState<Nota[]>([]);
   const [cargandoNotas, setCargandoNotas] = useState(false);
@@ -216,6 +231,80 @@ const GestionInstitutoPage: React.FC = () => {
     };
   }, []);
 
+  // ============ CARGA DE USUARIOS PENDIENTES ============
+  const cargarPendientes = useCallback(async () => {
+    setCargandoPendientes(true);
+    try {
+      const res = await fetch('/api/usuarios/pendientes');
+      if (res.ok) {
+        const data = await res.json();
+        setUsuariosPendientes(data);
+      } else {
+        sileo.error({ title: 'Error al cargar usuarios pendientes' });
+      }
+    } catch (error) {
+      console.error('Error al cargar pendientes:', error);
+      sileo.error({ title: 'Error de conexión' });
+    } finally {
+      setCargandoPendientes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (tabActiva === 'aprobacion') {
+      void Promise.resolve().then(() => {
+        if (active) return cargarPendientes();
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [tabActiva, cargarPendientes]);
+
+  const aprobarUsuario = async (id: string) => {
+    try {
+      const res = await fetch(`/api/usuarios/aprobar/${id}`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        sileo.success({ title: 'Usuario aprobado correctamente' });
+        await cargarPendientes();
+      } else {
+        sileo.error({ title: 'Error al aprobar usuario' });
+      }
+    } catch (error) {
+      console.error('Error al aprobar:', error);
+      sileo.error({ title: 'Error de conexión' });
+    }
+  };
+
+  const rechazarUsuario = async (id: string) => {
+    setConfirmacion({
+      abierto: true,
+      titulo: '¿Rechazar usuario?',
+      descripcion: 'El usuario será eliminado del sistema y no podrá ingresar.',
+      onConfirm: async () => {
+        setConfirmacion(null);
+        try {
+          const res = await fetch(`/api/usuarios/rechazar/${id}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            sileo.success({ title: 'Usuario rechazado y eliminado' });
+            await cargarPendientes();
+          } else {
+            sileo.error({ title: 'Error al rechazar usuario' });
+          }
+        } catch (error) {
+          console.error('Error al rechazar:', error);
+          sileo.error({ title: 'Error de conexión' });
+        }
+      },
+    });
+  };
+
+  // ============ CARGA DE NOTAS ============
   const cargarNotas = useCallback(async () => {
     if (!filtroNivel || !filtroGrado || !filtroSeccion) return;
     try {
@@ -289,6 +378,8 @@ const GestionInstitutoPage: React.FC = () => {
       active = false;
     };
   }, [tabActiva]);
+
+  // ... (resto de funciones existentes: exportarNotasDocentes, handleCerrarSesion, etc.)
 
   const exportarNotasDocentes = async () => {
     try {
@@ -1152,12 +1243,14 @@ const GestionInstitutoPage: React.FC = () => {
   }
 
   const tabs = [
-    { key: 'estudiantes' as const, label: 'Estudiantes', icon: <Users className="w-4 h-4" /> },
-    { key: 'docentes' as const, label: 'Docentes', icon: <GraduationCap className="w-4 h-4" /> },
-    { key: 'notas' as const, label: 'Nóminas', icon: <ClipboardList className="w-4 h-4" /> },
-    { key: 'notasDocentes' as const, label: 'Ver Notas de Docentes', icon: <GraduationCap className="w-4 h-4" /> },
-    { key: 'actualizar' as const, label: 'Actualizar Datos', icon: <RefreshCw className="w-4 h-4" /> }
-  ];
+  { key: 'estudiantes' as const, label: 'Estudiantes', icon: <Users className="w-4 h-4" /> },
+  { key: 'docentes' as const, label: 'Docentes', icon: <GraduationCap className="w-4 h-4" /> },
+  { key: 'notas' as const, label: 'Nóminas', icon: <ClipboardList className="w-4 h-4" /> },
+  { key: 'notasDocentes' as const, label: 'Ver Notas de Docentes', icon: <GraduationCap className="w-4 h-4" /> },
+  { key: 'actualizar' as const, label: 'Actualizar Datos', icon: <RefreshCw className="w-4 h-4" /> },
+  // ✅ NUEVA PESTAÑA
+  { key: 'aprobacion' as const, label: 'Aprobación de Usuarios', icon: <UserCheck className="w-4 h-4" /> },
+];
 
   return (
     <div
@@ -1297,7 +1390,7 @@ const GestionInstitutoPage: React.FC = () => {
               </CardHeader>
 
               <CardContent className="px-4 sm:px-10 py-6 sm:py-8 space-y-6">
-                {tabActiva !== 'notas' && tabActiva !== 'notasDocentes' && (
+                {tabActiva !== 'notas' && tabActiva !== 'notasDocentes' && tabActiva !== 'aprobacion' && (
                   <>
                     <div className="space-y-4">
                       <div className="relative">
@@ -2388,7 +2481,7 @@ const GestionInstitutoPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* ============ TAB ACTUALIZAR DATOS (REFACTORIZADO) ============ */}
+                {/* ============ TAB ACTUALIZAR DATOS ============ */}
                 {tabActiva === 'actualizar' && (
                   <div className="space-y-6">
                     <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 flex justify-between items-center flex-wrap gap-4">
@@ -2569,6 +2662,77 @@ const GestionInstitutoPage: React.FC = () => {
                         </Button>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* ============ TAB APROBACIÓN ============ */}
+                {tabActiva === 'aprobacion' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <UserCheck className="w-5 h-5 text-emerald-400" />
+                      <h3 className="text-lg font-bold text-white m-0">Usuarios Pendientes de Aprobación</h3>
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        {usuariosPendientes.length} pendientes
+                      </Badge>
+                    </div>
+
+                    {cargandoPendientes ? (
+                      <div className="text-center py-12 text-gray-400">
+                        <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+                        <p>Cargando usuarios pendientes...</p>
+                      </div>
+                    ) : usuariosPendientes.length === 0 ? (
+                      <div className="text-center py-12 text-gray-400">
+                        <UserCheck className="w-16 h-16 text-emerald-500/30 mx-auto mb-4" />
+                        <p className="text-lg">No hay usuarios pendientes de aprobación</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-white/5 overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-black/20">
+                              {['Nombre', 'Apellido', 'Email', 'Rol', 'Fecha de Registro', 'Acciones'].map((h) => (
+                                <TableHead key={h} className="text-emerald-400 font-bold text-xs uppercase">{h}</TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {usuariosPendientes.map((u) => (
+                              <TableRow key={u.id} className="border-white/5 hover:bg-white/5">
+                                <TableCell className="text-white">{u.nombre}</TableCell>
+                                <TableCell className="text-white">{u.apellido || '-'}</TableCell>
+                                <TableCell className="text-gray-400 text-sm">{u.email}</TableCell>
+                                <TableCell>
+                                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">{u.role}</Badge>
+                                </TableCell>
+                                <TableCell className="text-gray-400 text-sm">
+                                  {new Date(u.createdAt).toLocaleDateString('es-ES')}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => aprobarUsuario(u.id)}
+                                      className="bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold h-8"
+                                    >
+                                      <UserCheck className="w-3 h-3 mr-1" /> Aprobar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => rechazarUsuario(u.id)}
+                                      className="h-8"
+                                    >
+                                      <UserX className="w-3 h-3 mr-1" /> Rechazar
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
