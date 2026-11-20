@@ -49,11 +49,13 @@ const AuthPage: React.FC = () => {
   const [errores, setErrores] = useState<ErroresForm>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showCodigo, setShowCodigo] = useState(false);
-    // Estados para el Captcha
+
+  // Estados para el Captcha
   const [captchaPregunta, setCaptchaPregunta] = useState('');
   const [captchaRespuesta, setCaptchaRespuesta] = useState('');
   const [captchaInput, setCaptchaInput] = useState('');
   const [captchaError, setCaptchaError] = useState('');
+
   const rememberedEmail = useSyncExternalStore(
     rememberedEmailStore.subscribe,
     rememberedEmailStore.getSnapshot,
@@ -64,6 +66,14 @@ const AuthPage: React.FC = () => {
   const [formData, setFormData] = useState<AuthFormData>(() => AuthForm.createEmptyData());
   const emailActual = emailEdited ? formData.email : rememberedEmail || formData.email;
   const datosFormulario: AuthFormData = { ...formData, email: emailActual };
+
+  const refrescarCaptcha = (preguntaActual = '') => {
+    const nuevoCaptcha = generarCaptchaSuma(preguntaActual);
+    setCaptchaPregunta(nuevoCaptcha.pregunta);
+    setCaptchaRespuesta(nuevoCaptcha.respuesta);
+    setCaptchaInput('');
+    setCaptchaError('');
+  };
 
   useEffect(() => {
     if (loginExitoso && session?.user) {
@@ -109,6 +119,7 @@ const AuthPage: React.FC = () => {
     setCaptchaPregunta(captcha.pregunta);
     setCaptchaRespuesta(captcha.respuesta);
   }, []);
+
   const authForm = new AuthForm(datosFormulario, userRole, isLogin);
   const requiereCodigo = authForm.requiresAccessCode;
 
@@ -196,25 +207,25 @@ const AuthPage: React.FC = () => {
       return;
     }
 
+    if (captchaInput.trim() !== captchaRespuesta) {
+      const nuevoCaptcha = generarCaptchaSuma(captchaPregunta);
+      setCaptchaPregunta(nuevoCaptcha.pregunta);
+      setCaptchaRespuesta(nuevoCaptcha.respuesta);
+      setCaptchaInput('');
+      setCaptchaError('La respuesta no coincide. Se generó una nueva suma; inténtalo nuevamente.');
+      sileo.error({
+        title: 'Error de seguridad',
+        description: 'La respuesta no coincide. Se generó una nueva suma matemática.',
+      });
+      return;
+    }
+
+    setCaptchaError('');
     setErrores({});
     setLoading(true);
 
     try {
       if (!isLogin) {
-        if (captchaInput.trim() !== captchaRespuesta) {
-          const nuevoCaptcha = generarCaptchaSuma(captchaPregunta);
-          setCaptchaPregunta(nuevoCaptcha.pregunta);
-          setCaptchaRespuesta(nuevoCaptcha.respuesta);
-          setCaptchaInput('');
-          setCaptchaError('La respuesta no coincide. Se generó una nueva suma; inténtalo nuevamente.');
-          sileo.error({
-            title: 'Error de seguridad',
-            description: 'La respuesta no coincide. Se generó una nueva suma matemática.',
-          });
-          setLoading(false);
-          return;
-        }
-        setCaptchaError('');
         if (authForm.requiresAccessCode && !authForm.hasValidAccessCode()) {
           sileo.error({
             title: 'Código incorrecto',
@@ -244,6 +255,7 @@ const AuthPage: React.FC = () => {
         setIsLogin(true);
         setFormData(AuthForm.createEmptyData());
         setErrores({});
+        refrescarCaptcha();
         setLoading(false);
         return;
       }
@@ -251,6 +263,7 @@ const AuthPage: React.FC = () => {
       const result = await authService.login(emailActual, formData.password);
 
       if (result?.error) {
+        refrescarCaptcha(captchaPregunta);
         sileo.error({
           title: 'Credenciales incorrectas',
           description: 'Verifica tus credenciales y confirma tu correo antes de iniciar sesión.',
@@ -619,39 +632,39 @@ const AuthPage: React.FC = () => {
                   </label>
                 </div>
               )}
+
               {/* === CAPTCHA === */}
-              {!isLogin && (
-                <div className="mt-2 bg-black/20 p-4 rounded-2xl border border-white/10">
-                  <label className="text-white/80 text-sm mb-2 block font-medium">
-                    Verificación de seguridad: {captchaPregunta} *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Escribe tu respuesta"
-                    value={captchaInput}
-                    onChange={(e) => {
-                      setCaptchaInput(e.target.value);
-                      if (captchaError) setCaptchaError('');
-                    }}
-                    disabled={loading}
-                    className="w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-xl h-12 px-4 outline-none focus:border-white/40 transition-all text-sm"
-                  />
-                  {captchaError && (
-                    <p className="mt-2 text-sm text-red-300" role="alert">
-                      {captchaError}
-                    </p>
-                  )}
-                </div>
-              )}
+              <div className="mt-2 bg-black/20 p-4 rounded-2xl border border-white/10">
+                <label className="text-white/80 text-sm mb-2 block font-medium">
+                  Verificación de seguridad: {captchaPregunta} *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Escribe tu respuesta"
+                  value={captchaInput}
+                  onChange={(e) => {
+                    setCaptchaInput(e.target.value);
+                    if (captchaError) setCaptchaError('');
+                  }}
+                  disabled={loading}
+                  className="w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-xl h-12 px-4 outline-none focus:border-white/40 transition-all text-sm"
+                />
+                {captchaError && (
+                  <p className="mt-2 text-sm text-red-300" role="alert">
+                    {captchaError}
+                  </p>
+                )}
+              </div>
+
               <button
                 type="submit"
                 className="mt-3 w-full h-14 rounded-2xl font-semibold text-base text-[#1a2e26] transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                 style={{
                   background: loading
                     ? 'rgba(255,255,255,0.5)'
-                    : 'linear-gradient(135deg, #00BB7E, #00d68f)', 
+                    : 'linear-gradient(135deg, #00BB7E, #00d68f)',
                   boxShadow: '0 10px 40px rgba(0,187,126,0.3)',
-                  color: '#ffffff' 
+                  color: '#ffffff'
                 }}
               >
                 {loading ? 'Procesando...' : (isLogin ? 'Iniciar sesión' : 'Crear cuenta')}
@@ -665,6 +678,7 @@ const AuthPage: React.FC = () => {
                     setIsLogin(!isLogin);
                     setErrores({});
                     resetFormData();
+                    refrescarCaptcha();
                   }}
                   className="text-white hover:text-emerald-400 font-semibold underline-offset-2 hover:underline transition-all"
                 >
