@@ -18,36 +18,55 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          console.log("Intentando login con:", credentials?.email)
+          const rawEmail = credentials?.email?.trim()
+          const rawPassword = credentials?.password
 
-          if (!credentials?.email || !credentials?.password) {
+          if (!rawEmail || !rawPassword) {
             console.log("Faltan credenciales")
             return null
           }
 
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
+          const emailLower = rawEmail.toLowerCase()
+
+          // 1. Buscar por email normalizado en minúsculas
+          let user = await prisma.user.findUnique({
+            where: { email: emailLower },
             include: {
               docente: true,
               estudiante: true
             }
           })
 
+          // 2. Si no aparece, buscar sin distinguir mayúsculas/minúsculas (por si quedó guardado con mayúsculas)
+          if (!user) {
+            user = await prisma.user.findFirst({
+              where: {
+                email: {
+                  equals: rawEmail,
+                  mode: "insensitive"
+                }
+              },
+              include: {
+                docente: true,
+                estudiante: true
+              }
+            })
+          }
+
           if (!user || !user.password) {
-            console.log("Usuario no encontrado")
+            console.log("Usuario no encontrado para:", emailLower)
             return null
           }
 
-          const isValid = await bcrypt.compare(credentials.password, user.password)
+          const isValid = await bcrypt.compare(rawPassword, user.password)
           if (!isValid) {
-            console.log("Contraseña incorrecta")
+            console.log("Contraseña incorrecta para:", user.email)
             return null
           }
 
-          // --- AQUÍ VA EL CAMBIO ---
           // Solo exigimos verificación y aprobación a quienes se registren a partir de esta fecha
           const FECHA_ACTIVACION = new Date("2026-11-20T00:00:00.000Z")
-          const esUsuarioNuevo = user.createdAt >= FECHA_ACTIVACION
+          const esUsuarioNuevo = user.createdAt ? new Date(user.createdAt) >= FECHA_ACTIVACION : false
 
           if (esUsuarioNuevo) {
             if (!user.emailVerified) {
@@ -60,7 +79,6 @@ export const authOptions: NextAuthOptions = {
               return null
             }
           }
-          // -------------------------
 
           console.log("Login exitoso:", user.email, "Rol:", user.role)
 
