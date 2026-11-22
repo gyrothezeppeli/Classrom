@@ -307,6 +307,7 @@ const GestionInstitutoPage: React.FC = () => {
   // ============ CARGA DE NOTAS ============
   const cargarNotas = useCallback(async () => {
     if (!filtroNivel || !filtroGrado || !filtroSeccion) return;
+    setCargandoNotas(true);
     try {
       const params = new URLSearchParams({
         nivel: filtroNivel,
@@ -378,8 +379,6 @@ const GestionInstitutoPage: React.FC = () => {
       active = false;
     };
   }, [tabActiva]);
-
-  // ... (resto de funciones existentes: exportarNotasDocentes, handleCerrarSesion, etc.)
 
   const exportarNotasDocentes = async () => {
     try {
@@ -1144,7 +1143,6 @@ const GestionInstitutoPage: React.FC = () => {
     setFiltroSeccion('');
     setFiltroMateria('');
     setFiltroDocente('');
-    // Limpiamos también los estados de actualización al cambiar de pestaña
     setSeleccionados([]);
     setNuevoNivel('');
     setNuevoGrado('');
@@ -1190,7 +1188,6 @@ const GestionInstitutoPage: React.FC = () => {
         throw new Error(err.error || 'Error al actualizar');
       }
 
-      // Actualizamos el estado local para reflejar los cambios
       setEstudiantes(prev => prev.map(est => {
         if (seleccionados.includes(est.id)) {
           return {
@@ -1208,7 +1205,6 @@ const GestionInstitutoPage: React.FC = () => {
         description: `${seleccionados.length} estudiante(s) actualizado(s)` 
       });
 
-      // Limpiamos la selección y los filtros de actualización
       setSeleccionados([]);
       setNuevoNivel('');
       setNuevoGrado('');
@@ -1243,14 +1239,13 @@ const GestionInstitutoPage: React.FC = () => {
   }
 
   const tabs = [
-  { key: 'estudiantes' as const, label: 'Estudiantes', icon: <Users className="w-4 h-4" /> },
-  { key: 'docentes' as const, label: 'Docentes', icon: <GraduationCap className="w-4 h-4" /> },
-  { key: 'notas' as const, label: 'Nóminas', icon: <ClipboardList className="w-4 h-4" /> },
-  { key: 'notasDocentes' as const, label: 'Ver Notas de Docentes', icon: <GraduationCap className="w-4 h-4" /> },
-  { key: 'actualizar' as const, label: 'Actualizar Datos', icon: <RefreshCw className="w-4 h-4" /> },
-  // ✅ NUEVA PESTAÑA
-  { key: 'aprobacion' as const, label: 'Aprobación de Usuarios', icon: <UserCheck className="w-4 h-4" /> },
-];
+    { key: 'estudiantes' as const, label: 'Estudiantes', icon: <Users className="w-4 h-4" /> },
+    { key: 'docentes' as const, label: 'Docentes', icon: <GraduationCap className="w-4 h-4" /> },
+    { key: 'notas' as const, label: 'Nóminas', icon: <ClipboardList className="w-4 h-4" /> },
+    { key: 'notasDocentes' as const, label: 'Ver Notas de Docentes', icon: <GraduationCap className="w-4 h-4" /> },
+    { key: 'actualizar' as const, label: 'Actualizar Datos', icon: <RefreshCw className="w-4 h-4" /> },
+    { key: 'aprobacion' as const, label: 'Aprobación de Usuarios', icon: <UserCheck className="w-4 h-4" /> },
+  ];
 
   return (
     <div
@@ -1259,9 +1254,9 @@ const GestionInstitutoPage: React.FC = () => {
     >
       <div
         className="fixed inset-0 bg-cover bg-center z-0 pointer-events-none"
-        style={{ backgroundImage: 'url("/assets/img/pc2.jpeg")' }}
+        style={{ backgroundImage: 'url("/assets/img/pc.jpg")' }}
       />
-      <div className="fixed inset-0 bg-white/20 z-0 pointer-events-none" />
+      <div className="fixed inset-0 bg-[#0a1410]/45 z-0 pointer-events-none" />
 
       <nav className="sticky top-0 z-50 flex justify-between items-center px-4 sm:px-[8%] py-3 bg-[#1a2e26]/60 backdrop-blur-2xl border-b border-white/5">
         <div className="text-emerald-400 font-extrabold tracking-widest text-xs">
@@ -1275,6 +1270,7 @@ const GestionInstitutoPage: React.FC = () => {
             {tabActiva === 'notas' && `${notas.length} notas`}
             {tabActiva === 'notasDocentes' && `${notasDocentes.length} notas`}
             {tabActiva === 'actualizar' && 'Actualizar'}
+            {tabActiva === 'aprobacion' && `${usuariosPendientes.length} pendientes`}
           </Badge>
         </div>
       </nav>
@@ -1303,7 +1299,6 @@ const GestionInstitutoPage: React.FC = () => {
       </div>
 
         <Card className="bg-white/3 backdrop-blur-xl border-white/5 overflow-hidden rounded-3xl">
-          {/* Layout principal: Sidebar y Contenido */}
           <div className="flex flex-col lg:flex-row min-h-[600px]">
             
             {/* Sidebar Vertical */}
@@ -1350,6 +1345,7 @@ const GestionInstitutoPage: React.FC = () => {
                     {tabActiva === 'notas' && 'Nóminas'}
                     {tabActiva === 'notasDocentes' && 'Notas Subidas por Docentes'}
                     {tabActiva === 'actualizar' && 'Actualizar Datos de Estudiantes'}
+                    {tabActiva === 'aprobacion' && 'Aprobación de Usuarios'}
                   </CardTitle>
                   <p className="text-gray-400 text-sm sm:text-base m-0">
                     {tabActiva === 'estudiantes' && `Total: ${estudiantes.length} estudiantes registrados`}
@@ -1357,6 +1353,7 @@ const GestionInstitutoPage: React.FC = () => {
                     {tabActiva === 'notas' && 'Visualiza y exporta nóminas de calificaciones'}
                     {tabActiva === 'notasDocentes' && 'Revisa las calificaciones subidas por los docentes'}
                     {tabActiva === 'actualizar' && `Seleccione los estudiantes para actualizar`}
+                    {tabActiva === 'aprobacion' && 'Revisa y aprueba cuentas nuevas registradas en el sistema'}
                   </p>
                 </div>
 
@@ -2809,5 +2806,4 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     </div>
   );
 };
-
 export default GestionInstitutoPage;

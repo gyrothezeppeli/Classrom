@@ -196,7 +196,7 @@ export const MateriaGrid: React.FC<{
               <div className="relative z-10 h-full flex flex-col justify-between p-4">
                 <div className="flex justify-end">
                   {planesNuevos > 0 && (
-                    <span className="bg-red-500 text-white text-[0.65rem] font-bold px-2 py-0.5 rounded-full shadow-lg">
+                    <span className="bg-sky-500 text-white text-[0.65rem] font-bold px-2 py-0.5 rounded-full shadow-lg border border-sky-300/40">
                       {planesNuevos} nuevo{planesNuevos > 1 ? 's' : ''}
                     </span>
                   )}
@@ -229,7 +229,7 @@ export const MateriaGrid: React.FC<{
                     {tienePlanes && (
                       <span className={`text-[0.6rem] font-semibold px-1.5 py-0.5 rounded-md ${
                         planesNuevos > 0
-                          ? 'bg-red-500/80 text-white'
+                          ? 'bg-sky-500/85 text-white border border-sky-300/40'
                           : 'bg-white/20 backdrop-blur-sm text-white'
                       }`}>
                         {planesNuevos > 0 ? `${planesNuevos} nuevo${planesNuevos > 1 ? 's' : ''}` : `${materia.planEvaluacion.length} plan${materia.planEvaluacion.length > 1 ? 'es' : ''}`}
@@ -308,7 +308,7 @@ export const MateriaGrid: React.FC<{
                   <Badge
                     className={
                       planesNuevos > 0
-                        ? "bg-red-500/80 backdrop-blur-sm text-white border-red-400/50 hover:bg-red-500/90"
+                        ? "bg-sky-500/85 backdrop-blur-sm text-white border-sky-300/50 hover:bg-sky-500/95"
                         : "bg-white/20 backdrop-blur-sm text-white border-white/30 hover:bg-white/30"
                     }
                   >
@@ -327,7 +327,7 @@ export const MateriaGrid: React.FC<{
                   onClick={(e) => { e.stopPropagation(); onSelectPlan(primerPlan); }}
                   className={`w-full font-semibold rounded-xl backdrop-blur-sm ${
                     planesNuevos > 0
-                      ? 'bg-red-500/25 text-white hover:bg-red-500/40 border border-red-400/40'
+                      ? 'bg-sky-500/30 text-white hover:bg-sky-500/45 border border-sky-300/45'
                       : 'bg-white/20 text-white hover:bg-white/30 border border-white/30'
                   }`}
                   variant="outline"
@@ -404,7 +404,7 @@ export const MateriaDetalle: React.FC<{
                   />
                   <h2 className="text-white text-3xl font-bold m-0">{materia.nombre}</h2>
                   {hasPlanesNuevos() && (
-                    <Badge className="bg-red-500 text-white border-red-500">
+                    <Badge className="bg-sky-500 text-white border-sky-300/40">
                       Nuevos
                     </Badge>
                   )}
