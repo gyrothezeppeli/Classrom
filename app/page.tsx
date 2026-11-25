@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import React, { useState, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { sileo } from 'sileo';
@@ -18,26 +18,29 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: {
+          sitekey: string;
+          callback?: (token: string) => void;
+          'expired-callback'?: () => void;
+          'error-callback'?: () => void;
+          theme?: 'light' | 'dark' | 'auto';
+        }
+      ) => string;
+      reset: (widgetId?: string) => void;
+      remove: (widgetId?: string) => void;
+    };
+  }
+}
+
 type ErroresForm = AuthFormErrors;
 const authService = new AuthService();
 const rememberedEmailStore = new RememberedEmailStore();
-
-const generarCaptchaSuma = (preguntaAnterior = '') => {
-  let numero1: number;
-  let numero2: number;
-  let pregunta: string;
-
-  do {
-    numero1 = Math.floor(Math.random() * 10) + 1;
-    numero2 = Math.floor(Math.random() * 10) + 1;
-    pregunta = `¿Cuánto es ${numero1} + ${numero2}?`;
-  } while (pregunta === preguntaAnterior);
-
-  return {
-    pregunta,
-    respuesta: (numero1 + numero2).toString(),
-  };
-};
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
 const AuthPage: React.FC = () => {
   const router = useRouter();
@@ -50,11 +53,11 @@ const AuthPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showCodigo, setShowCodigo] = useState(false);
 
-  // Estados para el Captcha
-  const [captchaPregunta, setCaptchaPregunta] = useState('');
-  const [captchaRespuesta, setCaptchaRespuesta] = useState('');
-  const [captchaInput, setCaptchaInput] = useState('');
+  // Estados y refs para Cloudflare Turnstile
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [captchaError, setCaptchaError] = useState('');
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
 
   const rememberedEmail = useSyncExternalStore(
     rememberedEmailStore.subscribe,
@@ -67,12 +70,16 @@ const AuthPage: React.FC = () => {
   const emailActual = emailEdited ? formData.email : rememberedEmail || formData.email;
   const datosFormulario: AuthFormData = { ...formData, email: emailActual };
 
-  const refrescarCaptcha = (preguntaActual = '') => {
-    const nuevoCaptcha = generarCaptchaSuma(preguntaActual);
-    setCaptchaPregunta(nuevoCaptcha.pregunta);
-    setCaptchaRespuesta(nuevoCaptcha.respuesta);
-    setCaptchaInput('');
+  const resetTurnstile = () => {
+    setTurnstileToken('');
     setCaptchaError('');
+    if (window.turnstile && turnstileWidgetIdRef.current) {
+      try {
+        window.turnstile.reset(turnstileWidgetIdRef.current);
+      } catch {
+        // Ignorar si el widget aún no está montado
+      }
+    }
   };
 
   useEffect(() => {
@@ -93,7 +100,7 @@ const AuthPage: React.FC = () => {
     }
   }, [status, session, router, loginExitoso]);
 
-  useEffect(() => {
+ useEffect(() => {
     const verificationStatus = new URLSearchParams(window.location.search)
       .get('emailVerification');
     if (!verificationStatus) return;
@@ -101,7 +108,7 @@ const AuthPage: React.FC = () => {
     if (verificationStatus === 'success') {
       sileo.success({
         title: 'Correo confirmado',
-        description: 'Tu cuenta está activa. Ya puedes iniciar sesión.',
+        description: 'Tu correo fue verificado. Si eres estudiante, tu cuenta pasará a revisión por Control de Estudios.',
       });
     } else {
       sileo.error({
@@ -113,12 +120,74 @@ const AuthPage: React.FC = () => {
     router.replace('/');
   }, [router]);
 
-  // Generar una suma matemática al cargar el componente
+  // Cargar e inicializar el widget de Cloudflare Turnstile
   useEffect(() => {
-    const captcha = generarCaptchaSuma();
-    setCaptchaPregunta(captcha.pregunta);
-    setCaptchaRespuesta(captcha.respuesta);
-  }, []);
+    if (!TURNSTILE_SITE_KEY) {
+      setCaptchaError('Falta configurar NEXT_PUBLIC_TURNSTILE_SITE_KEY.');
+      return;
+    }
+
+    const renderWidget = () => {
+      if (!turnstileContainerRef.current || !window.turnstile) return;
+
+      if (turnstileWidgetIdRef.current) {
+        try {
+          window.turnstile.remove(turnstileWidgetIdRef.current);
+        } catch {
+          // Ignorar si ya fue removido
+        }
+        turnstileWidgetIdRef.current = null;
+      }
+
+      turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        theme: 'dark',
+        callback: (token: string) => {
+          setTurnstileToken(token);
+          setCaptchaError('');
+        },
+        'expired-callback': () => {
+          setTurnstileToken('');
+          setCaptchaError('La verificación expiró. Vuelve a completarla.');
+        },
+        'error-callback': () => {
+          setTurnstileToken('');
+          setCaptchaError('No se pudo cargar Cloudflare Turnstile. Intenta de nuevo.');
+        },
+      });
+    };
+
+    const existingScript = document.querySelector(
+      'script[src^="https://challenges.cloudflare.com/turnstile/v0/api.js"]'
+    ) as HTMLScriptElement | null;
+
+    if (window.turnstile) {
+      renderWidget();
+    } else if (existingScript) {
+      existingScript.addEventListener('load', renderWidget);
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      script.async = true;
+      script.defer = true;
+      script.addEventListener('load', renderWidget);
+      document.body.appendChild(script);
+    }
+
+    return () => {
+      if (existingScript) {
+        existingScript.removeEventListener('load', renderWidget);
+      }
+      if (window.turnstile && turnstileWidgetIdRef.current) {
+        try {
+          window.turnstile.remove(turnstileWidgetIdRef.current);
+        } catch {
+          // Ignorar al desmontar
+        }
+        turnstileWidgetIdRef.current = null;
+      }
+    };
+  }, [isLogin]);
 
   const authForm = new AuthForm(datosFormulario, userRole, isLogin);
   const requiereCodigo = authForm.requiresAccessCode;
@@ -207,15 +276,11 @@ const AuthPage: React.FC = () => {
       return;
     }
 
-    if (captchaInput.trim() !== captchaRespuesta) {
-      const nuevoCaptcha = generarCaptchaSuma(captchaPregunta);
-      setCaptchaPregunta(nuevoCaptcha.pregunta);
-      setCaptchaRespuesta(nuevoCaptcha.respuesta);
-      setCaptchaInput('');
-      setCaptchaError('La respuesta no coincide. Se generó una nueva suma; inténtalo nuevamente.');
+    if (!turnstileToken) {
+      setCaptchaError('Completa la verificación de seguridad de Cloudflare.');
       sileo.error({
-        title: 'Error de seguridad',
-        description: 'La respuesta no coincide. Se generó una nueva suma matemática.',
+        title: 'Verificación requerida',
+        description: 'Completa el CAPTCHA de Cloudflare antes de continuar.',
       });
       return;
     }
@@ -231,11 +296,15 @@ const AuthPage: React.FC = () => {
             title: 'Código incorrecto',
             description: 'El código de acceso es inválido',
           });
+          resetTurnstile();
           setLoading(false);
           return;
         }
 
-        const userData = authForm.toRegistrationPayload();
+        const userData = {
+          ...authForm.toRegistrationPayload(),
+          turnstileToken,
+        };
 
         const result = await authService.register(userData);
         if (result.error) {
@@ -243,19 +312,25 @@ const AuthPage: React.FC = () => {
             title: 'Error al registrar',
             description: result.error,
           });
+          resetTurnstile();
           setLoading(false);
           return;
         }
 
+        const descripcionRegistro =
+          userRole === 'student'
+            ? `Enviamos un enlace de confirmación a ${emailActual}. Una vez confirmado, tu registro quedará en revisión hasta ser aprobado por Control de Estudios.`
+            : `Enviamos un enlace de confirmación a ${emailActual}. Ábrelo para activar tu cuenta.`;
+
         sileo.success({
           title: 'Revisa tu correo',
-          description: `Enviamos un enlace de confirmación a ${emailActual}. Ábrelo para activar tu cuenta.`,
+          description: descripcionRegistro,
         });
 
         setIsLogin(true);
         setFormData(AuthForm.createEmptyData());
         setErrores({});
-        refrescarCaptcha();
+        resetTurnstile();
         setLoading(false);
         return;
       }
@@ -263,11 +338,24 @@ const AuthPage: React.FC = () => {
       const result = await authService.login(emailActual, formData.password);
 
       if (result?.error) {
-        refrescarCaptcha(captchaPregunta);
-        sileo.error({
-          title: 'Credenciales incorrectas',
-          description: 'Verifica tus credenciales y confirma tu correo antes de iniciar sesión.',
-        });
+        resetTurnstile();
+        const mensajeLogin =
+          result.error.includes('EMAIL_NOT_VERIFIED')
+            ? {
+                title: 'Correo sin confirmar',
+                description: 'Revisa tu bandeja de entrada y abre el enlace de confirmación antes de iniciar sesión.',
+              }
+            : result.error.includes('ACCOUNT_IN_REVIEW')
+              ? {
+                  title: 'Cuenta en revisión',
+                  description: 'Tu registro aún está en revisión por Control de Estudios. Podrás ingresar cuando sea aprobado.',
+                }
+              : {
+                  title: 'No se pudo iniciar sesión',
+                  description: 'Verifica tu correo y contraseña, o confirma si tu cuenta ya está activa.',
+                };
+
+        sileo.error(mensajeLogin);
         setLoading(false);
         return;
       }
@@ -278,6 +366,7 @@ const AuthPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error general:', error);
+      resetTurnstile();
       sileo.error({
         title: 'Error de conexión',
         description: 'Verifica que el servidor esté funcionando',
@@ -633,22 +722,12 @@ const AuthPage: React.FC = () => {
                 </div>
               )}
 
-              {/* === CAPTCHA === */}
+              {/* === CLOUDFLARE TURNSTILE === */}
               <div className="mt-2 bg-black/20 p-4 rounded-2xl border border-white/10">
-                <label className="text-white/80 text-sm mb-2 block font-medium">
-                  Verificación de seguridad: {captchaPregunta} *
-                </label>
-                <input
-                  type="text"
-                  placeholder="Escribe tu respuesta"
-                  value={captchaInput}
-                  onChange={(e) => {
-                    setCaptchaInput(e.target.value);
-                    if (captchaError) setCaptchaError('');
-                  }}
-                  disabled={loading}
-                  className="w-full bg-white/10 border border-white/15 text-white placeholder:text-white/50 rounded-xl h-12 px-4 outline-none focus:border-white/40 transition-all text-sm"
-                />
+                <span className="text-white/80 text-sm mb-2 block font-medium">
+                  Verificación de seguridad *
+                </span>
+                <div ref={turnstileContainerRef} className="flex justify-center overflow-hidden" />
                 {captchaError && (
                   <p className="mt-2 text-sm text-red-300" role="alert">
                     {captchaError}
@@ -678,7 +757,7 @@ const AuthPage: React.FC = () => {
                     setIsLogin(!isLogin);
                     setErrores({});
                     resetFormData();
-                    refrescarCaptcha();
+                    resetTurnstile();
                   }}
                   className="text-white hover:text-emerald-400 font-semibold underline-offset-2 hover:underline transition-all"
                 >

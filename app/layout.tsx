@@ -39,7 +39,16 @@ export default function RootLayout({
         <Providers>
           <RegistrarSW />   {/* ✅ NUEVO: registra el Service Worker */}
           {children}
-          <Toaster position="top-right" />
+         <Toaster
+  position="top-right"
+  theme="light"
+  options={{
+    styles: {
+      title: "!text-white !font-semibold",
+      description: "!text-neutral-200",
+    },
+  }}
+/>
         </Providers>
       </body>
     </html>

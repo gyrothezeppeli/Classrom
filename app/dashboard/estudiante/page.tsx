@@ -120,7 +120,7 @@ export default function EstudianteDashboard() {
           <div className="flex flex-col leading-tight">
             <span className="font-semibold text-sm">{nombreCompleto}</span>
             <span className="text-gray-400 text-[0.7rem]">
-              {estudiante.grado || '?'}° {etiqueta} • Sección {estudiante.seccion || ''}
+             {estudiante.grado || '?'} • Sección {estudiante.seccion || ''}
             </span>
           </div>
         </div>

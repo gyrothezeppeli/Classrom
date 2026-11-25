@@ -71,12 +71,12 @@ export const authOptions: NextAuthOptions = {
           if (esUsuarioNuevo) {
             if (!user.emailVerified) {
               console.log("El correo del usuario no está verificado")
-              return null
+              throw new Error("EMAIL_NOT_VERIFIED")
             }
 
             if (!user.aprobado) {
-              console.log("La cuenta está pendiente de aprobación por Control de Estudios")
-              return null
+              console.log("La cuenta está en revisión por Control de Estudios")
+              throw new Error("ACCOUNT_IN_REVIEW")
             }
           }
 
@@ -91,6 +91,12 @@ export const authOptions: NextAuthOptions = {
             estudianteId: user.estudiante?.id,
           }
         } catch (error) {
+          if (
+            error instanceof Error &&
+            (error.message === "EMAIL_NOT_VERIFIED" || error.message === "ACCOUNT_IN_REVIEW")
+          ) {
+            throw error
+          }
           console.error("Error en authorize:", error)
           return null
         }
